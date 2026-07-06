@@ -1129,3 +1129,132 @@ class RimSynapseDB:
             conn.commit()
             return {"log_id": cursor.lastrowid, "status": "logged"}
 
+    # -----------------------------------------------------------------------
+    # Dashboard Stats
+    # -----------------------------------------------------------------------
+    def get_stats(self) -> dict:
+        """Get comprehensive database statistics for the dashboard."""
+        with self._get_conn() as conn:
+            cursor = conn.cursor()
+
+            # Table row counts
+            tables = {}
+            for table in ["colonies", "pawns", "pawn_traits", "pawn_skills",
+                          "memories", "relationships", "opinion_samples",
+                          "interactions", "interaction_messages", "narrative_threads",
+                          "prompt_log", "schema_registry"]:
+                try:
+                    count = cursor.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                    tables[table] = count
+                except Exception:
+                    tables[table] = 0
+
+            # Schema version
+            schema_version = cursor.execute("PRAGMA user_version").fetchone()[0]
+
+            # DB file size
+            try:
+                db_size_bytes = os.path.getsize(self.db_path)
+            except Exception:
+                db_size_bytes = 0
+
+            # Colony summaries
+            colonies = []
+            for row in cursor.execute("""
+                SELECT c.id, c.colony_name, c.biome, c.ideology_name,
+                       (SELECT COUNT(*) FROM pawns WHERE colony_id = c.id AND is_alive = 1) as pawn_count,
+                       (SELECT COUNT(*) FROM memories WHERE colony_id = c.id) as memory_count,
+                       (SELECT COUNT(*) FROM relationships WHERE colony_id = c.id) as relationship_count,
+                       (SELECT COUNT(*) FROM narrative_threads WHERE colony_id = c.id AND is_resolved = 0) as active_threads
+                FROM colonies c ORDER BY c.last_played_at DESC
+            """).fetchall():
+                colonies.append(dict(row))
+
+            # Mod registry
+            mods = []
+            for row in cursor.execute("SELECT * FROM schema_registry ORDER BY updated_at DESC").fetchall():
+                mods.append(dict(row))
+
+            # Memory weight distribution (for heatmap)
+            weight_dist = {"decaying": 0, "stable": 0, "active": 0, "hot": 0}
+            for row in cursor.execute("""
+                SELECT
+                    SUM(CASE WHEN weight < 0.2 THEN 1 ELSE 0 END) as decaying,
+                    SUM(CASE WHEN weight >= 0.2 AND weight < 0.5 THEN 1 ELSE 0 END) as stable,
+                    SUM(CASE WHEN weight >= 0.5 AND weight < 0.8 THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN weight >= 0.8 THEN 1 ELSE 0 END) as hot
+                FROM memories
+            """).fetchall():
+                weight_dist = {
+                    "decaying": row[0] or 0,
+                    "stable": row[1] or 0,
+                    "active": row[2] or 0,
+                    "hot": row[3] or 0,
+                }
+
+            # Thread weight distribution
+            thread_dist = {"fading": 0, "active": 0, "hot": 0}
+            for row in cursor.execute("""
+                SELECT
+                    SUM(CASE WHEN weight < 0.3 THEN 1 ELSE 0 END) as fading,
+                    SUM(CASE WHEN weight >= 0.3 AND weight < 0.7 THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN weight >= 0.7 THEN 1 ELSE 0 END) as hot
+                FROM narrative_threads WHERE is_resolved = 0
+            """).fetchall():
+                thread_dist = {
+                    "fading": row[0] or 0,
+                    "active": row[1] or 0,
+                    "hot": row[2] or 0,
+                }
+
+            return {
+                "schema_version": schema_version,
+                "db_size_bytes": db_size_bytes,
+                "tables": tables,
+                "colonies": colonies,
+                "mods": mods,
+                "weight_distribution": weight_dist,
+                "thread_distribution": thread_dist,
+                "totals": {
+                    "colonies": tables.get("colonies", 0),
+                    "pawns": tables.get("pawns", 0),
+                    "memories": tables.get("memories", 0),
+                    "relationships": tables.get("relationships", 0),
+                    "interactions": tables.get("interactions", 0),
+                    "threads": tables.get("narrative_threads", 0),
+                },
+            }
+
+    def get_recent_memories(self, limit: int = 20) -> list[dict]:
+        """Get most recent memories across all colonies for the live feed."""
+        with self._get_conn() as conn:
+            rows = conn.execute("""
+                SELECT m.*, p.name_nick as pawn_name, c.colony_name
+                FROM memories m
+                LEFT JOIN pawns p ON m.pawn_id = p.id
+                LEFT JOIN colonies c ON m.colony_id = c.id
+                ORDER BY m.created_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_pawn_details_for_dashboard(self, colony_id: int) -> list[dict]:
+        """Get pawns with traits and key relationship info for the dashboard."""
+        with self._get_conn() as conn:
+            pawns = []
+            for row in conn.execute("""
+                SELECT p.*, 
+                       (SELECT COUNT(*) FROM relationships 
+                        WHERE pawn_a_id = p.id OR pawn_b_id = p.id) as relationship_count,
+                       (SELECT COUNT(*) FROM memories WHERE pawn_id = p.id) as memory_count
+                FROM pawns p
+                WHERE p.colony_id = ? AND p.is_alive = 1
+                ORDER BY p.name_nick
+            """, (colony_id,)).fetchall():
+                pawn = dict(row)
+                pawn["traits"] = [dict(r) for r in conn.execute(
+                    "SELECT label, degree FROM pawn_traits WHERE pawn_id = ?", (pawn["id"],)
+                ).fetchall()]
+                pawns.append(pawn)
+            return pawns
+

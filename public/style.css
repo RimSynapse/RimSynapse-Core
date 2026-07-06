@@ -1977,7 +1977,635 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   font-family: monospace;
 }
 
+/* =====================================================
+ * DATABASE PANELS
+ * ===================================================== */
 
+/* --- 1. DB Stats Sidebar Card --- */
+.db-stats-card .db-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.db-stats-card .schema-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-indigo);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  font-family: monospace;
+}
+
+.db-stats-card .db-size-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.db-stats-card .db-size-value {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.db-stats-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.db-stats-mini-grid .db-mini-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.db-stats-mini-grid .db-mini-stat .stat-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.db-stats-mini-grid .db-mini-stat .stat-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: monospace;
+}
+
+/* Full-width last item when odd count */
+.db-stats-mini-grid .db-mini-stat:last-child:nth-child(odd) {
+  grid-column: span 2;
+}
+
+/* --- 2. Colony Overview Card --- */
+.colony-card .colony-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.colony-card .colony-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.colony-card .colony-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.colony-card .colony-meta .meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.colony-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .colony-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.colony-stats-row .capacity-stat-box {
+  padding: 1rem;
+}
+
+.colony-stats-row .capacity-stat-box .stat-value {
+  font-size: 1.35rem;
+}
+
+/* --- 3. Pawn List Card (Collapsible) --- */
+.pawn-list-card .pawn-list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 450px;
+  overflow-y: auto;
+}
+
+.pawn-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.pawn-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.pawn-icon {
+  font-size: 1.1rem;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.pawn-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pawn-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.pawn-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pawn-age {
+  font-size: 0.72rem;
+  color: var(--text-dark);
+  font-family: monospace;
+}
+
+.pawn-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.trait-pill {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 50px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.trait-pill.trait-positive {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.trait-pill.trait-negative {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.trait-pill.trait-neutral {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pawn-stats {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.pawn-stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: monospace;
+  font-weight: 500;
+}
+
+.pawn-stat-chip .chip-icon {
+  font-size: 0.8rem;
+}
+
+/* --- 4. Memory Feed Card --- */
+.memory-feed-card .memory-feed-body {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-right: 0.25rem;
+}
+
+.memory-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  transition: background var(--transition-fast);
+}
+
+.memory-item:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.memory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.memory-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.memory-pawn-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.memory-type-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+}
+
+.memory-type-badge.type-raid {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.memory-type-badge.type-social {
+  background: rgba(168, 85, 247, 0.1);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.memory-type-badge.type-event {
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+.memory-type-badge.type-trade {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.memory-type-badge.type-quest {
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.memory-type-badge.type-default {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.memory-time {
+  font-size: 0.7rem;
+  color: var(--text-dark);
+  font-family: monospace;
+}
+
+.memory-summary {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.memory-weight-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.memory-weight-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.memory-weight-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width var(--transition-normal);
+}
+
+.memory-weight-fill.weight-critical { background: var(--error); }
+.memory-weight-fill.weight-low { background: var(--warning); }
+.memory-weight-fill.weight-medium { background: var(--accent-cyan); }
+.memory-weight-fill.weight-high { background: var(--success); }
+
+.memory-weight-label {
+  font-size: 0.65rem;
+  font-family: monospace;
+  color: var(--text-dark);
+  font-weight: 600;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* --- 5. Weight Heatmap Card --- */
+.weight-heatmap-card .heatmap-section {
+  margin-bottom: 1.25rem;
+}
+
+.weight-heatmap-card .heatmap-section:last-child {
+  margin-bottom: 0;
+}
+
+.heatmap-section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.stacked-bar-container {
+  display: flex;
+  height: 28px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.stacked-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  transition: flex var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.stacked-segment .segment-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  opacity: 0.9;
+}
+
+.stacked-segment.seg-decaying {
+  background: var(--error);
+  color: #fff;
+}
+
+.stacked-segment.seg-stable {
+  background: var(--warning);
+  color: #000;
+}
+
+.stacked-segment.seg-active {
+  background: var(--accent-cyan);
+  color: #000;
+}
+
+.stacked-segment.seg-hot {
+  background: var(--success);
+  color: #000;
+}
+
+.stacked-segment.seg-fading {
+  background: var(--error);
+  color: #fff;
+}
+
+.heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.heatmap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.heatmap-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.heatmap-legend-dot.dot-decaying,
+.heatmap-legend-dot.dot-fading { background: var(--error); }
+.heatmap-legend-dot.dot-stable { background: var(--warning); }
+.heatmap-legend-dot.dot-active { background: var(--accent-cyan); }
+.heatmap-legend-dot.dot-hot { background: var(--success); }
+
+/* --- 6. Narrative Threads Card --- */
+.threads-card .threads-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.thread-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  transition: background var(--transition-fast);
+}
+
+.thread-item:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.thread-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.thread-keyword {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: 4px;
+}
+
+.thread-category {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(168, 85, 247, 0.08);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  border-radius: 4px;
+}
+
+.thread-resolved-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.thread-resolved-badge.resolved {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.thread-resolved-badge.active {
+  background: rgba(6, 182, 212, 0.08);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+}
+
+.thread-description {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.thread-footer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.thread-refs {
+  font-size: 0.7rem;
+  color: var(--text-dark);
+  font-family: monospace;
+}
+
+/* --- 7. Mod Registry Card --- */
+.mod-registry-card .mod-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.mod-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  transition: background var(--transition-fast);
+}
+
+.mod-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mod-id {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+  font-family: monospace;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mod-version {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: rgba(99, 102, 241, 0.08);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  font-family: monospace;
+}
+
+.mod-tables {
+  font-size: 0.7rem;
+  color: var(--text-dark);
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+/* --- Shared: Empty State for DB panels --- */
+.db-empty-state {
+  text-align: center;
+  color: var(--text-dark);
+  font-size: 0.85rem;
+  padding: 1.5rem 1rem;
+  font-style: italic;
+}
 
 
 

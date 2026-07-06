@@ -1765,6 +1765,58 @@ def api_prompt_log():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# --- Dashboard Stats ---
+@app.route('/api/database/stats', methods=['GET'])
+def api_database_stats():
+    """Comprehensive database statistics for the dashboard."""
+    try:
+        return jsonify(db.get_stats())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/database/memories/recent', methods=['GET'])
+def api_database_recent_memories():
+    """Recent memory feed for live dashboard display."""
+    limit = request.args.get('limit', 20, type=int)
+    try:
+        return jsonify(db.get_recent_memories(limit))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/database/pawns', methods=['GET'])
+def api_database_pawns():
+    """Pawn list with traits and stats for dashboard."""
+    colony_id = request.args.get('colony_id', type=int)
+    if not colony_id:
+        # Default to most recent colony
+        colony = None
+        with db._get_conn() as conn:
+            row = conn.execute("SELECT id FROM colonies ORDER BY last_played_at DESC LIMIT 1").fetchone()
+            if row:
+                colony_id = row[0]
+    if not colony_id:
+        return jsonify([])
+    try:
+        return jsonify(db.get_pawn_details_for_dashboard(colony_id))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/database/threads', methods=['GET'])
+def api_database_threads():
+    """Active narrative threads for dashboard."""
+    colony_id = request.args.get('colony_id', type=int)
+    if not colony_id:
+        with db._get_conn() as conn:
+            row = conn.execute("SELECT id FROM colonies ORDER BY last_played_at DESC LIMIT 1").fetchone()
+            if row:
+                colony_id = row[0]
+    if not colony_id:
+        return jsonify([])
+    try:
+        return jsonify(db.get_active_threads(colony_id))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # ---------------------------------------------------------------------------
 # Server Entry Point

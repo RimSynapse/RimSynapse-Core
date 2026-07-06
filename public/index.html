@@ -194,6 +194,45 @@
           </div>
         </section>
 
+        <!-- Database Stats Panel -->
+        <section class="card db-stats-card">
+          <h2 class="card-title">Database</h2>
+          <div class="db-stats-header">
+            <span class="db-size-label">Size: <span class="db-size-value" id="db-size">-</span></span>
+            <span class="schema-badge" id="db-schema-version">-</span>
+          </div>
+          <div class="db-stats-mini-grid" id="db-totals-grid">
+            <div class="db-mini-stat">
+              <span class="stat-label">Pawns</span>
+              <span class="stat-value" id="db-total-pawns">0</span>
+            </div>
+            <div class="db-mini-stat">
+              <span class="stat-label">Memories</span>
+              <span class="stat-value" id="db-total-memories">0</span>
+            </div>
+            <div class="db-mini-stat">
+              <span class="stat-label">Relations</span>
+              <span class="stat-value" id="db-total-relationships">0</span>
+            </div>
+            <div class="db-mini-stat">
+              <span class="stat-label">Threads</span>
+              <span class="stat-value" id="db-total-threads">0</span>
+            </div>
+            <div class="db-mini-stat">
+              <span class="stat-label">Interactions</span>
+              <span class="stat-value" id="db-total-interactions">0</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Mod Registry Panel -->
+        <section class="card mod-registry-card">
+          <h2 class="card-title">Mod Extensions</h2>
+          <div class="mod-list" id="mod-list">
+            <div class="db-empty-state">No mods registered</div>
+          </div>
+        </section>
+
         <!-- Playground / Connection Test Panel -->
         <section class="card playground-card">
           <h2 class="card-title">Playground / Connection Test</h2>
@@ -220,6 +259,82 @@
 
       <!-- Center/Right Column: Live Stream & Playground -->
       <main class="main-content">
+
+        <!-- Colony Overview Panel -->
+        <section class="card colony-card" id="colony-card">
+          <div class="card-header">
+            <div class="header-left">
+              <span class="logo-icon" style="font-size: 1.5rem; filter: drop-shadow(0 0 5px var(--accent-purple));">🏘️</span>
+              <h2 class="card-title">Colony Overview</h2>
+            </div>
+            <div class="status-badge" id="badge-colony-status">No Colony</div>
+          </div>
+          <div id="colony-content">
+            <div class="db-empty-state">No colony data available. Start a game with RimSynapse active.</div>
+          </div>
+        </section>
+
+        <!-- Live Pawn List (Collapsible) -->
+        <section class="card pawn-list-card collapsible-card collapsed" id="pawn-list-card">
+          <div class="card-header toggle-header" id="btn-toggle-pawn-list">
+            <div class="header-left">
+              <span class="logo-icon" style="font-size: 1.5rem; filter: drop-shadow(0 0 5px var(--accent-cyan));">👥</span>
+              <h2 class="card-title">Colony Pawns</h2>
+              <span class="collapse-icon">▶</span>
+            </div>
+            <div class="status-badge" id="badge-pawn-count">0 Pawns</div>
+          </div>
+          <div class="pawn-list-body collapsible-body" id="pawn-list-body">
+            <div class="db-empty-state">No pawns found</div>
+          </div>
+        </section>
+
+        <!-- Memory Feed -->
+        <section class="card memory-feed-card">
+          <div class="card-header">
+            <div class="header-left">
+              <span class="logo-icon" style="font-size: 1.5rem; filter: drop-shadow(0 0 5px var(--accent-indigo));">🧠</span>
+              <h2 class="card-title">Memory Feed</h2>
+            </div>
+          </div>
+          <div class="memory-feed-body" id="memory-feed-body">
+            <div class="db-empty-state">No memories recorded yet</div>
+          </div>
+        </section>
+
+        <!-- Weight Heatmap -->
+        <section class="card weight-heatmap-card">
+          <div class="card-header">
+            <h2 class="card-title">Weight Distribution</h2>
+          </div>
+          <div class="heatmap-section">
+            <div class="heatmap-section-label">Memory Weights</div>
+            <div class="stacked-bar-container" id="heatmap-weight-bar">
+              <div class="db-empty-state" style="padding: 0.35rem 1rem; font-size: 0.72rem;">No data</div>
+            </div>
+            <div class="heatmap-legend" id="heatmap-weight-legend"></div>
+          </div>
+          <div class="heatmap-section">
+            <div class="heatmap-section-label">Thread Distribution</div>
+            <div class="stacked-bar-container" id="heatmap-thread-bar">
+              <div class="db-empty-state" style="padding: 0.35rem 1rem; font-size: 0.72rem;">No data</div>
+            </div>
+            <div class="heatmap-legend" id="heatmap-thread-legend"></div>
+          </div>
+        </section>
+
+        <!-- Narrative Threads Tracker -->
+        <section class="card threads-card">
+          <div class="card-header">
+            <div class="header-left">
+              <span class="logo-icon" style="font-size: 1.5rem; filter: drop-shadow(0 0 5px var(--success));">📖</span>
+              <h2 class="card-title">Narrative Threads</h2>
+            </div>
+          </div>
+          <div class="threads-body" id="threads-body">
+            <div class="db-empty-state">No active narrative threads</div>
+          </div>
+        </section>
         
         <!-- Model Capacity & Scalability Planner -->
         <section class="card capacity-card">

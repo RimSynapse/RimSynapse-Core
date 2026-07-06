@@ -1088,10 +1088,352 @@ elBtnToggleContextOptimizer.addEventListener('click', (e) => {
   elContextCardMain.classList.toggle('collapsed');
 });
 
+// =====================================================
+// DATABASE PANELS
+// =====================================================
+
+// Collapsible Pawn List toggle
+const elBtnTogglePawnList = document.getElementById('btn-toggle-pawn-list');
+const elPawnListCard = document.getElementById('pawn-list-card');
+
+elBtnTogglePawnList.addEventListener('click', (e) => {
+  if (e.target.classList.contains('status-badge')) return;
+  elPawnListCard.classList.toggle('collapsed');
+});
+
+// DB Stats DOM elements
+const elDbSize = document.getElementById('db-size');
+const elDbSchemaVersion = document.getElementById('db-schema-version');
+const elDbTotalPawns = document.getElementById('db-total-pawns');
+const elDbTotalMemories = document.getElementById('db-total-memories');
+const elDbTotalRelationships = document.getElementById('db-total-relationships');
+const elDbTotalThreads = document.getElementById('db-total-threads');
+const elDbTotalInteractions = document.getElementById('db-total-interactions');
+
+// Colony DOM elements
+const elColonyContent = document.getElementById('colony-content');
+const elBadgeColonyStatus = document.getElementById('badge-colony-status');
+
+// Pawn list DOM elements
+const elPawnListBody = document.getElementById('pawn-list-body');
+const elBadgePawnCount = document.getElementById('badge-pawn-count');
+
+// Memory feed DOM elements
+const elMemoryFeedBody = document.getElementById('memory-feed-body');
+
+// Weight heatmap DOM elements
+const elHeatmapWeightBar = document.getElementById('heatmap-weight-bar');
+const elHeatmapWeightLegend = document.getElementById('heatmap-weight-legend');
+const elHeatmapThreadBar = document.getElementById('heatmap-thread-bar');
+const elHeatmapThreadLegend = document.getElementById('heatmap-thread-legend');
+
+// Threads DOM elements
+const elThreadsBody = document.getElementById('threads-body');
+
+// Mod list DOM elements
+const elModList = document.getElementById('mod-list');
+
+// Track active colony ID for sub-queries
+let activeColonyId = null;
+
+function formatBytes(bytes) {
+  if (bytes == null || bytes === 0) return '0 B';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function getMemoryTypeBadgeClass(type) {
+  const t = (type || '').toLowerCase();
+  if (t.includes('raid')) return 'type-raid';
+  if (t.includes('social')) return 'type-social';
+  if (t.includes('event')) return 'type-event';
+  if (t.includes('trade')) return 'type-trade';
+  if (t.includes('quest')) return 'type-quest';
+  return 'type-default';
+}
+
+function getWeightClass(weight) {
+  if (weight < 0.2) return 'weight-critical';
+  if (weight < 0.5) return 'weight-low';
+  if (weight < 0.8) return 'weight-medium';
+  return 'weight-high';
+}
+
+function getTraitClass(degree) {
+  if (degree > 0) return 'trait-positive';
+  if (degree < 0) return 'trait-negative';
+  return 'trait-neutral';
+}
+
+function renderStackedBar(container, legendContainer, segments) {
+  const total = segments.reduce((sum, s) => sum + s.count, 0);
+  if (total === 0) {
+    container.innerHTML = '<div class="db-empty-state" style="padding: 0.35rem 1rem; font-size: 0.72rem;">No data</div>';
+    legendContainer.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = segments.map(s => {
+    const pct = (s.count / total) * 100;
+    if (s.count === 0) return '';
+    return `<div class="stacked-segment seg-${s.key}" style="flex: ${s.count};" title="${s.label}: ${s.count}">
+      <span class="segment-label">${pct > 12 ? s.count : ''}</span>
+    </div>`;
+  }).join('');
+
+  legendContainer.innerHTML = segments.map(s => `
+    <div class="heatmap-legend-item">
+      <span class="heatmap-legend-dot dot-${s.key}"></span>
+      <span>${s.label}: <strong>${s.count}</strong></span>
+    </div>
+  `).join('');
+}
+
+async function updateDatabaseStats() {
+  try {
+    const response = await fetch('/api/database/stats');
+    if (!response.ok) return;
+    const data = await response.json();
+
+    // --- Sidebar: DB Stats ---
+    elDbSchemaVersion.textContent = data.schema_version ? `v${data.schema_version}` : '-';
+    elDbSize.textContent = formatBytes(data.db_size_bytes);
+
+    if (data.totals) {
+      elDbTotalPawns.textContent = (data.totals.pawns || 0).toLocaleString();
+      elDbTotalMemories.textContent = (data.totals.memories || 0).toLocaleString();
+      elDbTotalRelationships.textContent = (data.totals.relationships || 0).toLocaleString();
+      elDbTotalThreads.textContent = (data.totals.threads || 0).toLocaleString();
+      elDbTotalInteractions.textContent = (data.totals.interactions || 0).toLocaleString();
+    }
+
+    // --- Colony Overview ---
+    const colonies = data.colonies || [];
+    if (colonies.length > 0) {
+      const colony = colonies[0]; // Show first/active colony
+      activeColonyId = colony.id;
+
+      elBadgeColonyStatus.textContent = 'Active';
+      elBadgeColonyStatus.className = 'status-badge status-linked';
+
+      elColonyContent.innerHTML = `
+        <div class="colony-header-info">
+          <span class="colony-name">${escapeHtml(colony.colony_name || 'Unnamed Colony')}</span>
+          <div class="colony-meta">
+            <span class="meta-badge">🌍 ${escapeHtml(colony.biome || 'Unknown')}</span>
+            <span class="meta-badge">⛪ ${escapeHtml(colony.ideology_name || 'None')}</span>
+          </div>
+        </div>
+        <div class="colony-stats-row">
+          <div class="capacity-stat-box">
+            <span class="stat-label">Pawns</span>
+            <span class="stat-value">${colony.pawn_count || 0}</span>
+          </div>
+          <div class="capacity-stat-box">
+            <span class="stat-label">Memories</span>
+            <span class="stat-value">${colony.memory_count || 0}</span>
+          </div>
+          <div class="capacity-stat-box">
+            <span class="stat-label">Relationships</span>
+            <span class="stat-value">${colony.relationship_count || 0}</span>
+          </div>
+          <div class="capacity-stat-box">
+            <span class="stat-label">Active Threads</span>
+            <span class="stat-value">${colony.active_threads || 0}</span>
+          </div>
+        </div>
+      `;
+    } else {
+      activeColonyId = null;
+      elBadgeColonyStatus.textContent = 'No Colony';
+      elBadgeColonyStatus.className = 'status-badge';
+      elColonyContent.innerHTML = '<div class="db-empty-state">No colony data available. Start a game with RimSynapse active.</div>';
+    }
+
+    // --- Weight Heatmap ---
+    if (data.weight_distribution) {
+      const wd = data.weight_distribution;
+      renderStackedBar(elHeatmapWeightBar, elHeatmapWeightLegend, [
+        { key: 'decaying', label: 'Decaying', count: wd.decaying || 0 },
+        { key: 'stable', label: 'Stable', count: wd.stable || 0 },
+        { key: 'active', label: 'Active', count: wd.active || 0 },
+        { key: 'hot', label: 'Hot', count: wd.hot || 0 }
+      ]);
+    }
+
+    if (data.thread_distribution) {
+      const td = data.thread_distribution;
+      renderStackedBar(elHeatmapThreadBar, elHeatmapThreadLegend, [
+        { key: 'fading', label: 'Fading', count: td.fading || 0 },
+        { key: 'active', label: 'Active', count: td.active || 0 },
+        { key: 'hot', label: 'Hot', count: td.hot || 0 }
+      ]);
+    }
+
+    // --- Sidebar: Mod Registry ---
+    const mods = data.mods || [];
+    if (mods.length > 0) {
+      elModList.innerHTML = mods.map(mod => `
+        <div class="mod-item" title="Registered: ${mod.registered_at || ''}">
+          <span class="mod-id">${escapeHtml(mod.mod_id || '-')}</span>
+          <span class="mod-version">${escapeHtml(mod.version || '-')}</span>
+          <span class="mod-tables">${(mod.table_names || []).length} tables</span>
+        </div>
+      `).join('');
+    } else {
+      elModList.innerHTML = '<div class="db-empty-state">No mods registered</div>';
+    }
+
+    // --- Fetch sub-resources for active colony ---
+    if (activeColonyId) {
+      fetchPawns(activeColonyId);
+      fetchThreads(activeColonyId);
+    }
+
+    // Always fetch recent memories (not colony-specific)
+    fetchRecentMemories();
+
+  } catch (err) {
+    console.error('Error fetching database stats:', err);
+  }
+}
+
+async function fetchPawns(colonyId) {
+  try {
+    const response = await fetch(`/api/database/pawns?colony_id=${colonyId}`);
+    if (!response.ok) return;
+    const pawns = await response.json();
+
+    elBadgePawnCount.textContent = `${pawns.length} Pawn${pawns.length !== 1 ? 's' : ''}`;
+
+    if (pawns.length === 0) {
+      elPawnListBody.innerHTML = '<div class="db-empty-state">No pawns found</div>';
+      return;
+    }
+
+    elPawnListBody.innerHTML = pawns.map(pawn => {
+      const genderIcon = pawn.gender === 'Male' ? '♂️' : pawn.gender === 'Female' ? '♀️' : '⚧';
+      const displayName = pawn.name_nick || pawn.name_first || 'Unknown';
+      const traits = (pawn.traits || []);
+
+      const traitPills = traits.map(t => {
+        const cls = getTraitClass(t.degree || 0);
+        return `<span class="trait-pill ${cls}">${escapeHtml(t.label || 'Unknown')}</span>`;
+      }).join('');
+
+      return `
+        <div class="pawn-row">
+          <span class="pawn-icon">${genderIcon}</span>
+          <div class="pawn-info">
+            <div class="pawn-name-row">
+              <span class="pawn-name">${escapeHtml(displayName)}</span>
+              <span class="pawn-age">${pawn.age_biological || '?'}y</span>
+            </div>
+            ${traitPills ? `<div class="pawn-traits">${traitPills}</div>` : ''}
+          </div>
+          <div class="pawn-stats">
+            <span class="pawn-stat-chip"><span class="chip-icon">💬</span>${pawn.relationship_count || 0}</span>
+            <span class="pawn-stat-chip"><span class="chip-icon">🧠</span>${pawn.memory_count || 0}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error fetching pawns:', err);
+  }
+}
+
+async function fetchRecentMemories() {
+  try {
+    const response = await fetch('/api/database/memories/recent?limit=20');
+    if (!response.ok) return;
+    const memories = await response.json();
+
+    if (!memories || memories.length === 0) {
+      elMemoryFeedBody.innerHTML = '<div class="db-empty-state">No memories recorded yet</div>';
+      return;
+    }
+
+    elMemoryFeedBody.innerHTML = memories.map(mem => {
+      const weight = parseFloat(mem.weight) || 0;
+      const weightPct = Math.min(weight * 100, 100);
+      const weightClass = getWeightClass(weight);
+      const typeClass = getMemoryTypeBadgeClass(mem.memory_type);
+      const timeStr = mem.created_at ? new Date(mem.created_at).toLocaleString() : '';
+
+      return `
+        <div class="memory-item">
+          <div class="memory-header">
+            <div class="memory-header-left">
+              <span class="memory-pawn-name">${escapeHtml(mem.pawn_name || 'Unknown')}</span>
+              <span class="memory-type-badge ${typeClass}">${escapeHtml(mem.memory_type || 'memory')}</span>
+            </div>
+            <span class="memory-time">${timeStr}</span>
+          </div>
+          <div class="memory-summary">${escapeHtml(mem.summary || '')}</div>
+          <div class="memory-weight-row">
+            <div class="memory-weight-bar">
+              <div class="memory-weight-fill ${weightClass}" style="width: ${weightPct}%;"></div>
+            </div>
+            <span class="memory-weight-label">${weight.toFixed(2)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error fetching recent memories:', err);
+  }
+}
+
+async function fetchThreads(colonyId) {
+  try {
+    const response = await fetch(`/api/database/threads?colony_id=${colonyId}`);
+    if (!response.ok) return;
+    const threads = await response.json();
+
+    if (!threads || threads.length === 0) {
+      elThreadsBody.innerHTML = '<div class="db-empty-state">No active narrative threads</div>';
+      return;
+    }
+
+    elThreadsBody.innerHTML = threads.map(thread => {
+      const weight = parseFloat(thread.weight) || 0;
+      const weightPct = Math.min(weight * 100, 100);
+      const weightClass = getWeightClass(weight);
+      const resolvedClass = thread.is_resolved ? 'resolved' : 'active';
+      const resolvedText = thread.is_resolved ? 'Resolved' : 'Active';
+
+      return `
+        <div class="thread-item">
+          <div class="thread-header">
+            <span class="thread-keyword">${escapeHtml(thread.keyword || '-')}</span>
+            ${thread.category ? `<span class="thread-category">${escapeHtml(thread.category)}</span>` : ''}
+            <span class="thread-resolved-badge ${resolvedClass}">${resolvedText}</span>
+          </div>
+          ${thread.description ? `<div class="thread-description">${escapeHtml(thread.description)}</div>` : ''}
+          <div class="thread-footer">
+            <div class="memory-weight-row" style="flex: 1;">
+              <div class="memory-weight-bar">
+                <div class="memory-weight-fill ${weightClass}" style="width: ${weightPct}%;"></div>
+              </div>
+              <span class="memory-weight-label">${weight.toFixed(2)}</span>
+            </div>
+            <span class="thread-refs">Referenced: ${thread.times_referenced || 0}×</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error fetching threads:', err);
+  }
+}
+
 // Startup
 updateStatus();
 updateRimWorldConfigStatus();
 updateContextStatus();
+updateDatabaseStats();
 recalculateAllocations();
 initializeSSE();
 
@@ -1100,4 +1442,5 @@ setInterval(() => {
   updateStatus();
   updateRimWorldConfigStatus();
   updateContextStatus();
+  updateDatabaseStats();
 }, 3000);
