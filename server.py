@@ -29,7 +29,7 @@ from queue import Queue, Empty
 
 from flask import Flask, request, jsonify, Response, send_from_directory
 from flask_cors import CORS
-from database import RimSynapseDB
+from context import build_context
 
 # ---------------------------------------------------------------------------
 # Paths & Constants
@@ -1046,8 +1046,16 @@ def start_lm_studio_keep_alive():
 app = Flask(__name__, static_folder=str(PUBLIC_DIR), static_url_path="")
 CORS(app)
 
-# Initialize the living database
-db = RimSynapseDB(log_func=log_to_dashboard)
+# In-memory session stats (reset on restart, no persistence needed)
+session_stats = {
+    "context_calls": 0,
+    "total_tokens_estimated": 0,
+    "total_memories_included": 0,
+    "last_colony": None,
+    "last_pawns_seen": [],
+    "recent_memories": [],
+    "recent_threads": [],
+}
 
 
 # Route rewriter middleware: handle /v1/v1/... double prefix
@@ -1537,285 +1545,130 @@ def load_ssl_context():
 
 
 # ---------------------------------------------------------------------------
-# Database API Routes — Living Database
+# Context Assembly & Dashboard Routes (Stateless)
 # ---------------------------------------------------------------------------
 
-# --- Colony ---
-@app.route('/api/colony/register', methods=['POST'])
-def api_colony_register():
-    try:
-        data = request.get_json()
-        result = db.register_colony(data)
-        log_to_dashboard('success', 'database', f"Colony registered: {data.get('colony_name')}")
-        return jsonify(result)
-    except Exception as e:
-        log_to_dashboard('error', 'database', f"Colony register error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/colony/<int:colony_id>', methods=['GET'])
-def api_colony_get(colony_id):
-    result = db.get_colony(colony_id)
-    if result:
-        return jsonify(result)
-    return jsonify({'error': 'Colony not found'}), 404
-
-# --- Pawns ---
-@app.route('/api/pawn/register', methods=['POST'])
-def api_pawn_register():
-    try:
-        data = request.get_json()
-        result = db.register_pawn(data)
-        return jsonify(result)
-    except Exception as e:
-        log_to_dashboard('error', 'database', f"Pawn register error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/pawn/bulk', methods=['POST'])
-def api_pawn_bulk():
-    try:
-        data = request.get_json()
-        pawns = data.get('pawns', [])
-        results = [db.register_pawn(p) for p in pawns]
-        log_to_dashboard('success', 'database', f"Bulk registered {len(results)} pawns")
-        return jsonify({'results': results, 'count': len(results)})
-    except Exception as e:
-        log_to_dashboard('error', 'database', f"Bulk pawn error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/pawn/<int:pawn_id>', methods=['GET'])
-def api_pawn_get(pawn_id):
-    result = db.get_pawn(pawn_id)
-    if result:
-        return jsonify(result)
-    return jsonify({'error': 'Pawn not found'}), 404
-
-@app.route('/api/pawns', methods=['GET'])
-def api_pawns_list():
-    colony_id = request.args.get('colony_id', type=int)
-    if not colony_id:
-        return jsonify({'error': 'colony_id required'}), 400
-    return jsonify(db.list_pawns(colony_id))
-
-# --- Memory ---
-@app.route('/api/memory/store', methods=['POST'])
-def api_memory_store():
-    try:
-        data = request.get_json()
-        result = db.store_memory(data)
-        return jsonify(result)
-    except Exception as e:
-        log_to_dashboard('error', 'database', f"Memory store error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/memory/query', methods=['GET'])
-def api_memory_query():
-    colony_id = request.args.get('colony_id', type=int)
-    pawn_id = request.args.get('pawn_id', type=int)
-    memory_type = request.args.get('memory_type')
-    weight_threshold = request.args.get('weight_threshold', 0.05, type=float)
-    limit = request.args.get('limit', 10, type=int)
-    if not colony_id:
-        return jsonify({'error': 'colony_id required'}), 400
-    return jsonify(db.query_memories(colony_id, pawn_id, memory_type, weight_threshold, limit))
-
-@app.route('/api/memory/bump', methods=['POST'])
-def api_memory_bump():
-    data = request.get_json()
-    return jsonify(db.bump_memory(data['memory_id'], data.get('bump_amount', 0.2)))
-
-@app.route('/api/memory/decay', methods=['POST'])
-def api_memory_decay():
-    data = request.get_json()
-    result = db.decay_memories(data['colony_id'])
-    log_to_dashboard('info', 'database', f"Decay cycle: {result['affected']} memories decayed")
-    return jsonify(result)
-
-@app.route('/api/memory/<int:memory_id>', methods=['DELETE'])
-def api_memory_delete(memory_id):
-    return jsonify(db.delete_memory(memory_id))
-
-# --- Relationships ---
-@app.route('/api/relationship/update', methods=['POST'])
-def api_relationship_update():
-    try:
-        data = request.get_json()
-        result = db.update_relationship(data)
-        return jsonify(result)
-    except Exception as e:
-        log_to_dashboard('error', 'database', f"Relationship update error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/relationship/query', methods=['GET'])
-def api_relationship_query():
-    pawn_id = request.args.get('pawn_id', type=int)
-    weight_threshold = request.args.get('weight_threshold', 0.0, type=float)
-    if not pawn_id:
-        return jsonify({'error': 'pawn_id required'}), 400
-    return jsonify(db.query_relationships(pawn_id, weight_threshold))
-
-@app.route('/api/relationship/sample', methods=['POST'])
-def api_relationship_sample():
-    data = request.get_json()
-    return jsonify(db.record_opinion_sample(
-        data['relationship_id'], data['opinion_a_to_b'],
-        data['opinion_b_to_a'], data.get('game_tick')
-    ))
-
-# --- Interactions & Threads ---
-@app.route('/api/interaction/store', methods=['POST'])
-def api_interaction_store():
-    try:
-        data = request.get_json()
-        result = db.store_interaction(data)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/interaction/message', methods=['POST'])
-def api_interaction_message():
-    data = request.get_json()
-    return jsonify(db.add_interaction_message(
-        data['interaction_id'], data['turn_number'],
-        data['role'], data['content'],
-        data.get('sentiment'), data.get('mood_shift', 0)
-    ))
-
-@app.route('/api/interaction/<int:interaction_id>', methods=['GET'])
-def api_interaction_get(interaction_id):
-    result = db.get_interaction(interaction_id)
-    if result:
-        return jsonify(result)
-    return jsonify({'error': 'Interaction not found'}), 404
-
-@app.route('/api/thread/store', methods=['POST'])
-def api_thread_store():
-    try:
-        data = request.get_json()
-        result = db.store_thread(data)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/threads', methods=['GET'])
-def api_threads_list():
-    colony_id = request.args.get('colony_id', type=int)
-    weight_threshold = request.args.get('weight_threshold', 0.05, type=float)
-    if not colony_id:
-        return jsonify({'error': 'colony_id required'}), 400
-    return jsonify(db.get_active_threads(colony_id, weight_threshold))
-
-@app.route('/api/thread/bump', methods=['POST'])
-def api_thread_bump():
-    data = request.get_json()
-    return jsonify(db.bump_thread(data['thread_id'], data.get('bump_amount', 0.15)))
-
-@app.route('/api/thread/resolve', methods=['POST'])
-def api_thread_resolve():
-    data = request.get_json()
-    return jsonify(db.resolve_thread(data['thread_id'], data.get('resolution_summary')))
-
-# --- Context Assembly & Prompt Generation ---
 @app.route('/api/context/build', methods=['POST'])
 def api_context_build():
+    """Stateless context assembly. Receives full game-state packet, returns prompt."""
     try:
         data = request.get_json()
-        result = db.build_context(data)
-        log_to_dashboard('info', 'database',
+        result = build_context(data)
+
+        # Track session stats for dashboard
+        session_stats["context_calls"] += 1
+        session_stats["total_tokens_estimated"] += result.get("tokens_estimated", 0)
+        session_stats["total_memories_included"] += result.get("memories_included", 0)
+
+        # Track colony info
+        colony = data.get("colony")
+        if colony:
+            session_stats["last_colony"] = colony
+
+        # Track pawns seen
+        for key in ("source_pawn", "target_pawn"):
+            pawn = data.get(key)
+            if pawn and pawn.get("name"):
+                name = pawn["name"]
+                if name not in session_stats["last_pawns_seen"]:
+                    session_stats["last_pawns_seen"].append(name)
+                # Track memories
+                for m in pawn.get("memories", []):
+                    entry = {
+                        "pawn_name": name,
+                        "summary": m.get("summary", ""),
+                        "memory_type": m.get("type", m.get("memoryType", "event")),
+                        "weight": m.get("weight", 0),
+                    }
+                    session_stats["recent_memories"].insert(0, entry)
+                    session_stats["recent_memories"] = session_stats["recent_memories"][:50]
+
+        # Track threads
+        threads = data.get("narrative_threads", [])
+        if threads:
+            session_stats["recent_threads"] = threads
+
+        log_to_dashboard('info', 'context',
             f"Context built: {result['memories_included']} memories, "
             f"{result['threads_included']} threads, ~{result['tokens_estimated']} tokens")
         return jsonify(result)
     except Exception as e:
-        log_to_dashboard('error', 'database', f"Context build error: {e}")
+        log_to_dashboard('error', 'context', f"Context build error: {e}")
         return jsonify({'error': str(e)}), 500
 
-# --- Schema Extension ---
-@app.route('/api/schema/register', methods=['POST'])
-def api_schema_register():
-    try:
-        data = request.get_json()
-        result = db.register_mod_schema(
-            data['mod_id'], data['version'],
-            data.get('tables'), data.get('migrations')
-        )
-        return jsonify(result)
-    except Exception as e:
-        log_to_dashboard('error', 'database', f"Schema register error: {e}")
-        return jsonify({'error': str(e)}), 500
 
-@app.route('/api/schema/version', methods=['GET'])
-def api_schema_version():
-    mod_id = request.args.get('mod_id')
-    if not mod_id:
-        return jsonify({'error': 'mod_id required'}), 400
-    with db._get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM schema_registry WHERE mod_id = ?", (mod_id,)
-        ).fetchone()
-        if row:
-            return jsonify(dict(row))
-        return jsonify({'error': 'Mod not registered'}), 404
+# --- Dashboard Stats (from session memory, not a database) ---
 
-# --- Prompt Log ---
-@app.route('/api/prompt/log', methods=['POST'])
-def api_prompt_log():
-    try:
-        data = request.get_json()
-        result = db.log_prompt(data)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# --- Dashboard Stats ---
 @app.route('/api/database/stats', methods=['GET'])
-def api_database_stats():
-    """Comprehensive database statistics for the dashboard."""
-    try:
-        return jsonify(db.get_stats())
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def api_dashboard_stats():
+    """Session statistics for the dashboard."""
+    colony = session_stats.get("last_colony", {})
+    return jsonify({
+        "schema_version": "stateless",
+        "db_size_bytes": 0,
+        "tables": {},
+        "colonies": [colony] if colony else [],
+        "mods": [],
+        "weight_distribution": _compute_weight_dist(session_stats.get("recent_memories", [])),
+        "thread_distribution": _compute_thread_dist(session_stats.get("recent_threads", [])),
+        "totals": {
+            "colonies": 1 if colony else 0,
+            "pawns": len(session_stats.get("last_pawns_seen", [])),
+            "memories": len(session_stats.get("recent_memories", [])),
+            "relationships": 0,
+            "interactions": session_stats.get("context_calls", 0),
+            "threads": len(session_stats.get("recent_threads", [])),
+        },
+    })
+
 
 @app.route('/api/database/memories/recent', methods=['GET'])
-def api_database_recent_memories():
-    """Recent memory feed for live dashboard display."""
+def api_dashboard_recent_memories():
+    """Recent memories seen in context calls."""
     limit = request.args.get('limit', 20, type=int)
-    try:
-        return jsonify(db.get_recent_memories(limit))
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    return jsonify(session_stats.get("recent_memories", [])[:limit])
+
 
 @app.route('/api/database/pawns', methods=['GET'])
-def api_database_pawns():
-    """Pawn list with traits and stats for dashboard."""
-    colony_id = request.args.get('colony_id', type=int)
-    if not colony_id:
-        # Default to most recent colony
-        colony = None
-        with db._get_conn() as conn:
-            row = conn.execute("SELECT id FROM colonies ORDER BY last_played_at DESC LIMIT 1").fetchone()
-            if row:
-                colony_id = row[0]
-    if not colony_id:
-        return jsonify([])
-    try:
-        return jsonify(db.get_pawn_details_for_dashboard(colony_id))
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def api_dashboard_pawns():
+    """Pawns seen during this session."""
+    return jsonify([{"name_nick": name} for name in session_stats.get("last_pawns_seen", [])])
+
 
 @app.route('/api/database/threads', methods=['GET'])
-def api_database_threads():
-    """Active narrative threads for dashboard."""
-    colony_id = request.args.get('colony_id', type=int)
-    if not colony_id:
-        with db._get_conn() as conn:
-            row = conn.execute("SELECT id FROM colonies ORDER BY last_played_at DESC LIMIT 1").fetchone()
-            if row:
-                colony_id = row[0]
-    if not colony_id:
-        return jsonify([])
-    try:
-        return jsonify(db.get_active_threads(colony_id))
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+def api_dashboard_threads():
+    """Narrative threads from last context call."""
+    return jsonify(session_stats.get("recent_threads", []))
+
+
+def _compute_weight_dist(memories):
+    """Compute weight distribution from in-memory list."""
+    dist = {"decaying": 0, "stable": 0, "active": 0, "hot": 0}
+    for m in memories:
+        w = m.get("weight", 0)
+        if w < 0.2:
+            dist["decaying"] += 1
+        elif w < 0.5:
+            dist["stable"] += 1
+        elif w < 0.8:
+            dist["active"] += 1
+        else:
+            dist["hot"] += 1
+    return dist
+
+
+def _compute_thread_dist(threads):
+    """Compute thread distribution from in-memory list."""
+    dist = {"fading": 0, "active": 0, "hot": 0}
+    for t in threads:
+        w = t.get("weight", 0)
+        if w < 0.3:
+            dist["fading"] += 1
+        elif w < 0.7:
+            dist["active"] += 1
+        else:
+            dist["hot"] += 1
+    return dist
 
 
 # ---------------------------------------------------------------------------

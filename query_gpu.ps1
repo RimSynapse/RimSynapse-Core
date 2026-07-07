@@ -1,4 +1,4 @@
-$counters = Get-Counter -Counter '\GPU Process Memory(*)\Dedicated Usage' -ErrorAction SilentlyContinue
+$counters = Get-Counter -Counter '\\GPU Process Memory(*)\Dedicated Usage' -ErrorAction SilentlyContinue
 if ($counters) {
     $results = @()
     foreach ($s in $counters.CounterSamples) {
