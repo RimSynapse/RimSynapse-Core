@@ -1,0 +1,16 @@
+<!-- 
+    GamePath.props — Set your RimWorld install path here.
+    This file is imported by the .csproj to locate game assemblies.
+    
+    Common locations:
+    - Steam:  C:\Program Files (x86)\Steam\steamapps\common\RimWorld
+    - GOG:    C:\GOG Games\RimWorld
+    
+    DO NOT commit this file with a hardcoded path.
+-->
+<Project>
+    <PropertyGroup>
+        <RimWorldPath>C:\Program Files (x86)\Steam\steamapps\common\RimWorld</RimWorldPath>
+        <HarmonyPath>$(RimWorldPath)\Mods\Harmony\Current\Assemblies</HarmonyPath>
+    </PropertyGroup>
+</Project>

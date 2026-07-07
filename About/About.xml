@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+    <name>RimSynapse Core</name>
+    <author>ArchDukeJim</author>
+    <packageId>archDukeJim.rimsynapseCore</packageId>
+    <url>https://github.com/archdukejim/RimSynapse</url>
+    <supportedVersions>
+        <li>1.5</li>
+    </supportedVersions>
+    <modDependencies>
+        <li>
+            <packageId>brrainz.harmony</packageId>
+            <displayName>Harmony</displayName>
+            <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+        </li>
+    </modDependencies>
+    <loadAfter>
+        <li>brrainz.harmony</li>
+    </loadAfter>
+    <description>
+RimSynapse Core — LM Studio connector library for RimWorld mods.
+
+Provides a clean C# API for other mods to make local LLM calls via LM Studio, Ollama, or any OpenAI-compatible backend.
+
+Features:
+- Async LLM chat completions with background threading
+- Dynamic request queue with per-mod budget allocation
+- Response sanitization (strips think blocks, repairs JSON)
+- Auto model discovery and mapping
+- Keep-alive pings to prevent model unloading
+- GPU monitoring framework
+- Structured debug logging
+
+This is a library mod — it does nothing on its own. Install mods that depend on RimSynapse Core to add AI features to your game.
+
+Requires: Harmony
+    </description>
+</ModMetaData>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+    <!-- Settings UI strings -->
+    <RimSynapse_SettingsCategory>RimSynapse Core</RimSynapse_SettingsCategory>
+    <RimSynapse_ConnectionSection>Connection Settings</RimSynapse_ConnectionSection>
+    <RimSynapse_LmStudioUrl>LM Studio URL</RimSynapse_LmStudioUrl>
+    <RimSynapse_ApiKey>API Key (optional)</RimSynapse_ApiKey>
+    <RimSynapse_PerformanceSection>Performance</RimSynapse_PerformanceSection>
+    <RimSynapse_Timeout>Timeout (seconds)</RimSynapse_Timeout>
+    <RimSynapse_MaxRequestsPerMinute>Max Requests Per Minute</RimSynapse_MaxRequestsPerMinute>
+    <RimSynapse_ModBudgetsSection>Mod Query Budgets</RimSynapse_ModBudgetsSection>
+    <RimSynapse_AdvancedSection>Advanced</RimSynapse_AdvancedSection>
+    <RimSynapse_AutoMapModel>Auto-map to active model</RimSynapse_AutoMapModel>
+    <RimSynapse_AutoMapModelDesc>Automatically use the first loaded model in LM Studio.</RimSynapse_AutoMapModelDesc>
+    <RimSynapse_SanitizeResponse>Sanitize responses</RimSynapse_SanitizeResponse>
+    <RimSynapse_SanitizeResponseDesc>Strip think blocks and repair broken JSON from LLM output.</RimSynapse_SanitizeResponseDesc>
+    <RimSynapse_EnableKeepAlive>Enable keep-alive pings</RimSynapse_EnableKeepAlive>
+    <RimSynapse_EnableKeepAliveDesc>Ping LM Studio every 4 minutes to prevent model unloading.</RimSynapse_EnableKeepAliveDesc>
+    <RimSynapse_LogLevel>Log Level</RimSynapse_LogLevel>
+</LanguageData>

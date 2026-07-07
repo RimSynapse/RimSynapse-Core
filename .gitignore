@@ -1,18 +1,19 @@
-node_modules/
-certificate.pfx
-certificate.pem
-private_key.pem
-config.json
-.DS_Store
-package-lock.json
+# Build output
+bin/
+obj/
+Assemblies/*.dll
+1.5/
 
-# Python
-python_embedded/
-lib/
+# IDE
+.vs/
+*.user
+*.suo
+*.csproj.user
+
+# OS
+Thumbs.db
+.DS_Store
+
+# RimWorld runtime
 __pycache__/
 *.pyc
-*.pyo
-get-pip.py
-data/
-test_*.py
-query_gpu.ps1

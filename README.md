@@ -1,154 +1,115 @@
-# RimSynapse Bridge
+# RimSynapse Core
 
-A portable Python bridge server that provides two services for RimWorld modders:
+A C# library mod for RimWorld that provides a clean API for other mods to make local LLM calls via LM Studio, Ollama, or any OpenAI-compatible backend.
 
-1. **A Living Database** — REST API backed by SQLite for tracking colony history, pawn identity, weighted memories, relationships, interactions, and narrative threads
-2. **A Local AI Proxy** — pass-through to LM Studio / Ollama so mods can make LLM calls without managing connections
+**This is a library mod** — it does nothing on its own. Install mods that depend on RimSynapse Core to add AI features to your game.
 
-The bridge also provides **context assembly** — mods send a generic object reference (event type + pawn IDs + framing), and the bridge queries the database, filters by mod-configurable settings, and returns both structured JSON data and a ready-to-use prompt.
+## Features
 
-> **See [docs/DESIGN.md](docs/DESIGN.md) for the full design document** — architecture, database schema, API reference, and mod vision.
+- **Async LLM Calls** — Background-threaded HTTP to LM Studio, never freezes the game
+- **Dynamic Request Queue** — Serialized requests with per-mod budget allocation
+- **Response Sanitization** — Strips `<think>` blocks, repairs broken JSON, cleans markdown
+- **Auto Model Discovery** — Queries and auto-maps to the active LM Studio model
+- **Keep-Alive** — Pings LM Studio every 4 minutes to prevent model unloading
+- **GPU Framework** — Data structures for GPU monitoring (polling provided by separate mod)
+- **Debug Logging** — Structured logging with subscribable events
 
----
+## Requirements
 
-## Quick Start (Windows)
+- [RimWorld 1.5](https://store.steampowered.com/app/294100/RimWorld/)
+- [Harmony](https://steamcommunity.com/workshop/filedetails/?id=2009463077)
+- [LM Studio](https://lmstudio.ai/) running locally with a model loaded
 
-1. Download and extract this repository.
-2. Double-click **[launch.bat](launch.bat)**.
-3. On first run it will:
-   - Download portable Python 3.12 (~15 MB, one-time)
-   - Install dependencies into a local `lib/` directory
-   - Generate a localhost SSL certificate (click **Yes** to trust it)
-4. The bridge starts on `https://localhost:3001` and opens the dashboard.
+## Quick Start for Mod Developers
 
-**No prerequisites required.** No Python install, no Node.js, no admin rights.
+### 1. Reference RimSynapseCore.dll
 
----
+Add a reference to `RimSynapseCore.dll` in your mod's `.csproj` and declare the dependency in your `About.xml`:
 
-## Linking with RimWorld
-
-### One-Click (Recommended)
-1. Close RimWorld (or restart it after linking).
-2. Open the dashboard at `https://localhost:3001`.
-3. Click **Link Mod Settings** in the sidebar.
-
-### Manual Configuration
-In RimWorld mod settings, set:
-- **API Endpoint**: `https://localhost:3001/v1`
-- **API Key**: `rimsynapse-bridge`
-- **Model Name**: `auto` (bridge maps to your loaded model)
-
----
-
-## API Overview
-
-All endpoints accept and return JSON. Full reference in [docs/DESIGN.md](docs/DESIGN.md).
-
-### Data API
-
-| Group | Endpoints | Description |
-|-------|-----------|-------------|
-| Colony | `POST /api/colony/register`, `GET /api/colony/{id}` | Register and query colony saves |
-| Pawns | `POST /api/pawn/register`, `GET /api/pawn/{id}`, `GET /api/pawns?colony_id=X` | Pawn identity with traits and skills |
-| Memory | `POST /api/memory/store`, `GET /api/memory/query`, `POST /api/memory/bump`, `POST /api/memory/decay` | Weighted event history |
-| Relationships | `POST /api/relationship/update`, `GET /api/relationship/query`, `POST /api/relationship/sample` | Pawn-to-pawn with integral tracking |
-| Interactions | `POST /api/interaction/store`, `POST /api/interaction/message`, `GET /api/interaction/{id}` | Conversation records |
-| Threads | `POST /api/thread/store`, `GET /api/threads?colony_id=X`, `POST /api/thread/bump`, `POST /api/thread/resolve` | Narrative keyword connections |
-
-### Context Assembly
-
+```xml
+<modDependencies>
+    <li>
+        <packageId>archDukeJim.rimsynapseCore</packageId>
+        <displayName>RimSynapse Core</displayName>
+    </li>
+</modDependencies>
 ```
-POST /api/context/build
+
+### 2. Register Your Mod
+
+```csharp
+using RimSynapse;
+
+[StaticConstructorOnStartup]
+public static class MyModInit
 {
-    "colony_id": 1,
-    "event_type": "relationship",
-    "source_pawn": "Thing_Human_1",
-    "target_pawn": "Thing_Human_2",
-    "framing": "They argued over food rations after a raid",
-    "settings": { "include_memories": true, "memory_limit": 5 }
+    public static SynapseModHandle Handle;
+
+    static MyModInit()
+    {
+        Handle = SynapseCore.Register("myname.mymod", "My Cool AI Mod");
+    }
 }
 ```
 
-Returns both structured data and a generated prompt ready for LLM submission.
+### 3. Make LLM Calls
 
-### Schema Extension
+```csharp
+// Simple prompt
+SynapseClient.PromptAsync(
+    MyModInit.Handle,
+    "You are a helpful RimWorld advisor.",
+    "What should my colony prioritize?",
+    result =>
+    {
+        if (result.success)
+            Log.Message($"LLM says: {result.content}");
+        else
+            Log.Error($"LLM error: {result.error}");
+    });
 
-Mods can register their own database tables at runtime:
-
-```
-POST /api/schema/register
+// Full chat with history
+var messages = new List<ChatMessage>
 {
-    "mod_id": "my_mod_factions",
-    "version": 1,
-    "tables": ["CREATE TABLE IF NOT EXISTS factions (...)"]
-}
+    ChatMessage.System("You are a RimWorld colonist named Engie."),
+    ChatMessage.User("How are you feeling today?"),
+};
+
+SynapseClient.ChatAsync(
+    MyModInit.Handle,
+    messages,
+    new ChatOptions { temperature = 0.8f },
+    result => { /* handle response */ });
+
+// From JSON string
+SynapseClient.ChatFromJsonAsync(
+    MyModInit.Handle,
+    "{\"system\": \"You are an advisor.\", \"user\": \"Help!\"}",
+    result => { /* handle response */ });
 ```
 
-### LLM Proxy
+## Configuration
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /v1/models` | List loaded models (OpenAI-compatible) |
-| `POST /v1/chat/completions` | Forward chat completion to LM Studio / Ollama |
+In-game: **Options → Mod Settings → RimSynapse Core**
 
----
+| Setting | Default | Description |
+|---------|---------|-------------|
+| LM Studio URL | `http://127.0.0.1:1234` | Your LM Studio server address |
+| API Key | *(empty)* | Bearer token if LM Studio auth is enabled |
+| Auto-map model | ✅ | Use the first loaded model automatically |
+| Sanitize responses | ✅ | Clean LLM output (strip think blocks, fix JSON) |
+| Keep-alive pings | ✅ | Prevent model unloading |
+| Timeout | 120s | HTTP request timeout |
+| Max requests/min | 30 | Global rate limit |
+| Mod budgets | Equal split | Per-mod query allocation sliders |
 
-## Architecture
+## Building from Source
 
-```
-+------------------+   JSON    +------------------+  proxy   +----------+
-|  Any RimWorld    | --------> |  RimSynapse      | -------> | LM Studio|
-|  Mod (C#)        |           |  Bridge (Python)  |          | / Ollama |
-|                  | <-------- |                  | <------- | (Local)  |
-|  - Queries DB    |  response |  - REST API      |  LLM out +----------+
-|  - Builds prompt |           |  - SQLite DB     |
-|  - Parses output |           |  - LLM proxy     |
-|  - Writes back   |           |  - Weight decay   |
-+------------------+           +------------------+
-```
+1. Clone this repo
+2. Edit `Source/GamePath.props` to point to your RimWorld install
+3. Build with `dotnet build Source/RimSynapseCore.csproj`
+4. Output: `Assemblies/RimSynapseCore.dll`
 
-## Project Structure
+## License
 
-```
-rimsynapse/
-├── server.py              # Flask server — LLM proxy + API endpoints
-├── database.py            # SQLite living database (12 core tables)
-├── requirements.txt       # Python dependencies
-├── launch.bat             # Portable launcher (auto-downloads Python)
-├── setup-certs.ps1        # SSL certificate generator
-├── config.json            # Runtime settings (git-ignored)
-├── data/                  # SQLite database files (git-ignored)
-├── docs/
-│   └── DESIGN.md          # Full design document
-└── public/
-    ├── index.html         # Dashboard
-    ├── style.css          # Dashboard styling
-    └── app.js             # Dashboard scripting
-```
-
----
-
-## Database
-
-The bridge uses a self-initializing SQLite database with 12 core tables:
-
-- **Identity**: `colonies`, `pawns`, `pawn_traits`, `pawn_skills`
-- **Memory**: `memories`, `relationships`, `opinion_samples`
-- **Interactions**: `interactions`, `interaction_messages`, `narrative_threads`
-- **Operational**: `prompt_log`, `schema_registry`
-
-On every startup, the bridge verifies all tables exist and runs any pending schema migrations automatically. Mods can extend the schema at runtime via the extension API.
-
----
-
-## Troubleshooting
-
-**LM Studio connection offline**
-- Ensure LM Studio is running with Local Server enabled (default port 1234)
-- If authentication is enabled, enter your API key in the dashboard
-
-**Certificate warning in browser**
-- Run `setup-certs.ps1` again and click **Yes** to trust the certificate
-
-**Database issues**
-- Delete `data/rimsynapse.db` to reset — the bridge will recreate it on next launch
+MIT
