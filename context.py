@@ -7,8 +7,15 @@ Two modes for mod developers:
 
 Both return a ready-to-use prompt for the LLM proxy.
 """
+import hashlib
+import json
 import re
+import time
 from typing import Optional
+
+
+# Engine boot time — mods compare this to know if bridge restarted
+_boot_time = time.time()
 
 
 # In-memory template registry: { template_id: TemplateRecord }
@@ -28,6 +35,17 @@ class TemplateRecord:
         self.max_tokens = max_tokens      # Optional token budget
         self.description = description
         self.fill_count = 0               # How many times this template has been used
+        self.registered_at = time.time()
+        self.fingerprint = self._compute_fingerprint()
+
+    def _compute_fingerprint(self) -> str:
+        """Hash of template + slots — mods compare this to detect drift."""
+        payload = json.dumps({
+            "template": self.template,
+            "slots": self.slots,
+            "max_tokens": self.max_tokens,
+        }, sort_keys=True)
+        return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
     def to_dict(self):
         return {
@@ -38,6 +56,8 @@ class TemplateRecord:
             "max_tokens": self.max_tokens,
             "description": self.description,
             "fill_count": self.fill_count,
+            "fingerprint": self.fingerprint,
+            "registered_at": self.registered_at,
         }
 
 
@@ -126,6 +146,8 @@ def register_template(data: dict) -> dict:
         "mod_id": mod_id,
         "slot_count": len(normalized_slots),
         "placeholders": sorted(placeholders),
+        "fingerprint": record.fingerprint,
+        "boot_time": _boot_time,
     }
 
 
@@ -146,6 +168,67 @@ def unregister_template(template_id: str) -> dict:
         del _templates[template_id]
         return {"status": "removed", "template_id": template_id}
     return {"error": "template not found", "template_id": template_id}
+
+
+def verify_handshake(data: dict) -> dict:
+    """
+    Handshake verification. Mod sends its known template IDs + fingerprints.
+    Bridge responds with what's still cached vs. what needs re-registration.
+
+    Args:
+        data: {
+            "mod_id": "rimsynapse",
+            "boot_time": 1720300000.0,        # last known bridge boot time
+            "templates": {
+                "relationship_dialogue": "a1b2c3d4e5f6",  # template_id: fingerprint
+                "quest_intro": "f6e5d4c3b2a1",
+            }
+        }
+
+    Returns: {
+        "status": "ok" | "stale" | "missing",
+        "bridge_boot_time": 1720300000.0,
+        "bridge_restarted": false,
+        "templates": {
+            "relationship_dialogue": { "status": "ok", "fingerprint": "a1b2c3d4e5f6" },
+            "quest_intro":           { "status": "missing", "fingerprint": null },
+        },
+        "action_required": ["quest_intro"]  # list of template_ids to re-register
+    }
+    """
+    mod_boot_time = data.get("boot_time", 0)
+    known_templates = data.get("templates", {})
+    bridge_restarted = mod_boot_time != 0 and mod_boot_time != _boot_time
+
+    results = {}
+    action_required = []
+
+    for template_id, expected_fingerprint in known_templates.items():
+        record = _templates.get(template_id)
+        if record is None:
+            results[template_id] = {"status": "missing", "fingerprint": None}
+            action_required.append(template_id)
+        elif record.fingerprint != expected_fingerprint:
+            results[template_id] = {
+                "status": "stale",
+                "fingerprint": record.fingerprint,
+                "expected": expected_fingerprint,
+            }
+            action_required.append(template_id)
+        else:
+            results[template_id] = {"status": "ok", "fingerprint": record.fingerprint}
+
+    overall = "ok"
+    if action_required:
+        overall = "missing" if bridge_restarted else "stale"
+
+    return {
+        "status": overall,
+        "bridge_boot_time": _boot_time,
+        "bridge_restarted": bridge_restarted,
+        "templates": results,
+        "action_required": action_required,
+    }
 
 
 # ---------------------------------------------------------------------------

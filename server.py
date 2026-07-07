@@ -31,7 +31,7 @@ from flask import Flask, request, jsonify, Response, send_from_directory
 from flask_cors import CORS
 from context import (
     register_template, list_templates, get_template, unregister_template,
-    fill_template, build_raw_prompt, get_engine_stats,
+    fill_template, build_raw_prompt, get_engine_stats, verify_handshake,
 )
 
 # ---------------------------------------------------------------------------
@@ -1593,6 +1593,39 @@ def api_template_delete(template_id):
         return jsonify(result), 404
     log_to_dashboard('info', 'prompt', f"Template removed: {template_id}")
     return jsonify(result)
+
+
+@app.route('/api/template/handshake', methods=['POST'])
+def api_template_handshake():
+    """Verify template cache is still valid. Mods call this on startup or periodically.
+
+    The mod sends its known template IDs + fingerprints + last known bridge boot time.
+    The bridge responds with which templates are still cached, which are stale,
+    and which need to be re-registered.
+
+    If bridge_restarted is true, ALL templates need re-registration.
+    If action_required is empty, the mod's cache is in sync — proceed with fills.
+    """
+    try:
+        data = request.get_json()
+        result = verify_handshake(data)
+
+        if result["bridge_restarted"]:
+            log_to_dashboard('warn', 'prompt',
+                f"[HANDSHAKE] Bridge restart detected by {data.get('mod_id', '?')} "
+                f"-> {len(result['action_required'])} templates need re-registration")
+        elif result["action_required"]:
+            log_to_dashboard('info', 'prompt',
+                f"[HANDSHAKE] {data.get('mod_id', '?')}: "
+                f"{len(result['action_required'])} templates need refresh")
+        else:
+            log_to_dashboard('info', 'prompt',
+                f"[HANDSHAKE] {data.get('mod_id', '?')}: all templates in sync")
+
+        return jsonify(result)
+    except Exception as e:
+        log_to_dashboard('error', 'prompt', f"Handshake error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # --- Prompt Fill (Template Mode — efficient, cached) ---
