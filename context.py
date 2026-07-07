@@ -9,14 +9,19 @@ Both return a ready-to-use prompt for the LLM proxy.
 """
 import hashlib
 import json
+import os
 import re
 import time
+from pathlib import Path
 from typing import Optional
 
 
 # Engine boot time — mods compare this to know if bridge restarted
 _boot_time = time.time()
 
+# Template storage directory (next to this file)
+_TEMPLATE_DIR = Path(os.path.dirname(os.path.abspath(__file__))) / "templates"
+_TEMPLATE_DIR.mkdir(exist_ok=True)
 
 # In-memory template registry: { template_id: TemplateRecord }
 _templates = {}
@@ -139,6 +144,7 @@ def register_template(data: dict) -> dict:
 
     is_update = template_id in _templates
     _templates[template_id] = record
+    _save_to_disk(record)
 
     return {
         "status": "updated" if is_update else "registered",
@@ -163,11 +169,65 @@ def get_template(template_id: str) -> Optional[dict]:
 
 
 def unregister_template(template_id: str) -> dict:
-    """Remove a registered template."""
+    """Remove a registered template from memory and disk."""
     if template_id in _templates:
         del _templates[template_id]
+        # Remove from disk
+        path = _TEMPLATE_DIR / f"{template_id}.json"
+        if path.exists():
+            path.unlink()
         return {"status": "removed", "template_id": template_id}
     return {"error": "template not found", "template_id": template_id}
+
+
+# ---------------------------------------------------------------------------
+# Disk Persistence
+# ---------------------------------------------------------------------------
+
+def _save_to_disk(record: TemplateRecord):
+    """Save a template to disk as JSON."""
+    path = _TEMPLATE_DIR / f"{record.template_id}.json"
+    data = {
+        "mod_id": record.mod_id,
+        "template_id": record.template_id,
+        "template": record.template,
+        "slots": record.slots,
+        "max_tokens": record.max_tokens,
+        "description": record.description,
+    }
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _load_from_disk(path: Path) -> Optional[TemplateRecord]:
+    """Load a single template from a JSON file."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        record = TemplateRecord(
+            mod_id=data.get("mod_id", "unknown"),
+            template_id=data["template_id"],
+            template=data["template"],
+            slots=data.get("slots", {}),
+            max_tokens=data.get("max_tokens"),
+            description=data.get("description", ""),
+        )
+        return record
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+
+def _load_all_templates():
+    """Load all templates from disk on startup."""
+    count = 0
+    for path in _TEMPLATE_DIR.glob("*.json"):
+        record = _load_from_disk(path)
+        if record:
+            _templates[record.template_id] = record
+            count += 1
+    return count
+
+
+# Auto-load on import
+_loaded_count = _load_all_templates()
 
 
 def verify_handshake(data: dict) -> dict:
