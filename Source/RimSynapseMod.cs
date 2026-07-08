@@ -229,6 +229,17 @@ namespace RimSynapse
                 Settings.logLevel = (LogLevel)next;
             }
 
+            listing.Gap(12f);
+
+            // ── Notifications ───────────────────────────────────────────
+            listing.Label("Notifications", tooltip: "Control startup notifications.");
+            listing.GapLine();
+
+            listing.CheckboxLabeled("Show VRAM status on game load",
+                ref Settings.showVramAdvisory,
+                "Shows estimated GPU memory breakdown when the game starts.\n" +
+                "Uncheck to disable (only shows if NVIDIA Tool is not installed).");
+
             listing.End();
             Widgets.EndScrollView();
         }

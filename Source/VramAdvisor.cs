@@ -19,8 +19,9 @@ namespace RimSynapse
     /// </summary>
     internal static class VramAdvisor
     {
-        /// <summary>Minimum recommended free VRAM in GB.</summary>
-        private const float MinFreeGb = 2.0f;
+        /// <summary>Minimum recommended free VRAM in GB (higher than NVIDIA Tool
+        /// since our estimates are less precise than real NVML data).</summary>
+        private const float MinFreeGb = 4.0f;
 
         /// <summary>Only check once per game session.</summary>
         private static bool _hasChecked;
@@ -58,7 +59,8 @@ namespace RimSynapse
             float rwEstimateGb = 1.0f;
 
             // System/desktop overhead (DWM, compositor, background apps)
-            float systemEstimateGb = 1.5f;
+            // Windows 11 with Chrome/Discord easily uses 2-4 GB
+            float systemEstimateGb = 2.5f;
 
             float estimatedUsedGb = lmEstimateGb + rwEstimateGb + systemEstimateGb;
             float estimatedFreeGb = totalGpuGb - estimatedUsedGb;
@@ -70,38 +72,59 @@ namespace RimSynapse
                 $"~{systemEstimateGb:F1} GB system. " +
                 $"Est. free: ~{estimatedFreeGb:F1} GB.");
 
-            if (estimatedFreeGb < MinFreeGb && lmEstimateGb > 0f)
+            // Check user preference — default is to always show
+            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
+
+            if (!showNotify)
             {
-                ShowAdvisory(totalGpuGb, lmEstimateGb, estimatedFreeGb, modelName);
+                SynapseLog.Info("core", "VRAM advisory disabled in settings.");
+                return;
             }
+
+            ShowAdvisory(totalGpuGb, lmEstimateGb, estimatedFreeGb, modelName);
         }
 
         /// <summary>
-        /// Show a non-blocking advisory dialog about VRAM headroom.
+        /// Show the VRAM status dialog. Informational by default,
+        /// escalates to warning language if headroom is tight.
         /// </summary>
         private static void ShowAdvisory(float totalGb, float lmGb,
             float estFreeGb, string modelName)
         {
-            string msg =
-                "RimSynapse — GPU Memory Advisory\n\n" +
-                $"Your GPU has {totalGb:F0} GB total VRAM.\n" +
-                $"Your loaded model ({modelName ?? "unknown"}) is estimated to use ~{lmGb:F1} GB.\n\n" +
-                $"Estimated free VRAM for late-game: ~{estFreeGb:F1} GB\n" +
-                $"Recommended minimum: {MinFreeGb:F0} GB\n\n" +
-                "This may cause stuttering in late-game with large colonies.\n\n" +
-                "Suggestions:\n" +
-                "  • Use a smaller model in LM Studio (e.g., 7B instead of 12B)\n" +
-                "  • Reduce the context window size in LM Studio\n" +
-                "  • Close GPU-heavy background apps before playing\n\n" +
-                "For real-time GPU monitoring, install the companion mod:\n" +
-                "  RimSynapse NVIDIA Tool";
+            bool isTight = estFreeGb < MinFreeGb && lmGb > 0f;
 
-            // Queue it for when the game UI is ready
+            string status = isTight
+                ? $"⚠  Estimated {estFreeGb:F1} GB free — this may be tight for late-game."
+                : lmGb > 0f
+                    ? $"✓  Estimated {estFreeGb:F1} GB free — you should be fine."
+                    : "No LLM model detected — VRAM estimate unavailable.";
+
+            string suggestions = isTight
+                ? "\n\nSuggestions:\n" +
+                  "  • Use a smaller model in LM Studio (e.g., 7B instead of 12B)\n" +
+                  "  • Reduce the context window size in LM Studio\n" +
+                  "  • Close GPU-heavy background apps before playing"
+                : "";
+
+            string msg =
+                "RimSynapse — GPU Memory Status\n\n" +
+                $"GPU: {UnityEngine.SystemInfo.graphicsDeviceName}\n" +
+                $"VRAM: {totalGb:F0} GB total\n\n" +
+                (lmGb > 0f
+                    ? $"  • LM Studio model ({modelName}):  ~{lmGb:F1} GB\n"
+                    : "") +
+                $"  • RimWorld (estimate):  ~1.0 GB\n" +
+                $"  • System (estimate):    ~2.5 GB\n\n" +
+                status +
+                suggestions +
+                "\n\nFor real-time GPU monitoring, install: RimSynapse NVIDIA Tool" +
+                "\nDisable this notification in Mod Settings → RimSynapse Core.";
+
             LongEventHandler.QueueLongEvent(() =>
             {
                 Find.WindowStack?.Add(new Dialog_MessageBox(
                     msg,
-                    "Got it",
+                    "OK",
                     null,
                     null,
                     null,
@@ -111,10 +134,12 @@ namespace RimSynapse
                     null));
             }, null, false, null);
 
-            SynapseLog.Warn("core",
-                $"VRAM advisory: ~{estFreeGb:F1} GB estimated free " +
-                $"with {modelName ?? "unknown"} loaded on {totalGb:F0} GB GPU. " +
-                $"Consider a smaller model or reducing context window.");
+            if (isTight)
+            {
+                SynapseLog.Warn("core",
+                    $"VRAM advisory: ~{estFreeGb:F1} GB estimated free " +
+                    $"with {modelName ?? "unknown"} loaded on {totalGb:F0} GB GPU.");
+            }
         }
 
         /// <summary>

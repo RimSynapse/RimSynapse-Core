@@ -29,6 +29,10 @@ namespace RimSynapse
         // --- Logging ---
         public LogLevel logLevel = LogLevel.Info;
 
+        // --- Notifications ---
+        /// <summary>Show VRAM status on game load (default: true). Disable in settings.</summary>
+        public bool showVramAdvisory = true;
+
         public override void ExposeData()
         {
             base.ExposeData();
@@ -43,6 +47,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref maxRequestsPerMinute, "maxRequestsPerMinute", 30);
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
             Scribe_Values.Look(ref logLevel, "logLevel", LogLevel.Info);
+            Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
         }
     }
 }
