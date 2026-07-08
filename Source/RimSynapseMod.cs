@@ -40,6 +40,9 @@ namespace RimSynapse
             // immediately — uses system timers, independent of game ticks.
             SynapseCore.Initialize();
 
+            // Lightweight VRAM headroom check (vendor-agnostic, no save impact)
+            VramAdvisor.Check();
+
             Log.Message("[RimSynapse] Core initialized. Harmony patches applied.");
         }
 
