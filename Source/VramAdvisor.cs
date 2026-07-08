@@ -87,6 +87,7 @@ namespace RimSynapse
             {
                 Internal.HttpEngine.EnsureInitialized();
                 var modelsResult = Internal.HttpEngine.GetModelsSync();
+                Internal.ModelManager.UpdateCache(modelsResult);
 
                 SynapseLog.Info("core",
                     $"VRAM advisor (attempt {attempt + 1}): " +

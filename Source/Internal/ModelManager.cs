@@ -80,29 +80,7 @@ namespace RimSynapse.Internal
 
                 lock (_cacheLock)
                 {
-                    _cachedResult = result;
-                    _cacheExpiry = DateTime.UtcNow + CacheDuration;
-
-                    if (result.online && result.modelIds.Count > 0)
-                    {
-                        string previousModel = ActiveModel;
-                        ActiveModel = result.modelIds[0];
-                        ContextLength = result.contextLength;
-
-                        if (previousModel != ActiveModel)
-                        {
-                            SynapseLog.Info("model",
-                                $"Active model: \"{ActiveModel}\"" +
-                                (ContextLength.HasValue
-                                    ? $" (context: {ContextLength.Value} tokens)"
-                                    : ""));
-                        }
-                    }
-                    else
-                    {
-                        ActiveModel = null;
-                        ContextLength = null;
-                    }
+                    UpdateCache(result);
                 }
 
                 SynapseGameComponent.Enqueue(() => callback(result));
@@ -110,14 +88,45 @@ namespace RimSynapse.Internal
         }
 
         /// <summary>
+        /// Update the cached model state from a synchronous HTTP result.
+        /// Call this when performing synchronous model checks during startup or VRAM advisory.
+        /// </summary>
+        internal static void UpdateCache(ModelsResult result)
+        {
+            lock (_cacheLock)
+            {
+                _cachedResult = result;
+                _cacheExpiry = DateTime.UtcNow + CacheDuration;
+
+                if (result.online && result.modelIds.Count > 0)
+                {
+                    string previousModel = ActiveModel;
+                    ActiveModel = result.modelIds[0];
+                    ContextLength = result.contextLength;
+
+                    if (previousModel != ActiveModel)
+                    {
+                        SynapseLog.Info("model",
+                            $"Active model: \"{ActiveModel}\"" +
+                            (ContextLength.HasValue
+                                ? $" (context: {ContextLength.Value} tokens)"
+                                : ""));
+                    }
+                }
+                else
+                {
+                    ActiveModel = null;
+                    ContextLength = null;
+                }
+            }
+        }
+
+        /// <summary>
         /// Refresh the model cache. Called periodically by keep-alive.
         /// </summary>
         internal static void RefreshCache()
         {
-            lock (_cacheLock)
-            {
-                _cacheExpiry = DateTime.MinValue; // Force refresh on next query
-            }
+            GetModels(_ => { });
         }
 
         /// <summary>

@@ -51,6 +51,7 @@ namespace RimSynapse
             System.Threading.Tasks.Task.Run(() =>
             {
                 var result = HttpEngine.GetModelsSync();
+                ModelManager.UpdateCache(result);
 
                 if (result.online)
                 {
