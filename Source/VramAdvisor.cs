@@ -1,3 +1,4 @@
+using System;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using Verse;
@@ -30,6 +31,11 @@ namespace RimSynapse
         /// Called once during mod startup (StaticConstructorOnStartup).
         /// Uses Unity's SystemInfo to estimate VRAM headroom.
         /// </summary>
+        /// <summary>Max retries if LM Studio doesn't return a model.</summary>
+        private const int MaxRetries = 3;
+        private const int RetryDelayMs = 3000;
+        private const int InitialDelayMs = 5000;
+
         internal static void Check()
         {
             if (_hasChecked) return;
@@ -45,14 +51,82 @@ namespace RimSynapse
                 return;
             }
 
-            // SystemInfo.graphicsMemorySize = total GPU memory in MB (all vendors)
+            // Check user preference — default is to always show
+            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
+            if (!showNotify)
+            {
+                SynapseLog.Info("core", "VRAM advisory disabled in settings.");
+                return;
+            }
+
+            // Run the model query on a background thread with delay.
+            // At startup, HttpEngine and LM Studio need a few seconds to be ready.
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                // Wait for things to settle
+                System.Threading.Thread.Sleep(InitialDelayMs);
+                RunCheck(0);
+            });
+        }
+
+        /// <summary>
+        /// Query LM Studio for the loaded model, with retry logic.
+        /// Runs on a background thread to avoid blocking the main thread.
+        /// </summary>
+        private static void RunCheck(int attempt)
+        {
+            // SystemInfo must be read on the main thread — cache it early
+            // Actually SystemInfo.graphicsMemorySize is thread-safe in Unity
             int totalGpuMb = SystemInfo.graphicsMemorySize;
             if (totalGpuMb <= 0) return;
 
             float totalGpuGb = totalGpuMb / 1024f;
 
-            // Estimate LLM VRAM from selected model name
-            string modelName = RimSynapseMod.Instance?.Settings?.selectedModel;
+            // Query LM Studio for the actual loaded model
+            string modelName = null;
+            try
+            {
+                Internal.HttpEngine.EnsureInitialized();
+                var modelsResult = Internal.HttpEngine.GetModelsSync();
+
+                SynapseLog.Info("core",
+                    $"VRAM advisor (attempt {attempt + 1}): " +
+                    $"online={modelsResult.online}, " +
+                    $"models={modelsResult.modelIds.Count}, " +
+                    $"error={modelsResult.error ?? "none"}");
+
+                if (modelsResult.online && modelsResult.modelIds.Count > 0)
+                {
+                    modelName = modelsResult.modelIds[0];
+                    SynapseLog.Info("core",
+                        $"VRAM advisor: live model from LM Studio: \"{modelName}\"");
+                }
+            }
+            catch (Exception ex)
+            {
+                SynapseLog.Warn("core",
+                    $"VRAM advisor: could not query LM Studio (attempt {attempt + 1}): {ex.Message}");
+            }
+
+            // If no model found and retries remain, wait and try again
+            if (string.IsNullOrEmpty(modelName) && attempt < MaxRetries)
+            {
+                SynapseLog.Info("core",
+                    $"VRAM advisor: no model found, retrying in {RetryDelayMs}ms...");
+                System.Threading.Thread.Sleep(RetryDelayMs);
+                RunCheck(attempt + 1);
+                return;
+            }
+
+            // If no model found from the live API — always warn.
+            // Don't fall back to settings.selectedModel — that's stale data
+            // from a previous session and would mask the fact that LM Studio is offline.
+            if (string.IsNullOrEmpty(modelName))
+            {
+                ShowNoModelWarning(totalGpuGb);
+                return;
+            }
+
             float lmEstimateGb = EstimateModelVramGb(modelName);
 
             // RimWorld itself typically uses 0.5-1.5 GB VRAM
@@ -72,16 +146,50 @@ namespace RimSynapse
                 $"~{systemEstimateGb:F1} GB system. " +
                 $"Est. free: ~{estimatedFreeGb:F1} GB.");
 
-            // Check user preference — default is to always show
-            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
-
-            if (!showNotify)
-            {
-                SynapseLog.Info("core", "VRAM advisory disabled in settings.");
-                return;
-            }
-
             ShowAdvisory(totalGpuGb, lmEstimateGb, estimatedFreeGb, modelName);
+        }
+
+        /// <summary>
+        /// Always shown if no model is detected — this is critical since
+        /// the entire mod depends on LM Studio having a model loaded.
+        /// Ignores the "show VRAM advisory" setting.
+        /// </summary>
+        private static void ShowNoModelWarning(float totalGpuGb)
+        {
+            string gpuName = SystemInfo.graphicsDeviceName ?? "Unknown GPU";
+
+            string msg =
+                "RimSynapse — No LLM Model Detected\n\n" +
+                "RimSynapse could not connect to LM Studio or no model is loaded.\n" +
+                "AI features (chat, psychology, storytelling) will not function.\n\n" +
+                "To fix this:\n" +
+                "  1. Download LM Studio: https://lmstudio.ai\n" +
+                "  2. Install and open LM Studio\n" +
+                "  3. Search for and download a model (recommended: gemma-4-12b)\n" +
+                "  4. Go to the Local Server tab (left sidebar)\n" +
+                "  5. Click \"Start Server\" — it should say Ready on port 1234\n\n" +
+                "Quickstart guide:\n" +
+                "  https://lmstudio.ai/docs/basics/server\n\n" +
+                $"GPU: {gpuName}  •  VRAM: {totalGpuGb:F0} GB total\n\n" +
+                "This warning always appears when no model is detected.\n" +
+                "It cannot be disabled — RimSynapse requires LM Studio to function.";
+
+            SynapseLog.Warn("core",
+                "No LLM model detected. LM Studio may not be running or has no model loaded.");
+
+            LongEventHandler.QueueLongEvent(() =>
+            {
+                Find.WindowStack?.Add(new Dialog_MessageBox(
+                    msg,
+                    "OK",
+                    null,
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    null));
+            }, null, false, null);
         }
 
         /// <summary>
@@ -96,8 +204,12 @@ namespace RimSynapse
 
             // ── Status line ──
             string status;
-            if (lmGb <= 0f)
+            if (lmGb <= 0f && string.IsNullOrEmpty(modelName))
                 status = "No LLM model detected — VRAM estimate unavailable.";
+            else if (lmGb <= 0f)
+                status =
+                    $"LM Studio model detected: {modelName}\n" +
+                    "Could not estimate VRAM usage for this model.";
             else if (isCritical)
                 status =
                     $"⚠  Estimated {estFreeGb:F1} GB free — below recommended 2 GB.\n" +
@@ -208,13 +320,24 @@ namespace RimSynapse
         /// </summary>
         private static float ParseBillionParams(string name)
         {
-            // Match: "12b", "7b", "70b", "3.8b", "0.5b"
-            // Skip: "q4b", "a4b", "e4b" (quantization/expert markers)
+            // Match standard patterns: "12b", "7b", "70b", "3.8b", "0.5b"
+            // Skip quantization markers: "q4b", "q8b"
             var match = Regex.Match(name, @"(?<![a-z])(\d+\.?\d*)b(?!\w)");
             if (match.Success)
             {
                 float val;
                 if (float.TryParse(match.Groups[1].Value, out val) && val > 0f)
+                    return val;
+            }
+
+            // Handle MoE/expert notation: "e4b" = expert 4B, "a4b" = active 4B
+            // These indicate the active parameter count for mixture-of-experts models
+            // (e.g., gemma-4-e4b = 4B active expert parameters)
+            var moeMatch = Regex.Match(name, @"[ea](\d+\.?\d*)b(?!\w)");
+            if (moeMatch.Success)
+            {
+                float val;
+                if (float.TryParse(moeMatch.Groups[1].Value, out val) && val > 0f)
                     return val;
             }
 

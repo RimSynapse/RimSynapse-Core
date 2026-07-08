@@ -14,6 +14,13 @@ namespace RimSynapse
         /// <summary>Whether LM Studio was reachable on the last check.</summary>
         public static bool IsOnline => ModelManager.IsOnline;
 
+        /// <summary>
+        /// The currently active model ID as reported by LM Studio's API.
+        /// Updated automatically via keep-alive polling (~30s cache).
+        /// Returns null if no model is loaded or LM Studio is offline.
+        /// </summary>
+        public static string ActiveModelName => ModelManager.ActiveModel;
+
         /// <summary>Total queue depth across all mods.</summary>
         public static int TotalQueueDepth => RequestQueue.QueueDepth;
 
