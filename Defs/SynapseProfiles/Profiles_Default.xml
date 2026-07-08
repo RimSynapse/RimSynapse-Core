@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RimSynapse Core — Default Context Profiles
+  
+  Each profile maps an event type to:
+    - budgetFraction: how much of the context window to use (0.0-1.0)
+    - includeTiers: which data tiers to include
+    - weightOverrides: per-slot weight adjustments for this event type
+  
+  Companion mods: Add your own profiles for custom event types.
+  Players: Adjust budgetFraction to control how much context is sent.
+  
+  Valid tier names: Identity, PawnState, Colony, World, Synthetic
+-->
+<Defs>
+
+  <SynapseContextProfileDef>
+    <defName>SynapseProfile_Thought</defName>
+    <label>Thought Profile</label>
+    <description>Lightweight profile for quick pawn thoughts. Minimal context, high frequency.</description>
+    <eventType>thought</eventType>
+    <budgetFraction>0.15</budgetFraction>
+    <includeTiers>
+      <li>Identity</li>
+    </includeTiers>
+  </SynapseContextProfileDef>
+
+  <SynapseContextProfileDef>
+    <defName>SynapseProfile_Dialogue</defName>
+    <label>Dialogue Profile</label>
+    <description>Rich context for in-character pawn conversations.</description>
+    <eventType>dialogue</eventType>
+    <budgetFraction>0.50</budgetFraction>
+    <includeTiers>
+      <li>Identity</li>
+      <li>PawnState</li>
+      <li>Synthetic</li>
+    </includeTiers>
+  </SynapseContextProfileDef>
+
+  <SynapseContextProfileDef>
+    <defName>SynapseProfile_Relationship</defName>
+    <label>Relationship Profile</label>
+    <description>Social-focused profile. Boosts relationship and opinion data.</description>
+    <eventType>relationship</eventType>
+    <budgetFraction>0.35</budgetFraction>
+    <includeTiers>
+      <li>Identity</li>
+      <li>PawnState</li>
+      <li>Synthetic</li>
+    </includeTiers>
+    <weightOverrides>
+      <li>
+        <slot>relationships</slot>
+        <weight>9</weight>
+      </li>
+      <li>
+        <slot>opinions</slot>
+        <weight>8</weight>
+      </li>
+    </weightOverrides>
+  </SynapseContextProfileDef>
+
+  <SynapseContextProfileDef>
+    <defName>SynapseProfile_Reaction</defName>
+    <label>Reaction Profile</label>
+    <description>Emotional reaction profile. Boosts mood and health context.</description>
+    <eventType>reaction</eventType>
+    <budgetFraction>0.25</budgetFraction>
+    <includeTiers>
+      <li>Identity</li>
+      <li>PawnState</li>
+    </includeTiers>
+    <weightOverrides>
+      <li>
+        <slot>mood</slot>
+        <weight>9</weight>
+      </li>
+      <li>
+        <slot>health</slot>
+        <weight>7</weight>
+      </li>
+    </weightOverrides>
+  </SynapseContextProfileDef>
+
+  <SynapseContextProfileDef>
+    <defName>SynapseProfile_Event</defName>
+    <label>Colony Event Profile</label>
+    <description>Deep, infrequent colony-wide analysis. Full colony and world data.</description>
+    <eventType>event</eventType>
+    <budgetFraction>0.70</budgetFraction>
+    <includeTiers>
+      <li>Identity</li>
+      <li>Colony</li>
+      <li>World</li>
+    </includeTiers>
+  </SynapseContextProfileDef>
+
+  <SynapseContextProfileDef>
+    <defName>SynapseProfile_Quest</defName>
+    <label>Quest Profile</label>
+    <description>Full world state for quest interactions.</description>
+    <eventType>quest</eventType>
+    <budgetFraction>0.60</budgetFraction>
+    <includeTiers>
+      <li>Identity</li>
+      <li>PawnState</li>
+      <li>Colony</li>
+      <li>World</li>
+      <li>Synthetic</li>
+    </includeTiers>
+  </SynapseContextProfileDef>
+
+</Defs>

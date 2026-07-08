@@ -19,6 +19,9 @@ namespace RimSynapse
         public bool enableKeepAlive = true;
         public bool disableThinking = true;
 
+        // --- Context Embedding ---
+        public bool enableContextEmbedding = false;
+
         // --- Performance ---
         public int timeoutSeconds = 120;
         public int maxRequestsPerMinute = 30;
@@ -38,6 +41,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref disableThinking, "disableThinking", true);
             Scribe_Values.Look(ref timeoutSeconds, "timeoutSeconds", 120);
             Scribe_Values.Look(ref maxRequestsPerMinute, "maxRequestsPerMinute", 30);
+            Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
             Scribe_Values.Look(ref logLevel, "logLevel", LogLevel.Info);
         }
     }

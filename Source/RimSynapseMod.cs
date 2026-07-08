@@ -115,6 +115,30 @@ namespace RimSynapse
             }
 
 
+            // ── Context Embedding ───────────────────────────────────
+            listing.Label("Context Embedding",
+                tooltip: "Inject game state (pawn data, colony, factions) into LLM requests. " +
+                    "Configure prompts and weights via XML files in Defs/.");
+            listing.GapLine();
+
+            listing.CheckboxLabeled("Enable context embedding",
+                ref Settings.enableContextEmbedding,
+                "When enabled, Core assembles game state into a structured context block " +
+                "and injects it into the system message of LLM requests. " +
+                "Configure prompts in Defs/SynapsePrompts/, weights in Defs/SynapseWeights/, " +
+                "and profiles in Defs/SynapseProfiles/.");
+
+            if (Settings.enableContextEmbedding)
+            {
+                listing.Gap(4f);
+                listing.Label("  Context is active. Edit XML files in the mod's Defs/ folder " +
+                    "to customize prompts, weights, and event profiles.");
+                listing.Label($"  Token budget adapts to LM Studio context window " +
+                    $"({Internal.ModelManager.ContextLength?.ToString() ?? "unknown"} tokens).");
+            }
+
+            listing.Gap(12f);
+
             // ── Advanced ─────────────────────────────────────────────
             listing.Label("Advanced", tooltip: "Sanitization, keep-alive, and logging.");
             listing.GapLine();

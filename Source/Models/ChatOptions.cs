@@ -27,6 +27,41 @@ namespace RimSynapse
         /// <summary>Request priority. 0 = normal, higher = processed sooner within mod's budget.</summary>
         public int priority;
 
+        // --- Context Embedding ---
+
+        /// <summary>
+        /// Event type for context assembly. Controls which context profile
+        /// (tiers, budget fraction, weight overrides) is used.
+        /// Standard types: "dialogue", "event", "thought", "reaction",
+        /// "relationship", "quest", "custom".
+        /// If null, no context is assembled (raw passthrough).
+        /// </summary>
+        public string eventType;
+
+        /// <summary>
+        /// Override context tier selection for this request.
+        /// If null, uses the mod's DefaultTiers or the profile default.
+        /// </summary>
+        public ContextTierMask? contextTiers;
+
+        /// <summary>
+        /// Per-slot weight overrides for this request.
+        /// These override both XML weights and profile overrides.
+        /// Used by Storyteller for dynamic weight boosting.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, float> weightOverrides;
+
+        /// <summary>
+        /// Source pawn for context assembly (the primary pawn in the interaction).
+        /// If null and eventType is set, context will be colony-level only.
+        /// </summary>
+        public Verse.Pawn sourcePawn;
+
+        /// <summary>
+        /// Target pawn for context assembly (secondary pawn in two-pawn interactions).
+        /// </summary>
+        public Verse.Pawn targetPawn;
+
         /// <summary>Default options with sanitization enabled and auto model mapping.</summary>
         public static ChatOptions Default => new ChatOptions();
     }

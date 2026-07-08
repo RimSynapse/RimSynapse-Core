@@ -19,6 +19,20 @@ namespace RimSynapse
         /// </summary>
         public float QueryBudgetPercent { get; set; }
 
+        /// <summary>
+        /// The mod's base system prompt. Injected as the beginning of the
+        /// system message for all requests from this mod. Core appends
+        /// context data after this prompt. If null, Core resolves a prompt
+        /// from SynapsePromptDef XML based on event type.
+        /// </summary>
+        public string SystemPrompt { get; set; }
+
+        /// <summary>
+        /// Default context tiers this mod wants included.
+        /// Can be overridden per-request via ChatOptions.contextTiers.
+        /// </summary>
+        public ContextTierMask DefaultTiers { get; set; } = ContextTierMask.Standard;
+
         /// <summary>Total requests this mod has made this session.</summary>
         public int RequestCount { get; internal set; }
 

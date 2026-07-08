@@ -21,9 +21,16 @@ namespace RimSynapse
         /// </summary>
         /// <param name="modId">Unique mod identifier (e.g., "rimsynapse.chat")</param>
         /// <param name="displayName">Human-readable name for settings UI (e.g., "RimSynapse Chat")</param>
-        public static SynapseModHandle Register(string modId, string displayName)
+        /// <param name="systemPrompt">Optional default system prompt for this mod.
+        /// If null, Core will resolve a prompt from SynapsePromptDef XML based on event type.
+        /// Can also be set/changed at runtime via SynapseModHandle.SystemPrompt.</param>
+        public static SynapseModHandle Register(string modId, string displayName,
+            string systemPrompt = null)
         {
-            return ModRegistry.Register(modId, displayName);
+            var handle = ModRegistry.Register(modId, displayName);
+            if (!string.IsNullOrEmpty(systemPrompt))
+                handle.SystemPrompt = systemPrompt;
+            return handle;
         }
 
         /// <summary>

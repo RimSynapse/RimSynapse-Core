@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RimSynapse Core — Default System Prompts
+  
+  These are the baseline prompts for each event type. They are used when
+  no companion mod provides a mod-specific prompt with higher priority.
+  
+  Mod authors: Create your own SynapsePromptDef in your Defs/ folder
+  with a higher <priority> and matching <eventType> to override.
+  
+  Players: Edit these directly or use XPath patches to change prompts.
+-->
+<Defs>
+
+  <SynapsePromptDef>
+    <defName>SynapsePrompt_Dialogue</defName>
+    <label>Default Dialogue Prompt</label>
+    <description>System prompt for pawn dialogue interactions.</description>
+    <eventType>dialogue</eventType>
+    <systemPrompt>You are role-playing as a colonist in a sci-fi survival colony on a distant rimworld. Respond in character. Be concise, natural, and reflect the colonist's personality, mood, and relationships. Do not break character.</systemPrompt>
+    <priority>0</priority>
+  </SynapsePromptDef>
+
+  <SynapsePromptDef>
+    <defName>SynapsePrompt_Event</defName>
+    <label>Default Event Prompt</label>
+    <description>System prompt for colony-level narrative events.</description>
+    <eventType>event</eventType>
+    <systemPrompt>You are an AI storyteller for a sci-fi survival colony. Generate a narrative event that fits the colony's current state, ongoing story threads, and faction relationships. The event should feel organic and consequential.</systemPrompt>
+    <priority>0</priority>
+  </SynapsePromptDef>
+
+  <SynapsePromptDef>
+    <defName>SynapsePrompt_Thought</defName>
+    <label>Default Thought Prompt</label>
+    <description>System prompt for lightweight pawn thoughts.</description>
+    <eventType>thought</eventType>
+    <systemPrompt>Generate a brief internal thought for this colonist given their current mood and situation. One or two sentences maximum.</systemPrompt>
+    <priority>0</priority>
+  </SynapsePromptDef>
+
+  <SynapsePromptDef>
+    <defName>SynapsePrompt_Reaction</defName>
+    <label>Default Reaction Prompt</label>
+    <description>System prompt for pawn reactions to events.</description>
+    <eventType>reaction</eventType>
+    <systemPrompt>Describe this colonist's emotional and behavioral reaction to the current situation. Consider their personality, mood, and past experiences.</systemPrompt>
+    <priority>0</priority>
+  </SynapsePromptDef>
+
+  <SynapsePromptDef>
+    <defName>SynapsePrompt_Relationship</defName>
+    <label>Default Relationship Prompt</label>
+    <description>System prompt for relationship-focused interactions.</description>
+    <eventType>relationship</eventType>
+    <systemPrompt>Respond in character. Show how this relationship dynamic plays out based on the colonists' history, opinions, and personality differences.</systemPrompt>
+    <priority>0</priority>
+  </SynapsePromptDef>
+
+  <SynapsePromptDef>
+    <defName>SynapsePrompt_Quest</defName>
+    <label>Default Quest Prompt</label>
+    <description>System prompt for quest-related interactions.</description>
+    <eventType>quest</eventType>
+    <systemPrompt>Describe this quest-related interaction. Consider the involved factions, the stakes, and how the colony's current state affects the outcome.</systemPrompt>
+    <priority>0</priority>
+  </SynapsePromptDef>
+
+</Defs>

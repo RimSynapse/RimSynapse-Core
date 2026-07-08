@@ -40,6 +40,24 @@ namespace RimSynapse.Internal
         internal static float ThrottleLevel => _throttleLevel;
         internal static bool IsProcessing { get; private set; }
 
+        /// <summary>
+        /// Average response time in milliseconds across recent requests.
+        /// Used by QueryBudgetProfile for performance-based budget scaling.
+        /// </summary>
+        internal static float AverageResponseMs
+        {
+            get
+            {
+                lock (_recentDurations)
+                {
+                    if (_recentDurations.Count == 0) return 0f;
+                    long sum = 0;
+                    foreach (var d in _recentDurations) sum += d;
+                    return sum / (float)_recentDurations.Count;
+                }
+            }
+        }
+
         static RequestQueue()
         {
             _workerThread = new Thread(WorkerLoop)
@@ -160,6 +178,62 @@ namespace RimSynapse.Internal
                     if (!string.IsNullOrEmpty(model) && request.Options != null)
                     {
                         request.Options.model = model;
+                    }
+
+                    // ── Context injection ──
+                    // If context embedding is enabled and the request has an eventType,
+                    // build the context block and prepend it to the system message.
+                    if (SynapseCoreContext.IsEnabled() &&
+                        !string.IsNullOrEmpty(request.Options?.eventType))
+                    {
+                        try
+                        {
+                            var contextText = SynapseCoreContext.GetContextText(
+                                request.Options.eventType,
+                                request.Options.sourcePawn,
+                                request.Options.targetPawn,
+                                request.Options.contextTiers ?? request.Mod?.DefaultTiers,
+                                request.Options.weightOverrides);
+
+                            if (!string.IsNullOrEmpty(contextText))
+                            {
+                                // Resolve the system prompt
+                                string systemPrompt = request.Mod?.SystemPrompt
+                                    ?? SynapseCoreContext.ResolvePrompt(
+                                        request.Options.eventType,
+                                        request.Mod?.ModId);
+
+                                string fullSystemMessage = string.IsNullOrEmpty(systemPrompt)
+                                    ? contextText
+                                    : $"{systemPrompt}\n---\n{contextText}";
+
+                                // Inject or replace the system message
+                                var sysMsg = request.Messages.Find(m => m.role == "system");
+                                if (sysMsg != null)
+                                {
+                                    sysMsg.content = fullSystemMessage;
+                                }
+                                else
+                                {
+                                    request.Messages.Insert(0, new ChatMessage
+                                    {
+                                        role = "system",
+                                        content = fullSystemMessage,
+                                    });
+                                }
+
+                                SynapseLog.Debug("context",
+                                    $"Context injected for {request.Mod?.DisplayName}: " +
+                                    $"{request.Options.eventType}",
+                                    request.Mod?.ModId);
+                            }
+                        }
+                        catch (System.Exception ctxEx)
+                        {
+                            SynapseLog.Warn("context",
+                                $"Context assembly failed, proceeding without context: {ctxEx.Message}",
+                                request.Mod?.ModId);
+                        }
                     }
 
                     // Synchronous HTTP call — blocks worker thread until response

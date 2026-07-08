@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RimSynapse Core — Thought Filter Configuration
+  
+  Controls which pawn thoughts are included in context assembly.
+  
+  A thought is included if:
+    |moodOffset| >= moodImpactThreshold   (significant mood impact)
+    OR
+    age < recencyHours                    (recent event)
+  
+  Players: Lower moodImpactThreshold to include more thoughts,
+  or increase recencyHours to capture older recent events.
+-->
+<Defs>
+
+  <SynapseThoughtFilterDef>
+    <defName>SynapseThoughtFilter_Default</defName>
+    <label>Default Thought Filter</label>
+    <description>Standard thought filtering: significant mood impacts or recent events.</description>
+
+    <!-- Include thoughts with absolute mood impact >= 20 -->
+    <moodImpactThreshold>20</moodImpactThreshold>
+
+    <!-- Include thoughts newer than 12 in-game hours regardless of impact -->
+    <recencyHours>12</recencyHours>
+
+    <!-- Exclude thoughts past 90% of their expiration duration -->
+    <expirationCutoffPercent>0.90</expirationCutoffPercent>
+
+    <!-- Deduplicate stacking thoughts (only include first instance) -->
+    <deduplicateStacks>true</deduplicateStacks>
+
+    <!-- Include situational (non-memory) thoughts that pass the threshold -->
+    <includeSituational>true</includeSituational>
+  </SynapseThoughtFilterDef>
+
+</Defs>

@@ -1,45 +1,6 @@
 # RimSynapse — Companion Mods Reference
 
-> **Purpose:** Reference document for companion mods that depend on RimSynapse Core.
-> All features below were extracted from the original Python bridge codebase and design docs.
-> Nothing here is in scope for the Core library — these are separate Workshop mods in separate repos.
-
----
-
-## Dependency Chain
-
-```
-RimSynapse-Core (this repo)     ← LM Studio connector, the foundation
-│
-├── RimSynapse-Context          ← Prompt template engine + context assembly
-│   │                              (Core only)
-│   │
-│   ├── RimSynapse-Psychology   ← Pawn personality, weighted memories
-│   │   │                         (requires Context for LLM-driven summaries)
-│   │   │
-│   │   └── RimSynapse-Chat    ← In-game dialogue UI
-│   │                             (requires Context + Psychology)
-│   │
-│   └── RimSynapse-Chat        ← (also directly uses Context for prompt assembly)
-│
-├── RimSynapse-Storyteller      ← AI storyteller + narrative threads
-│                                  (Core only — soft optional dep on Psychology)
-│
-└── RimSynapse-DevTools         ← Developer dashboard + config tools
-                                   (Core only)
-```
-
-### Build Order
-
-1. **Context** — foundation prompt engine, no deps beyond Core
-2. **Psychology** — pawn data layer, depends on Context
-3. **Chat** — dialogue UI, depends on Context + Psychology
-4. **Storyteller** — colony events, depends on Core only (optionally reads Psychology data)
-5. **DevTools** — debug dashboard, depends on Core only
-
----
-
-# 1. RimSynapse-Context
+# RimSynapse-Context  (no longer companion mod, will be embedded directly in core.  All references below are actually refernecing core.)
 
 **Prompt template engine + context assembly from game state**
 
@@ -136,6 +97,43 @@ public class ContextSettings
 }
 ```
 
+> **Purpose:** Reference document for companion mods that depend on RimSynapse Core.
+> All features below were extracted from the original Python bridge codebase and design docs.
+> Nothing here is in scope for the Core library — these are separate Workshop mods in separate repos.
+
+---
+
+## Dependency Chain
+
+```
+RimSynapse-Core (this repo)     ← LM Studio connector, the foundation
+│   │
+│   ├── RimSynapse-Psychology   ← Pawn personality, weighted memories
+│   │   │                      
+│   │   │
+│   │   └── RimSynapse-Chat    ← In-game dialogue UI
+│   │                             (requires Psychology)
+│   │
+│   └── RimSynapse-Chat        ← (also directly uses Psychology)
+│
+├── RimSynapse-Storyteller      ← AI storyteller + narrative threads
+│                                  (Core only — soft optional dep on Psychology)
+│
+└── RimSynapse-DevTools         ← Developer dashboard + config tools
+                                   (Core only)
+```
+
+### Build Order
+
+1. **Psychology** — pawn data layer
+2. **Chat** — dialogue UI, depends on Psychology
+4. **Storyteller** — colony events, depends on Core only (optionally reads Psychology data)
+5. **DevTools** — debug dashboard, depends on Core only
+
+---
+
+
+
 ---
 
 # 2. RimSynapse-Psychology
@@ -146,7 +144,7 @@ public class ContextSettings
 
 Gives pawns persistent AI-driven personality that evolves over time. Memories have weights that decay, relationships have momentum via opinion integrals. All data lives in the save file via Scribe.
 
-**Depends on: Core + Context** (uses Context to build prompts for personality generation)
+**Depends on: Core** 
 
 ### Key Features
 
@@ -254,7 +252,7 @@ public static PawnPacket BuildPawnPacket(Pawn pawn)
 
 Let players talk to their colonists. Manages conversation history, displays dialogue in-game, and handles the dialogue-specific response format.
 
-**Depends on: Core + Context + Psychology**
+**Depends on: Core + Psychology**
 
 ### Key Features
 
@@ -305,7 +303,7 @@ Let players talk to their colonists. Manages conversation history, displays dial
 
 An AI-driven storyteller that generates and manages narrative events. Tracks ongoing story threads that connect events across time.
 
-**Depends on: Core only** (optionally enhanced by Psychology if present — soft dependency)
+**Depends on: Core** 
 
 ### Key Features
 
@@ -383,7 +381,7 @@ public class NarrativeThread : IExposable
 
 Quality-of-life tools for mod developers building on RimSynapse. Not needed by end users.
 
-**Depends on: Core only**
+**Depends on: Core**
 
 ### Key Features
 
