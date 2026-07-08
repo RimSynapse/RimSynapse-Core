@@ -36,27 +36,26 @@ namespace RimSynapse
         private const int RetryDelayMs = 3000;
         private const int InitialDelayMs = 5000;
 
+        /// <summary>
+        /// Whether the NVIDIA Tool companion mod handles VRAM breakdown.
+        /// The "no model" check still runs from Core regardless.
+        /// </summary>
+        private static bool _nvidiaToolHandlesVram;
+
         internal static void Check()
         {
             if (_hasChecked) return;
             _hasChecked = true;
 
-            // If the NVIDIA Tool companion mod is installed, it has a much
-            // better VRAM warning system with real-time NVML data. Skip ours.
-            if (ModsConfig.IsActive("archDukeJim.rimsynapseNvidiaTool"))
+            // Track whether NVIDIA Tool handles the VRAM advisory —
+            // but we ALWAYS check for LM Studio connectivity (no model = mod broken)
+            _nvidiaToolHandlesVram = ModsConfig.IsActive("archDukeJim.rimsynapseNvidiaTool");
+
+            if (_nvidiaToolHandlesVram)
             {
                 SynapseLog.Info("core",
-                    "NVIDIA Tool mod detected — skipping Core VRAM advisory " +
-                    "(detailed diagnostics available through NVIDIA Tool).");
-                return;
-            }
-
-            // Check user preference — default is to always show
-            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
-            if (!showNotify)
-            {
-                SynapseLog.Info("core", "VRAM advisory disabled in settings.");
-                return;
+                    "NVIDIA Tool mod detected — Core will defer VRAM breakdown " +
+                    "but still check LM Studio connectivity.");
             }
 
             // Run the model query on a background thread with delay.
@@ -124,6 +123,25 @@ namespace RimSynapse
             if (string.IsNullOrEmpty(modelName))
             {
                 ShowNoModelWarning(totalGpuGb);
+                return;
+            }
+            // ── Model found — LM Studio is alive ──
+            // Now decide whether to show the VRAM breakdown.
+            // If NVIDIA Tool handles VRAM, or user disabled notifications, skip it.
+            if (_nvidiaToolHandlesVram)
+            {
+                SynapseLog.Info("core",
+                    $"LM Studio model confirmed: \"{modelName}\". " +
+                    "NVIDIA Tool will handle VRAM breakdown.");
+                return;
+            }
+
+            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
+            if (!showNotify)
+            {
+                SynapseLog.Info("core",
+                    $"LM Studio model confirmed: \"{modelName}\". " +
+                    "VRAM advisory disabled in settings.");
                 return;
             }
 
