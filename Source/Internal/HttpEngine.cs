@@ -256,73 +256,48 @@ namespace RimSynapse.Internal
                     }
                 }
 
-                // Try LM Studio native API to find ACTUALLY LOADED models.
-                // The OpenAI /v1/models endpoint returns ALL downloaded models,
-                // but /api/v1/models has loaded_instances which tells us what's in VRAM.
+                // ── Active Model Discovery ──
+                // The /v1/models endpoint returns ALL downloaded models, which is useless for
+                // knowing what's actually in VRAM. The native /api/v1/models endpoint is often
+                // disabled or hanging in newer LM Studio versions.
+                // The most reliable way to find the loaded model is to send a tiny dummy request.
+                // LM Studio will process it with the active model and return its ID in the response.
                 try
                 {
-                    var nativeRequest = new HttpRequestMessage(
-                        HttpMethod.Get, $"{baseUrl}/api/v1/models");
+                    var dummyReq = new HttpRequestMessage(
+                        HttpMethod.Post, $"{baseUrl}/v1/chat/completions");
                     if (!string.IsNullOrEmpty(settings.lmStudioApiKey))
                     {
-                        nativeRequest.Headers.Authorization =
+                        dummyReq.Headers.Authorization =
                             new System.Net.Http.Headers.AuthenticationHeaderValue(
                                 "Bearer", settings.lmStudioApiKey);
                     }
 
-                    var nativeResponse = _client.SendAsync(nativeRequest).Result;
-                    if (nativeResponse.IsSuccessStatusCode)
+                    // A minimal request that takes almost 0 compute
+                    string dummyPayload = "{\"model\":\"local-model\",\"messages\":[{\"role\":\"system\",\"content\":\"ping\"}],\"max_tokens\":1}";
+                    dummyReq.Content = new StringContent(
+                        dummyPayload,
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    var dummyRes = _client.SendAsync(dummyReq).Result;
+                    if (dummyRes.IsSuccessStatusCode)
                     {
-                        string nativeBody = nativeResponse.Content.ReadAsStringAsync().Result;
-                        var nativeJson = JObject.Parse(nativeBody);
-                        var models = nativeJson["models"] as JArray;
-                        if (models != null)
+                        string dummyBody = dummyRes.Content.ReadAsStringAsync().Result;
+                        var dummyJson = JObject.Parse(dummyBody);
+                        string activeModelId = dummyJson["model"]?.ToString();
+                        
+                        if (!string.IsNullOrEmpty(activeModelId))
                         {
-                            // Rebuild model list with ONLY loaded models
-                            var loadedIds = new List<string>();
-
-                            foreach (var m in models)
-                            {
-                                if (m["type"]?.ToString() != "llm") continue;
-
-                                var instances = m["loaded_instances"] as JArray;
-                                if (instances == null || instances.Count == 0) continue;
-
-                                // This model is actually loaded in VRAM.
-                                // Try multiple fields for the model identifier:
-                                // LM Studio native API uses 'path' as the model key
-                                // (format: "google/gemma-4-12b-qat", same as OpenAI id)
-                                string modelId = m["id"]?.ToString()
-                                    ?? m["model_key"]?.ToString()
-                                    ?? m["path"]?.ToString();
-                                if (!string.IsNullOrEmpty(modelId))
-                                    loadedIds.Add(modelId);
-
-                                // Extract context length from first loaded instance
-                                if (!result.contextLength.HasValue)
-                                {
-                                    int? ctxLen = instances[0]?["config"]?["context_length"]
-                                        ?.Value<int>();
-                                    if (ctxLen.HasValue)
-                                        result.contextLength = ctxLen.Value;
-                                }
-                            }
-
-                            // If we found loaded models, replace the full list
-                            // with only the ones actually in VRAM
-                            if (loadedIds.Count > 0)
-                            {
-                                result.modelIds = loadedIds;
-                                SynapseLog.Info("model",
-                                    $"Native API: {loadedIds.Count} loaded model(s): " +
-                                    string.Join(", ", loadedIds));
-                            }
+                            // Overwrite the full list with just the active model
+                            result.modelIds = new List<string> { activeModelId };
+                            SynapseLog.Info("model", $"Active model discovered via dummy request: {activeModelId}");
                         }
                     }
                 }
                 catch
                 {
-                    // Native API is optional — fall back to OpenAI endpoint list
+                    // Ignore failures and fall back to the full list from /v1/models
                 }
 
                 return result;
