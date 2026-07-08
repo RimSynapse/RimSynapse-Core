@@ -33,16 +33,16 @@ namespace RimSynapse
             }
         }
 
-        internal static void Debug(string category, string message, string modId = null)
+        public static void Debug(string category, string message, string modId = null)
             => Emit(LogLevel.Debug, category, message, modId);
 
-        internal static void Info(string category, string message, string modId = null)
+        public static void Info(string category, string message, string modId = null)
             => Emit(LogLevel.Info, category, message, modId);
 
-        internal static void Warn(string category, string message, string modId = null)
+        public static void Warn(string category, string message, string modId = null)
             => Emit(LogLevel.Warn, category, message, modId);
 
-        internal static void Error(string category, string message, string modId = null)
+        public static void Error(string category, string message, string modId = null)
             => Emit(LogLevel.Error, category, message, modId);
 
         private static void Emit(LogLevel level, string category, string message, string modId)
