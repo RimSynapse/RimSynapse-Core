@@ -123,7 +123,18 @@ namespace RimSynapse
             // from a previous session and would mask the fact that LM Studio is offline.
             if (string.IsNullOrEmpty(modelName))
             {
-                ShowNoModelWarning(totalGpuGb);
+                bool isRemote = RimSynapseMod.Instance?.Settings?.IsRemoteUrl ?? false;
+                if (!isRemote)
+                {
+                    ShowNoModelWarning(totalGpuGb);
+                }
+                else
+                {
+                    // If remote, suppress the local VRAM/GPU popup entirely as requested.
+                    // Just log it. The user will figure out their remote server is down
+                    // when chat doesn't work, but they shouldn't be bothered with local GPU popups.
+                    SynapseLog.Warn("core", "Remote LM Studio host is unreachable or has no model loaded. Popup suppressed.");
+                }
                 return;
             }
             // ── Model found — LM Studio is alive ──
@@ -143,6 +154,15 @@ namespace RimSynapse
                 SynapseLog.Info("core",
                     $"LM Studio model confirmed: \"{modelName}\". " +
                     "VRAM advisory disabled in settings.");
+                return;
+            }
+
+            bool isRemoteHost = RimSynapseMod.Instance?.Settings?.IsRemoteUrl ?? false;
+            if (isRemoteHost)
+            {
+                SynapseLog.Info("core",
+                    $"LM Studio model confirmed: \"{modelName}\". " +
+                    "Remote host detected, skipping local VRAM advisory popup.");
                 return;
             }
 

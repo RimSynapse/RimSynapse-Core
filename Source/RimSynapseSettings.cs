@@ -10,6 +10,14 @@ namespace RimSynapse
     {
         // --- Connection ---
         public string lmStudioUrl = "http://127.0.0.1:1234";
+
+        /// <summary>
+        /// True if the LM Studio URL points to a remote host instead of localhost.
+        /// </summary>
+        public bool IsRemoteUrl => !string.IsNullOrEmpty(lmStudioUrl) && 
+                                   !lmStudioUrl.Contains("localhost") && 
+                                   !lmStudioUrl.Contains("127.0.0.1") && 
+                                   !lmStudioUrl.Contains("::1");
         public string lmStudioApiKey = "";
 
         // --- Behavior ---
