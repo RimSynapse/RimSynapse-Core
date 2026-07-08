@@ -256,7 +256,9 @@ namespace RimSynapse.Internal
                     }
                 }
 
-                // Try LM Studio native API for context length
+                // Try LM Studio native API to find ACTUALLY LOADED models.
+                // The OpenAI /v1/models endpoint returns ALL downloaded models,
+                // but /api/v1/models has loaded_instances which tells us what's in VRAM.
                 try
                 {
                     var nativeRequest = new HttpRequestMessage(
@@ -276,29 +278,51 @@ namespace RimSynapse.Internal
                         var models = nativeJson["models"] as JArray;
                         if (models != null)
                         {
+                            // Rebuild model list with ONLY loaded models
+                            var loadedIds = new List<string>();
+
                             foreach (var m in models)
                             {
-                                if (m["type"]?.ToString() == "llm")
+                                if (m["type"]?.ToString() != "llm") continue;
+
+                                var instances = m["loaded_instances"] as JArray;
+                                if (instances == null || instances.Count == 0) continue;
+
+                                // This model is actually loaded in VRAM.
+                                // Try multiple fields for the model identifier:
+                                // LM Studio native API uses 'path' as the model key
+                                // (format: "google/gemma-4-12b-qat", same as OpenAI id)
+                                string modelId = m["id"]?.ToString()
+                                    ?? m["model_key"]?.ToString()
+                                    ?? m["path"]?.ToString();
+                                if (!string.IsNullOrEmpty(modelId))
+                                    loadedIds.Add(modelId);
+
+                                // Extract context length from first loaded instance
+                                if (!result.contextLength.HasValue)
                                 {
-                                    var instances = m["loaded_instances"] as JArray;
-                                    if (instances != null && instances.Count > 0)
-                                    {
-                                        int? ctxLen = instances[0]?["config"]?["context_length"]
-                                            ?.Value<int>();
-                                        if (ctxLen.HasValue)
-                                        {
-                                            result.contextLength = ctxLen.Value;
-                                            break;
-                                        }
-                                    }
+                                    int? ctxLen = instances[0]?["config"]?["context_length"]
+                                        ?.Value<int>();
+                                    if (ctxLen.HasValue)
+                                        result.contextLength = ctxLen.Value;
                                 }
+                            }
+
+                            // If we found loaded models, replace the full list
+                            // with only the ones actually in VRAM
+                            if (loadedIds.Count > 0)
+                            {
+                                result.modelIds = loadedIds;
+                                SynapseLog.Info("model",
+                                    $"Native API: {loadedIds.Count} loaded model(s): " +
+                                    string.Join(", ", loadedIds));
                             }
                         }
                     }
                 }
                 catch
                 {
-                    // Native API is optional — silently ignore failures
+                    // Native API is optional — fall back to OpenAI endpoint list
                 }
 
                 return result;
