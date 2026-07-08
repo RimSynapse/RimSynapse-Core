@@ -15,167 +15,167 @@
      1  = Optional
      0  = Disabled
   
-  Mod authors: Add SynapseWeightDef entries to boost slots your mod cares about.
+  Mod authors: Add RimSynapse.SynapseWeightDef entries to boost slots your mod cares about.
   Players: Edit baseWeight values here to change what gets priority.
 -->
 <Defs>
 
   <!-- Required slots (weight 10, never dropped) -->
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_PawnIdentity</defName>
     <label>Pawn Identity</label>
     <slot>pawnIdentity</slot>
     <baseWeight>10</baseWeight>
     <required>true</required>
     <description>Pawn name, gender, and age. Always included in every context.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_EventType</defName>
     <label>Event Type</label>
     <slot>eventType</slot>
     <baseWeight>10</baseWeight>
     <required>true</required>
     <description>Event type framing text. Always included.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
   <!-- Personality slots -->
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Backstory</defName>
     <label>Backstory</label>
     <slot>backstory</slot>
     <baseWeight>6</baseWeight>
     <required>false</required>
     <description>Childhood and adulthood backstory text from vanilla RimWorld.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Traits</defName>
     <label>Traits</label>
     <slot>traits</slot>
     <baseWeight>7</baseWeight>
     <required>false</required>
     <description>Pawn trait labels and degrees (e.g., Kind, Psychopath, Tough).</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
   <!-- State slots -->
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Mood</defName>
     <label>Mood</label>
     <slot>mood</slot>
     <baseWeight>7</baseWeight>
     <required>false</required>
     <description>Current mood level and filtered active thoughts.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Skills</defName>
     <label>Skills</label>
     <slot>skills</slot>
     <baseWeight>4</baseWeight>
     <required>false</required>
     <description>All pawn skills with levels and passions.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Health</defName>
     <label>Health</label>
     <slot>health</slot>
     <baseWeight>5</baseWeight>
     <required>false</required>
     <description>Injuries, diseases, bionics, and addictions.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
   <!-- Social slots -->
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Relationships</defName>
     <label>Relationships</label>
     <slot>relationships</slot>
     <baseWeight>6</baseWeight>
     <required>false</required>
     <description>Direct social bonds (Spouse, Rival, Friend, Parent, etc.).</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Opinions</defName>
     <label>Opinions</label>
     <slot>opinions</slot>
     <baseWeight>5</baseWeight>
     <required>false</required>
     <description>Numeric opinion scores toward other colonists (-100 to +100).</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
   <!-- DLC slots -->
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Ideology</defName>
     <label>Ideology</label>
     <slot>ideology</slot>
     <baseWeight>4</baseWeight>
     <required>false</required>
     <description>Ideology name and precepts (requires Ideology DLC).</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
   <!-- Colony slots -->
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Colony</defName>
     <label>Colony</label>
     <slot>colony</slot>
     <baseWeight>4</baseWeight>
     <required>false</required>
     <description>Colony wealth, population, danger level, research.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Factions</defName>
     <label>Factions</label>
     <slot>factions</slot>
     <baseWeight>4</baseWeight>
     <required>false</required>
     <description>Faction names, goodwill, relation type, and leader.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Weather</defName>
     <label>Weather</label>
     <slot>weather</slot>
     <baseWeight>2</baseWeight>
     <required>false</required>
     <description>Current season, weather, and biome.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
   <!-- Companion mod slots (Tier 5) -->
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Memories</defName>
     <label>Weighted Memories</label>
     <slot>memories</slot>
     <baseWeight>6</baseWeight>
     <required>false</required>
     <description>AI-generated weighted memories from RimSynapse Psychology mod.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Threads</defName>
     <label>Narrative Threads</label>
     <slot>narrativeThreads</slot>
     <baseWeight>5</baseWeight>
     <required>false</required>
     <description>Active narrative story threads from RimSynapse Storyteller mod.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
-  <SynapseWeightDef>
+  <RimSynapse.SynapseWeightDef>
     <defName>SynapseWeight_Personality</defName>
     <label>Personality Summary</label>
     <slot>personalitySummary</slot>
     <baseWeight>6</baseWeight>
     <required>false</required>
     <description>LLM-generated personality summary from RimSynapse Psychology mod.</description>
-  </SynapseWeightDef>
+  </RimSynapse.SynapseWeightDef>
 
 </Defs>

@@ -14,7 +14,7 @@
 -->
 <Defs>
 
-  <SynapseContextProfileDef>
+  <RimSynapse.SynapseContextProfileDef>
     <defName>SynapseProfile_Thought</defName>
     <label>Thought Profile</label>
     <description>Lightweight profile for quick pawn thoughts. Minimal context, high frequency.</description>
@@ -23,9 +23,9 @@
     <includeTiers>
       <li>Identity</li>
     </includeTiers>
-  </SynapseContextProfileDef>
+  </RimSynapse.SynapseContextProfileDef>
 
-  <SynapseContextProfileDef>
+  <RimSynapse.SynapseContextProfileDef>
     <defName>SynapseProfile_Dialogue</defName>
     <label>Dialogue Profile</label>
     <description>Rich context for in-character pawn conversations.</description>
@@ -36,9 +36,9 @@
       <li>PawnState</li>
       <li>Synthetic</li>
     </includeTiers>
-  </SynapseContextProfileDef>
+  </RimSynapse.SynapseContextProfileDef>
 
-  <SynapseContextProfileDef>
+  <RimSynapse.SynapseContextProfileDef>
     <defName>SynapseProfile_Relationship</defName>
     <label>Relationship Profile</label>
     <description>Social-focused profile. Boosts relationship and opinion data.</description>
@@ -59,9 +59,9 @@
         <weight>8</weight>
       </li>
     </weightOverrides>
-  </SynapseContextProfileDef>
+  </RimSynapse.SynapseContextProfileDef>
 
-  <SynapseContextProfileDef>
+  <RimSynapse.SynapseContextProfileDef>
     <defName>SynapseProfile_Reaction</defName>
     <label>Reaction Profile</label>
     <description>Emotional reaction profile. Boosts mood and health context.</description>
@@ -81,9 +81,9 @@
         <weight>7</weight>
       </li>
     </weightOverrides>
-  </SynapseContextProfileDef>
+  </RimSynapse.SynapseContextProfileDef>
 
-  <SynapseContextProfileDef>
+  <RimSynapse.SynapseContextProfileDef>
     <defName>SynapseProfile_Event</defName>
     <label>Colony Event Profile</label>
     <description>Deep, infrequent colony-wide analysis. Full colony and world data.</description>
@@ -94,9 +94,9 @@
       <li>Colony</li>
       <li>World</li>
     </includeTiers>
-  </SynapseContextProfileDef>
+  </RimSynapse.SynapseContextProfileDef>
 
-  <SynapseContextProfileDef>
+  <RimSynapse.SynapseContextProfileDef>
     <defName>SynapseProfile_Quest</defName>
     <label>Quest Profile</label>
     <description>Full world state for quest interactions.</description>
@@ -109,6 +109,6 @@
       <li>World</li>
       <li>Synthetic</li>
     </includeTiers>
-  </SynapseContextProfileDef>
+  </RimSynapse.SynapseContextProfileDef>
 
 </Defs>

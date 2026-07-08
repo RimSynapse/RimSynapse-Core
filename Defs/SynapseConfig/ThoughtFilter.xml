@@ -14,7 +14,7 @@
 -->
 <Defs>
 
-  <SynapseThoughtFilterDef>
+  <RimSynapse.SynapseThoughtFilterDef>
     <defName>SynapseThoughtFilter_Default</defName>
     <label>Default Thought Filter</label>
     <description>Standard thought filtering: significant mood impacts or recent events.</description>
@@ -33,6 +33,6 @@
 
     <!-- Include situational (non-memory) thoughts that pass the threshold -->
     <includeSituational>true</includeSituational>
-  </SynapseThoughtFilterDef>
+  </RimSynapse.SynapseThoughtFilterDef>
 
 </Defs>
