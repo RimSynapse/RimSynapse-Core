@@ -15,7 +15,7 @@ namespace RimSynapse
         public static RimSynapseMod Instance { get; private set; }
         public RimSynapseSettings Settings { get; }
 
-        private const string HarmonyId = "archDukeJim.rimsynapseCore";
+        private const string HarmonyId = "RimSynapse.Core";
 
         // Internal test state
         private static SynapseModHandle _testHandle;
@@ -232,6 +232,21 @@ namespace RimSynapse
             {
                 int next = ((int)Settings.logLevel + 1) % 4;
                 Settings.logLevel = (LogLevel)next;
+            }
+
+            listing.Gap(6f);
+            listing.CheckboxLabeled("Enable file logging",
+                ref Settings.enableFileLogging,
+                "Dumps events and metrics to text files in the RimSynapse_Logs directory.");
+            
+            if (listing.ButtonText("Open Log Folder"))
+            {
+                string path = System.IO.Path.Combine(GenFilePaths.SaveDataFolderPath, "RimSynapse_Logs");
+                if (!System.IO.Directory.Exists(path))
+                {
+                    System.IO.Directory.CreateDirectory(path);
+                }
+                Application.OpenURL("file://" + path);
             }
 
             listing.Gap(12f);

@@ -49,7 +49,7 @@ namespace RimSynapse
 
             // Track whether NVIDIA Tool handles the VRAM advisory —
             // but we ALWAYS check for LM Studio connectivity (no model = mod broken)
-            _nvidiaToolHandlesVram = ModsConfig.IsActive("archDukeJim.rimsynapseNvidiaTool");
+            _nvidiaToolHandlesVram = ModsConfig.IsActive("RimSynapse.NvidiaTool");
 
             if (_nvidiaToolHandlesVram)
             {
@@ -269,7 +269,7 @@ namespace RimSynapse
             string nvToolLine = "";
             bool isRtx40or50 = IsRtx40or50Series(gpuName);
 
-            if (isRtx40or50 && !ModsConfig.IsActive("archDukeJim.rimsynapseNvidiaTool"))
+            if (isRtx40or50 && !ModsConfig.IsActive("RimSynapse.NvidiaTool"))
             {
                 nvToolLine =
                     "\n\nYour " + gpuName + " supports the RimSynapse NVIDIA Tool\n" +

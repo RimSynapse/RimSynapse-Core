@@ -15,7 +15,7 @@ namespace RimSynapse
         /// <summary>Max callbacks to process per tick to avoid frame drops.</summary>
         private const int MaxCallbacksPerTick = 5;
 
-        public SynapseGameComponent() { }
+        public SynapseGameComponent(Game game) { }
 
         /// <summary>
         /// Enqueue an action to run on the main thread during the next game tick.

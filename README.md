@@ -29,7 +29,7 @@ Add a reference to `RimSynapseCore.dll` in your mod's `.csproj` and declare the 
 ```xml
 <modDependencies>
     <li>
-        <packageId>archDukeJim.rimsynapseCore</packageId>
+        <packageId>RimSynapse.Core</packageId>
         <displayName>RimSynapse Core</displayName>
     </li>
 </modDependencies>

@@ -36,6 +36,7 @@ namespace RimSynapse
 
         // --- Logging ---
         public LogLevel logLevel = LogLevel.Info;
+        public bool enableFileLogging = false;
 
         // --- Notifications ---
         /// <summary>Show VRAM status on game load (default: true). Disable in settings.</summary>
@@ -55,6 +56,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref maxRequestsPerMinute, "maxRequestsPerMinute", 30);
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
             Scribe_Values.Look(ref logLevel, "logLevel", LogLevel.Info);
+            Scribe_Values.Look(ref enableFileLogging, "enableFileLogging", false);
             Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
         }
     }

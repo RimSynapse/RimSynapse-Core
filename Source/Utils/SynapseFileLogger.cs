@@ -13,6 +13,8 @@ namespace RimSynapse.Utils
 
         public static void LogEvent(string moduleName, Pawn pawn, string eventType, string details)
         {
+            if (RimSynapseMod.Instance == null || RimSynapseMod.Instance.Settings == null || !RimSynapseMod.Instance.Settings.enableFileLogging) return;
+
             try
             {
                 string logDirectory = GetLogDirectory(moduleName);
@@ -40,6 +42,8 @@ namespace RimSynapse.Utils
 
         public static void LogMetric(string moduleName, Pawn pawn, string processName, long elapsedMilliseconds)
         {
+            if (RimSynapseMod.Instance == null || RimSynapseMod.Instance.Settings == null || !RimSynapseMod.Instance.Settings.enableFileLogging) return;
+
             try
             {
                 string logDirectory = GetLogDirectory(moduleName);
