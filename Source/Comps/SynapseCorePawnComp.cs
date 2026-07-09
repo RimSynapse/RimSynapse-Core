@@ -14,6 +14,7 @@ namespace RimSynapse.Comps
         public string personalitySummary;
         public string dynamicBackstory;
         public string clinicalAssessment;
+        public string hometown;
         public List<string> llmTraits = new List<string>();
         
         // Active AI-driven modifiers shared across mods
@@ -31,6 +32,7 @@ namespace RimSynapse.Comps
             Scribe_Values.Look(ref personalitySummary, "synapsePersonality");
             Scribe_Values.Look(ref dynamicBackstory, "dynamicBackstory");
             Scribe_Values.Look(ref clinicalAssessment, "clinicalAssessment");
+            Scribe_Values.Look(ref hometown, "hometown");
             Scribe_Collections.Look(ref llmTraits, "llmTraits", LookMode.Value);
             
             Scribe_Collections.Look(ref thoughtSensitivities, "thoughtSensitivities", LookMode.Value, LookMode.Value);
@@ -43,6 +45,15 @@ namespace RimSynapse.Comps
                 if (llmTraits == null) llmTraits = new List<string>();
                 if (thoughtSensitivities == null) thoughtSensitivities = new Dictionary<string, float>();
                 if (relationSensitivities == null) relationSensitivities = new Dictionary<string, float>();
+            }
+            
+            // Migrate old gameTick-only memories to absTick
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                foreach (var memory in memories)
+                {
+                    memory.MigrateTickIfNeeded();
+                }
             }
         }
 
