@@ -360,5 +360,107 @@ namespace RimSynapse.Internal
 
             return OpportunisticThrottleMode.Aggressive;
         }
+
+        // ── Pause-time opportunistic task processing ──
+        // Uses real-time (DateTime) cooldowns since game ticks are frozen while paused.
+
+        private static readonly Dictionary<string, DateTime> _realTimeCooldowns = new Dictionary<string, DateTime>();
+
+        /// <summary>
+        /// Called by SynapseGameComponent during extended pauses.
+        /// Uses real-time cooldowns instead of game ticks so tasks can fire while the game is paused.
+        /// This lets the LLM generate backstories, faction histories, etc. during AFK time.
+        /// </summary>
+        internal static void TryRunPauseOpportunisticTask()
+        {
+            if (Current.ProgramState != ProgramState.Playing) return;
+
+            var settings = RimSynapseMod.Instance?.Settings;
+            var mode = ResolveThrottleMode(settings);
+
+            lock (_lock)
+            {
+                // Convert tick-based cooldowns to real-time: 60000 ticks ≈ 1 game day ≈ ~60 seconds at 1x
+                // During pause, we use accelerated cooldowns: CooldownTicks / 1000 seconds (min 3s)
+                var now = DateTime.UtcNow;
+
+                var eligible = _tasks
+                    .Where(t => t.Enabled && (t.Callback != null || t.CallbackBool != null))
+                    .Where(t =>
+                    {
+                        if (_realTimeCooldowns.TryGetValue(t.TaskId, out DateTime lastRun))
+                        {
+                            float cooldownSeconds = Math.Max(3f, t.CooldownTicks / 1000f);
+                            return (now - lastRun).TotalSeconds >= cooldownSeconds;
+                        }
+                        return true; // Never run during this pause session
+                    })
+                    .OrderByDescending(t => t.Priority)
+                    .ToList();
+
+                if (eligible.Count == 0) return;
+
+                // Pick highest priority, then weighted random within that group
+                int topPriority = eligible[0].Priority;
+                var topGroup = eligible.Where(t => t.Priority == topPriority).ToList();
+
+                float totalWeight = topGroup.Sum(t => Math.Max(0.01f, t.BaseWeight));
+                float roll = Rand.Range(0f, totalWeight);
+                float cumulative = 0f;
+                TaskEntry selected = topGroup.Last();
+
+                foreach (var task in topGroup)
+                {
+                    cumulative += Math.Max(0.01f, task.BaseWeight);
+                    if (roll <= cumulative)
+                    {
+                        selected = task;
+                        break;
+                    }
+                }
+
+                _realTimeCooldowns[selected.TaskId] = now;
+                selected.TimesRun++;
+
+                SynapseLog.Debug("queue", $"Pause-opportunistic [{mode}]: Firing '{selected.Label}' " +
+                    $"(P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
+
+                // During pause, we can execute directly on the main thread (we're in GameComponentUpdate)
+                try
+                {
+                    bool didWork = false;
+                    if (selected.CallbackBool != null)
+                    {
+                        didWork = selected.CallbackBool();
+                    }
+                    else if (selected.Callback != null)
+                    {
+                        selected.Callback();
+                        didWork = true;
+                    }
+
+                    if (didWork)
+                    {
+                        // Accelerate next check for this task during pause (1 second)
+                        _realTimeCooldowns[selected.TaskId] = now.AddSeconds(-Math.Max(3f, selected.CooldownTicks / 1000f) + 1.0);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SynapseLog.Error("core", $"Error executing pause-opportunistic task '{selected.TaskId}': {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Clears real-time cooldowns. Called when the game is unpaused to reset pause-session state.
+        /// </summary>
+        internal static void ResetPauseCooldowns()
+        {
+            lock (_lock)
+            {
+                _realTimeCooldowns.Clear();
+            }
+        }
     }
 }

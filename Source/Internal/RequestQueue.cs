@@ -284,12 +284,40 @@ namespace RimSynapse.Internal
                         }
                     }
 
+                    // ── Debug: Log full prompt ──
+                    if (SynapseLog.Level <= LogLevel.Debug)
+                    {
+                        var promptLog = new System.Text.StringBuilder();
+                        promptLog.AppendLine($"── PROMPT → {requestToProcess.Mod?.DisplayName ?? "unknown"} ──");
+                        foreach (var msg in requestToProcess.Messages)
+                        {
+                            promptLog.AppendLine($"[{msg.role}]: {msg.content}");
+                        }
+                        SynapseLog.Debug("prompt", promptLog.ToString(), requestToProcess.Mod?.ModId);
+                    }
+
                     // Synchronous HTTP call
                     var result = HttpEngine.PostChatCompletionSync(
                         requestToProcess.Messages, requestToProcess.Options);
 
                     result.wasThrottled = wasThrottled;
                     ModRegistry.RecordRequest(requestToProcess.Mod);
+
+                    // ── Debug: Log full response ──
+                    if (SynapseLog.Level <= LogLevel.Debug)
+                    {
+                        var respLog = new System.Text.StringBuilder();
+                        respLog.AppendLine($"── RESPONSE ← {requestToProcess.Mod?.DisplayName ?? "unknown"} ({result.durationMs}ms, success={result.success}) ──");
+                        if (result.success)
+                        {
+                            respLog.AppendLine(result.content);
+                        }
+                        else
+                        {
+                            respLog.AppendLine($"ERROR: {result.error}");
+                        }
+                        SynapseLog.Debug("response", respLog.ToString(), requestToProcess.Mod?.ModId);
+                    }
 
                     // Track duration for throttle calculations
                     lock (_recentDurations)

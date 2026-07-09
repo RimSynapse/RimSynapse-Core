@@ -34,6 +34,17 @@ namespace RimSynapse
         }
 
         /// <summary>
+        /// Check if a companion mod is currently loaded and registered with Core.
+        /// Use this for cross-mod coordination without direct type dependencies.
+        /// E.g., StoryTeller checks if Psychology is loaded to decide whether to wait for leader backstories.
+        /// </summary>
+        /// <param name="modId">The mod's registration ID (e.g., "RimSynapsePsychology").</param>
+        public static bool IsModLoaded(string modId)
+        {
+            return ModRegistry.Get(modId) != null;
+        }
+
+        /// <summary>
         /// Initialize all background services.
         /// Called from RimSynapseMod constructor — runs on mod load, NOT
         /// on game load, so keep-alive and model discovery work even on

@@ -6,19 +6,32 @@ namespace RimSynapse
 {
     /// <summary>
     /// GameComponent that bridges async background work back to Unity's main thread.
-    /// Processes queued callbacks during the game tick loop.
+    /// Processes queued callbacks every Unity frame (including while paused) via GameComponentUpdate.
+    /// Also detects pause state and triggers opportunistic tasks during extended pauses.
     /// </summary>
     public class SynapseGameComponent : GameComponent
     {
         private static readonly ConcurrentQueue<Action> _mainThreadQueue = new ConcurrentQueue<Action>();
 
-        /// <summary>Max callbacks to process per tick to avoid frame drops.</summary>
-        private const int MaxCallbacksPerTick = 5;
+        /// <summary>Max callbacks to process per frame to avoid frame drops.</summary>
+        private const int MaxCallbacksPerFrame = 5;
+
+        /// <summary>Real-time tracking for pause-based opportunistic task firing.</summary>
+        private static DateTime _pauseStartTime = DateTime.MinValue;
+        private static bool _wasPaused = false;
+        private static bool _pauseOpportunisticFired = false;
+        private static DateTime _lastPauseOpportunisticCheck = DateTime.MinValue;
+
+        /// <summary>How long the game must be paused before opportunistic tasks start firing (seconds).</summary>
+        private const float PauseIdleThreshold = 5.0f;
+
+        /// <summary>Interval between opportunistic task checks during pause (seconds).</summary>
+        private const float PauseCheckInterval = 2.0f;
 
         public SynapseGameComponent(Game game) { }
 
         /// <summary>
-        /// Enqueue an action to run on the main thread during the next game tick.
+        /// Enqueue an action to run on the main thread during the next frame.
         /// Thread-safe — can be called from any background thread.
         /// </summary>
         public static void Enqueue(Action action)
@@ -28,13 +41,14 @@ namespace RimSynapse
         }
 
         /// <summary>
-        /// Called every game tick on the main thread.
-        /// Processes up to <see cref="MaxCallbacksPerTick"/> queued callbacks.
+        /// Called every Unity frame on the main thread — even while paused.
+        /// Processes queued callbacks and handles pause-time opportunistic task firing.
         /// </summary>
-        public override void GameComponentTick()
+        public override void GameComponentUpdate()
         {
+            // Process callbacks from the queue (LLM results, log dispatch, etc.)
             int processed = 0;
-            while (processed < MaxCallbacksPerTick && _mainThreadQueue.TryDequeue(out var action))
+            while (processed < MaxCallbacksPerFrame && _mainThreadQueue.TryDequeue(out var action))
             {
                 try
                 {
@@ -46,6 +60,61 @@ namespace RimSynapse
                 }
                 processed++;
             }
+
+            // ── Pause-time opportunistic task handling ──
+            if (Find.TickManager == null) return;
+
+            bool isPaused = Find.TickManager.Paused;
+
+            if (isPaused)
+            {
+                if (!_wasPaused)
+                {
+                    // Just entered pause — start the timer
+                    _pauseStartTime = DateTime.UtcNow;
+                    _pauseOpportunisticFired = false;
+                    _wasPaused = true;
+                }
+
+                double pausedSeconds = (DateTime.UtcNow - _pauseStartTime).TotalSeconds;
+                if (pausedSeconds >= PauseIdleThreshold)
+                {
+                    // We've been paused long enough — fire opportunistic tasks periodically
+                    if ((DateTime.UtcNow - _lastPauseOpportunisticCheck).TotalSeconds >= PauseCheckInterval)
+                    {
+                        _lastPauseOpportunisticCheck = DateTime.UtcNow;
+
+                        if (!_pauseOpportunisticFired)
+                        {
+                            SynapseLog.Debug("core", "Pause detected for 5+ seconds — enabling pause-time opportunistic processing.");
+                            _pauseOpportunisticFired = true;
+                        }
+
+                        // Tell the task manager to run using real-time cooldowns
+                        Internal.OpportunisticTaskManager.TryRunPauseOpportunisticTask();
+                    }
+                }
+            }
+            else
+            {
+                if (_wasPaused && _pauseOpportunisticFired)
+                {
+                    SynapseLog.Debug("core", "Game unpaused — resuming tick-based opportunistic scheduling.");
+                }
+                _wasPaused = false;
+                _pauseOpportunisticFired = false;
+            }
+        }
+
+        /// <summary>
+        /// Called every game tick on the main thread (only while unpaused).
+        /// Kept as a fallback — primary processing now happens in GameComponentUpdate.
+        /// </summary>
+        public override void GameComponentTick()
+        {
+            // No-op: all callback processing moved to GameComponentUpdate
+            // so it works during pause. GameComponentTick is retained for
+            // any future tick-specific logic.
         }
 
         /// <summary>
@@ -55,7 +124,7 @@ namespace RimSynapse
         public override void FinalizeInit()
         {
             base.FinalizeInit();
-            SynapseLog.Debug("core", "Game loaded. Main-thread dispatcher active.");
+            SynapseLog.Debug("core", "Game loaded. Main-thread dispatcher active (frame-based, pause-aware).");
         }
     }
 }
