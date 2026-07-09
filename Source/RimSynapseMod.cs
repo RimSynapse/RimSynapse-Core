@@ -67,13 +67,19 @@ namespace RimSynapse
             listing.GapLine();
 
             // API Provider Dropdown
-            if (listing.ButtonText($"Provider: {Settings.apiProvider.ToString().Replace("_", " ")} (Experimental)"))
+            string currentProviderName = Settings.apiProvider.ToString().Replace("_", " ");
+            if (Settings.apiProvider != ApiProvider.Local_LMStudio) currentProviderName += " (Experimental)";
+            
+            if (listing.ButtonText($"Provider: {currentProviderName}"))
             {
                 var list = new System.Collections.Generic.List<FloatMenuOption>();
                 foreach (ApiProvider provider in System.Enum.GetValues(typeof(ApiProvider)))
                 {
                     ApiProvider localProvider = provider; // capture
-                    list.Add(new FloatMenuOption(localProvider.ToString().Replace("_", " "), () =>
+                    string label = localProvider.ToString().Replace("_", " ");
+                    if (localProvider != ApiProvider.Local_LMStudio) label += " (Experimental)";
+                    
+                    list.Add(new FloatMenuOption(label, () =>
                     {
                         Settings.apiProvider = localProvider;
                         
