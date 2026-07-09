@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using UnityEngine;
 using Verse;
@@ -56,7 +57,7 @@ namespace RimSynapse
         public override void DoSettingsWindowContents(Rect inRect)
         {
             // Scrollable container for all settings
-            var viewRect = new Rect(0, 0, inRect.width - 20f, 900f);
+            var viewRect = new Rect(0, 0, inRect.width - 20f, 1200f);
             Widgets.BeginScrollView(inRect, ref _scrollPosition, viewRect);
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
@@ -254,6 +255,45 @@ namespace RimSynapse
                     System.IO.Directory.CreateDirectory(path);
                 }
                 Application.OpenURL("file://" + path);
+            }
+
+            listing.Gap(12f);
+
+            // ── Opportunistic Tasks ─────────────────────────────────────
+            listing.Label("Opportunistic Tasks",
+                tooltip: "Controls how aggressively the mod fills idle GPU time with background AI tasks.\n" +
+                    "Aggressive: Maximizes local LLM usage.\nConservative: Minimizes API costs.");
+            listing.GapLine();
+
+            // Throttle mode selector
+            string[] modeLabels = { "Auto-Detect", "Aggressive (Local)", "Balanced", "Conservative (Paid API)" };
+            int modeIndex = Settings.opportunisticThrottleMode + 1; // -1→0, 0→1, 1→2, 2→3
+            listing.Label($"Throttle Mode: {modeLabels[Math.Max(0, Math.Min(modeIndex, 3))]}");
+            if (listing.ButtonText("Cycle Throttle Mode"))
+            {
+                Settings.opportunisticThrottleMode++;
+                if (Settings.opportunisticThrottleMode > 2) Settings.opportunisticThrottleMode = -1;
+            }
+
+            // Burst size (only relevant for Aggressive)
+            listing.Label($"Burst Size (Aggressive mode): {Settings.opportunisticBurstSize}",
+                tooltip: "How many background tasks can fire per idle check. Higher = more GPU usage.");
+            Settings.opportunisticBurstSize = (int)listing.Slider(Settings.opportunisticBurstSize, 1, 5);
+
+            // Per-task controls
+            var tasks = Internal.OpportunisticTaskManager.GetTaskSnapshot();
+            if (tasks.Count > 0)
+            {
+                listing.Gap(6f);
+                listing.Label("Registered Tasks:");
+
+                foreach (var task in tasks.OrderByDescending(t => t.Priority))
+                {
+                    listing.Gap(4f);
+                    string enabledStr = task.Enabled ? "ON" : "OFF";
+                    listing.Label($"  {task.Label}  [P{task.Priority}]  W:{task.BaseWeight:F1}  CD:{task.CooldownTicks}t  ({enabledStr})",
+                        tooltip: task.Description);
+                }
             }
 
             listing.Gap(12f);

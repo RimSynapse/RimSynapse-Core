@@ -1,115 +1,324 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Verse;
 
 namespace RimSynapse.Internal
 {
     /// <summary>
-    /// Manages low-priority background AI tasks registered by companion mods.
-    /// Tracks cooldowns globally (in real-time or ticks) and triggers them when the RequestQueue is idle.
+    /// Throttle mode controls how aggressively the system fills idle GPU time.
+    /// </summary>
+    public enum OpportunisticThrottleMode
+    {
+        /// <summary>Auto-detect: Aggressive for localhost, Conservative for remote.</summary>
+        Auto = -1,
+        /// <summary>Local LLM: 0.5s idle delay, burst up to N tasks per check.</summary>
+        Aggressive = 0,
+        /// <summary>Middle ground: 3s idle delay, 1 task per check.</summary>
+        Balanced = 1,
+        /// <summary>Paid API: 15s idle delay, 1 task per check, doubled cooldowns.</summary>
+        Conservative = 2
+    }
+
+    /// <summary>
+    /// Centralized scheduler for low-priority background AI tasks.
+    /// Companion mods register callbacks linked to XML-defined SynapseOpportunisticTaskDefs.
+    /// The manager handles weighted selection, cooldown tracking, priority ordering,
+    /// and throttle-aware scheduling.
     /// </summary>
     public static class OpportunisticTaskManager
     {
-        private class OpportunisticTask
+        /// <summary>
+        /// Runtime state for a registered opportunistic task.
+        /// Exposed publicly so the Queue Monitor can display it.
+        /// </summary>
+        public class TaskEntry
         {
             public SynapseModHandle Mod;
-            public string TaskId;
+            public string DefName;
             public Action Callback;
-            public int CooldownTicks;
             public int LastRunTick = -999999;
+            public float EffectiveWeight;
+            public int TimesRun;
+
+            /// <summary>
+            /// Linked Def (resolved after DefDatabase is ready). May be null
+            /// if the companion mod registered before defs loaded.
+            /// </summary>
+            public SynapseOpportunisticTaskDef Def;
+
+            // Derived properties (fall back to sensible defaults if Def is null)
+            public int Priority => Def?.priority ?? 5;
+            public float BaseWeight => Def?.weight ?? 1.0f;
+            public int CooldownTicks => Def?.cooldownTicks ?? 15000;
+            public bool Enabled => Def?.enabled ?? true;
+            public string Label => Def?.label ?? DefName;
+            public string Description => Def?.description ?? "";
         }
 
-        private static readonly List<OpportunisticTask> _tasks = new List<OpportunisticTask>();
+        private static readonly List<TaskEntry> _tasks = new List<TaskEntry>();
         private static readonly object _lock = new object();
-        
-        // Only attempt opportunistic runs every 5 real-time seconds when idle
         private static DateTime _lastIdleCheck = DateTime.MinValue;
+        private static bool _defsResolved = false;
 
         /// <summary>
-        /// Registers a new opportunistic task.
+        /// Read-only snapshot of all registered tasks for the Queue Monitor UI.
         /// </summary>
-        /// <param name="mod">The mod handle.</param>
-        /// <param name="taskId">Unique ID for this task.</param>
-        /// <param name="callback">The function to call when idle time is available.</param>
-        /// <param name="cooldownTicks">How many in-game ticks must pass between invocations (e.g., 30000 for 12 hours).</param>
+        public static List<TaskEntry> GetTaskSnapshot()
+        {
+            lock (_lock)
+            {
+                return _tasks.ToList();
+            }
+        }
+
+        /// <summary>
+        /// Registers an opportunistic task linked to a SynapseOpportunisticTaskDef.
+        /// The Def provides priority, weight, and cooldown. Only the callback is provided by C#.
+        /// </summary>
+        public static void RegisterTask(SynapseModHandle mod, string defName, Action callback)
+        {
+            lock (_lock)
+            {
+                var existing = _tasks.Find(t => t.DefName == defName);
+                if (existing != null)
+                {
+                    existing.Callback = callback;
+                    existing.Mod = mod;
+                }
+                else
+                {
+                    var entry = new TaskEntry
+                    {
+                        Mod = mod,
+                        DefName = defName,
+                        Callback = callback,
+                        EffectiveWeight = 1.0f
+                    };
+
+                    // Try to resolve Def immediately (may fail if called before defs load)
+                    TryResolveDef(entry);
+
+                    _tasks.Add(entry);
+                    SynapseLog.Info("core", $"Registered Opportunistic Task '{defName}' for {mod.DisplayName}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Legacy overload for backward compatibility. Cooldown is used only if no Def exists.
+        /// </summary>
+        [Obsolete("Use RegisterTask(mod, defName, callback) instead. Cooldown should be defined in XML.")]
         public static void RegisterTask(SynapseModHandle mod, string taskId, Action callback, int cooldownTicks)
         {
             lock (_lock)
             {
-                var existing = _tasks.Find(t => t.Mod == mod && t.TaskId == taskId);
+                var existing = _tasks.Find(t => t.DefName == taskId);
                 if (existing != null)
                 {
                     existing.Callback = callback;
-                    existing.CooldownTicks = cooldownTicks;
+                    existing.Mod = mod;
                 }
                 else
                 {
-                    _tasks.Add(new OpportunisticTask
+                    var entry = new TaskEntry
                     {
                         Mod = mod,
-                        TaskId = taskId,
+                        DefName = taskId,
                         Callback = callback,
-                        CooldownTicks = cooldownTicks
-                    });
-                    SynapseLog.Info("core", $"Registered Opportunistic Task '{taskId}' for {mod.DisplayName} (Cooldown: {cooldownTicks} ticks)");
+                        EffectiveWeight = 1.0f
+                    };
+
+                    TryResolveDef(entry);
+
+                    _tasks.Add(entry);
+                    SynapseLog.Info("core", $"Registered Opportunistic Task '{taskId}' for {mod.DisplayName} (legacy, cooldown: {cooldownTicks})");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Called once after all Defs are loaded to link tasks to their XML definitions.
+        /// </summary>
+        public static void ResolveDefs()
+        {
+            lock (_lock)
+            {
+                foreach (var task in _tasks)
+                {
+                    TryResolveDef(task);
+                }
+                _defsResolved = true;
+                SynapseLog.Info("core", $"Opportunistic Task Defs resolved. {_tasks.Count} tasks registered.");
+            }
+        }
+
+        private static void TryResolveDef(TaskEntry entry)
+        {
+            if (entry.Def != null) return;
+            entry.Def = DefDatabase<SynapseOpportunisticTaskDef>.GetNamedSilentFail(entry.DefName);
+            if (entry.Def != null)
+            {
+                entry.EffectiveWeight = entry.Def.weight;
             }
         }
 
         /// <summary>
         /// Called by RequestQueue.WorkerLoop when the queue is completely empty.
-        /// Attempts to fire exactly one opportunistic task if cooldowns permit.
+        /// Selects and fires eligible tasks based on throttle mode, priority, and weight.
         /// </summary>
         internal static void TryRunOpportunisticTask()
         {
-            if (DateTime.UtcNow - _lastIdleCheck < TimeSpan.FromSeconds(5))
+            var settings = RimSynapseMod.Instance?.Settings;
+            var mode = ResolveThrottleMode(settings);
+
+            // Adaptive idle delay based on throttle mode
+            TimeSpan idleDelay;
+            int burstSize;
+            float cooldownMultiplier;
+
+            switch (mode)
             {
-                return; // Don't spam checks
+                case OpportunisticThrottleMode.Aggressive:
+                    idleDelay = TimeSpan.FromMilliseconds(500);
+                    burstSize = settings?.opportunisticBurstSize ?? 3;
+                    cooldownMultiplier = 1.0f;
+                    break;
+                case OpportunisticThrottleMode.Balanced:
+                    idleDelay = TimeSpan.FromSeconds(3);
+                    burstSize = 1;
+                    cooldownMultiplier = 1.0f;
+                    break;
+                case OpportunisticThrottleMode.Conservative:
+                    idleDelay = TimeSpan.FromSeconds(15);
+                    burstSize = 1;
+                    cooldownMultiplier = 2.0f;
+                    break;
+                default:
+                    idleDelay = TimeSpan.FromSeconds(5);
+                    burstSize = 1;
+                    cooldownMultiplier = 1.0f;
+                    break;
+            }
+
+            if (DateTime.UtcNow - _lastIdleCheck < idleDelay)
+            {
+                return;
             }
             _lastIdleCheck = DateTime.UtcNow;
 
-            // Ticks require RimWorld to be running and a map to exist
             if (Current.ProgramState != ProgramState.Playing || Find.TickManager == null)
             {
                 return;
             }
 
+            // Resolve defs if we haven't yet (handles late registration)
+            if (!_defsResolved)
+            {
+                ResolveDefs();
+            }
+
             int currentTick = Find.TickManager.TicksGame;
-            OpportunisticTask taskToRun = null;
+            int tasksFired = 0;
 
             lock (_lock)
             {
-                // Shuffle to prevent the first registered mod from hogging all idle time
-                _tasks.Shuffle();
-
+                // Update effective weights: recover linearly over cooldown period
                 foreach (var task in _tasks)
                 {
-                    if (currentTick - task.LastRunTick >= task.CooldownTicks)
+                    if (!task.Enabled) continue;
+
+                    int ticksSinceRun = currentTick - task.LastRunTick;
+                    int cooldown = (int)(task.CooldownTicks * cooldownMultiplier);
+
+                    if (ticksSinceRun >= cooldown)
                     {
-                        taskToRun = task;
-                        break;
+                        task.EffectiveWeight = task.BaseWeight;
+                    }
+                    else
+                    {
+                        // Linear recovery: 0 at fire time → BaseWeight at cooldown expiry
+                        float recovery = (float)ticksSinceRun / Math.Max(1, cooldown);
+                        task.EffectiveWeight = task.BaseWeight * recovery;
                     }
                 }
+
+                // Group eligible tasks by priority (highest first)
+                var eligible = _tasks
+                    .Where(t => t.Enabled && t.Callback != null &&
+                           currentTick - t.LastRunTick >= (int)(t.CooldownTicks * cooldownMultiplier))
+                    .OrderByDescending(t => t.Priority)
+                    .ToList();
+
+                if (eligible.Count == 0) return;
+
+                // Fire up to burstSize tasks
+                while (tasksFired < burstSize && eligible.Count > 0)
+                {
+                    // Among the highest priority group, select by weighted random
+                    int topPriority = eligible[0].Priority;
+                    var topGroup = eligible.Where(t => t.Priority == topPriority).ToList();
+
+                    float totalWeight = topGroup.Sum(t => Math.Max(0.01f, t.EffectiveWeight));
+                    float roll = Rand.Range(0f, totalWeight);
+                    float cumulative = 0f;
+                    TaskEntry selected = topGroup.Last();
+
+                    foreach (var task in topGroup)
+                    {
+                        cumulative += Math.Max(0.01f, task.EffectiveWeight);
+                        if (roll <= cumulative)
+                        {
+                            selected = task;
+                            break;
+                        }
+                    }
+
+                    // Fire it
+                    selected.LastRunTick = currentTick;
+                    selected.EffectiveWeight = 0f; // Decay to zero immediately
+                    selected.TimesRun++;
+
+                    SynapseLog.Debug("queue", $"Opportunistic [{mode}]: Firing '{selected.Label}' (P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
+
+                    var callback = selected.Callback;
+                    SynapseGameComponent.Enqueue(() =>
+                    {
+                        try
+                        {
+                            callback?.Invoke();
+                        }
+                        catch (Exception ex)
+                        {
+                            SynapseLog.Error("core", $"Error executing opportunistic task '{selected.DefName}': {ex.Message}");
+                        }
+                    });
+
+                    eligible.Remove(selected);
+                    tasksFired++;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resolves the effective throttle mode, handling Auto-detect.
+        /// </summary>
+        private static OpportunisticThrottleMode ResolveThrottleMode(RimSynapseSettings settings)
+        {
+            int modeInt = settings?.opportunisticThrottleMode ?? -1;
+
+            if (modeInt >= 0 && modeInt <= 2)
+            {
+                return (OpportunisticThrottleMode)modeInt;
             }
 
-            if (taskToRun != null)
+            // Auto-detect: remote URL → Conservative, local → Aggressive
+            if (settings != null && settings.IsRemoteUrl)
             {
-                SynapseLog.Debug("queue", $"Queue Idle. Triggering Opportunistic Task '{taskToRun.TaskId}' for {taskToRun.Mod.DisplayName}.");
-                taskToRun.LastRunTick = currentTick;
-                
-                // Execute on main thread since it might touch game state to generate prompts
-                SynapseGameComponent.Enqueue(() =>
-                {
-                    try
-                    {
-                        taskToRun.Callback?.Invoke();
-                    }
-                    catch (Exception ex)
-                    {
-                        SynapseLog.Error("core", $"Error executing opportunistic task '{taskToRun.TaskId}': {ex.Message}");
-                    }
-                });
+                return OpportunisticThrottleMode.Conservative;
             }
+
+            return OpportunisticThrottleMode.Aggressive;
         }
     }
 }

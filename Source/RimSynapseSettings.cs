@@ -34,6 +34,12 @@ namespace RimSynapse
         public int timeoutSeconds = 120;
         public int maxRequestsPerMinute = 30;
 
+        // --- Opportunistic Tasks ---
+        /// <summary>-1 = Auto, 0 = Aggressive, 1 = Balanced, 2 = Conservative</summary>
+        public int opportunisticThrottleMode = -1;
+        /// <summary>Max tasks to fire per idle check in Aggressive mode (1-5).</summary>
+        public int opportunisticBurstSize = 3;
+
         // --- Logging ---
         public LogLevel logLevel = LogLevel.Info;
         public bool enableFileLogging = false;
@@ -54,6 +60,8 @@ namespace RimSynapse
             Scribe_Values.Look(ref disableThinking, "disableThinking", true);
             Scribe_Values.Look(ref timeoutSeconds, "timeoutSeconds", 120);
             Scribe_Values.Look(ref maxRequestsPerMinute, "maxRequestsPerMinute", 30);
+            Scribe_Values.Look(ref opportunisticThrottleMode, "opportunisticThrottleMode", -1);
+            Scribe_Values.Look(ref opportunisticBurstSize, "opportunisticBurstSize", 3);
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
             Scribe_Values.Look(ref logLevel, "logLevel", LogLevel.Info);
             Scribe_Values.Look(ref enableFileLogging, "enableFileLogging", false);

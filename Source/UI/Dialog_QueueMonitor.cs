@@ -11,7 +11,7 @@ namespace RimSynapse.UI
         private Vector2 scrollPosition = Vector2.zero;
         private bool showPrompts = false;
 
-        public override Vector2 InitialSize => new Vector2(900f, 600f);
+        public override Vector2 InitialSize => new Vector2(900f, 700f);
 
         public Dialog_QueueMonitor()
         {
@@ -52,27 +52,30 @@ namespace RimSynapse.UI
             DrawRow(tableHeaderRect, "STATUS", "MOD", "PRIO", "AGE (ms)", "DYN SCORE", "TIMEOUT (ms)", true);
             GUI.color = Color.white;
 
-            // Content Area
-            Rect outRect = new Rect(0, 110f, inRect.width, inRect.height - 110f);
+            // Content Area — split between main queue and opportunistic
+            float mainQueueEndY = 110f;
+            float mainQueueHeight = (inRect.height - 110f) * 0.6f; // 60% for main queue
+            Rect mainOutRect = new Rect(0, mainQueueEndY, inRect.width, mainQueueHeight);
             
-            // Calculate height
-            float viewHeight = 0f;
-            if (activeRequest != null) viewHeight += GetRowHeight(activeRequest);
+            // Calculate main queue view height
+            float mainViewHeight = 0f;
+            if (activeRequest != null) mainViewHeight += GetRowHeight(activeRequest);
             foreach (var req in queueSnapshot)
             {
-                viewHeight += GetRowHeight(req);
+                mainViewHeight += GetRowHeight(req);
             }
+            if (mainViewHeight < 25f) mainViewHeight = 25f;
 
-            Rect viewRect = new Rect(0, 0, outRect.width - 16f, viewHeight);
+            Rect mainViewRect = new Rect(0, 0, mainOutRect.width - 16f, mainViewHeight);
 
-            Widgets.BeginScrollView(outRect, ref scrollPosition, viewRect);
+            Widgets.BeginScrollView(mainOutRect, ref scrollPosition, mainViewRect);
 
             float curY = 0f;
 
             // Draw Active
             if (activeRequest != null)
             {
-                Rect rowRect = new Rect(0, curY, viewRect.width, GetRowHeight(activeRequest));
+                Rect rowRect = new Rect(0, curY, mainViewRect.width, GetRowHeight(activeRequest));
                 GUI.color = Color.green;
                 DrawRequestRow(rowRect, activeRequest, $"ACTIVE ({sw.ElapsedMilliseconds}ms)");
                 GUI.color = Color.white;
@@ -82,13 +85,122 @@ namespace RimSynapse.UI
             // Draw Queued
             foreach (var req in queueSnapshot.OrderByDescending(r => r.CurrentScore))
             {
-                Rect rowRect = new Rect(0, curY, viewRect.width, GetRowHeight(req));
+                Rect rowRect = new Rect(0, curY, mainViewRect.width, GetRowHeight(req));
                 DrawRequestRow(rowRect, req, "WAITING");
                 curY += rowRect.height;
             }
 
             Widgets.EndScrollView();
+
+            // ── Opportunistic Tasks Section ────────────────────────────
+            float oppY = mainOutRect.yMax + 10f;
+            float oppHeight = inRect.height - oppY;
+
+            if (oppHeight < 60f) return; // Not enough space
+
+            Widgets.DrawLineHorizontal(0, oppY, inRect.width);
+            oppY += 5f;
+
+            // Opportunistic header
+            Text.Font = GameFont.Medium;
+            string throttleModeLabel = GetThrottleModeLabel();
+            Widgets.Label(new Rect(0, oppY, inRect.width, 30f), $"Opportunistic Tasks  [{throttleModeLabel}]");
+            Text.Font = GameFont.Small;
+            oppY += 35f;
+
+            // Opportunistic table header
+            Rect oppTableHeader = new Rect(0, oppY, inRect.width - 16f, 25f);
+            GUI.color = Color.gray;
+            DrawOpportunisticHeader(oppTableHeader);
+            GUI.color = Color.white;
+            oppY += 25f;
+
+            // Task entries
+            var tasks = OpportunisticTaskManager.GetTaskSnapshot();
+            int currentTick = (Current.ProgramState == ProgramState.Playing && Find.TickManager != null)
+                ? Find.TickManager.TicksGame : 0;
+
+            foreach (var task in tasks.OrderByDescending(t => t.Priority).ThenByDescending(t => t.EffectiveWeight))
+            {
+                if (oppY + 25f > inRect.height) break; // Clip if out of space
+
+                Rect taskRow = new Rect(0, oppY, inRect.width - 16f, 25f);
+
+                // Status color
+                bool onCooldown = currentTick - task.LastRunTick < task.CooldownTicks;
+                if (!task.Enabled)
+                {
+                    GUI.color = Color.gray;
+                }
+                else if (onCooldown)
+                {
+                    GUI.color = Color.yellow;
+                }
+                else
+                {
+                    GUI.color = new Color(0.5f, 1f, 0.5f); // Light green = ready
+                }
+
+                string status = !task.Enabled ? "DISABLED" :
+                                onCooldown ? "COOLDOWN" : "READY";
+                int ticksRemaining = onCooldown ? task.CooldownTicks - (currentTick - task.LastRunTick) : 0;
+                string cooldownStr = onCooldown ? $"{ticksRemaining / 2500f:F1}h" : "—";
+                string weightStr = $"{task.EffectiveWeight:F2} / {task.BaseWeight:F1}";
+
+                DrawOpportunisticRow(taskRow, status, task.Label, task.Priority.ToString(),
+                    weightStr, task.TimesRun.ToString(), cooldownStr, task.Mod?.DisplayName ?? "?");
+
+                GUI.color = Color.white;
+                oppY += 25f;
+            }
+
+            if (tasks.Count == 0)
+            {
+                Widgets.Label(new Rect(10f, oppY, inRect.width, 25f), "No opportunistic tasks registered.");
+            }
         }
+
+        private string GetThrottleModeLabel()
+        {
+            var settings = RimSynapseMod.Instance?.Settings;
+            int mode = settings?.opportunisticThrottleMode ?? -1;
+            switch (mode)
+            {
+                case 0: return "Aggressive";
+                case 1: return "Balanced";
+                case 2: return "Conservative";
+                default:
+                    bool isRemote = settings?.IsRemoteUrl ?? false;
+                    return isRemote ? "Auto → Conservative" : "Auto → Aggressive";
+            }
+        }
+
+        private void DrawOpportunisticHeader(Rect rect)
+        {
+            float[] widths = { 100f, 220f, 60f, 120f, 80f, 100f, 120f };
+            float curX = rect.x;
+            string[] labels = { "STATUS", "TASK", "PRIO", "WEIGHT (eff/base)", "RUNS", "COOLDOWN", "MOD" };
+            for (int i = 0; i < labels.Length && i < widths.Length; i++)
+            {
+                Widgets.Label(new Rect(curX, rect.y, widths[i], 25f), labels[i]);
+                curX += widths[i];
+            }
+        }
+
+        private void DrawOpportunisticRow(Rect rect, string status, string task, string prio,
+            string weight, string runs, string cooldown, string mod)
+        {
+            float[] widths = { 100f, 220f, 60f, 120f, 80f, 100f, 120f };
+            float curX = rect.x;
+            string[] vals = { status, task, prio, weight, runs, cooldown, mod };
+            for (int i = 0; i < vals.Length && i < widths.Length; i++)
+            {
+                Widgets.Label(new Rect(curX, rect.y, widths[i], 25f), vals[i]);
+                curX += widths[i];
+            }
+        }
+
+        // ── Original helpers (unchanged) ────────────────────────────
 
         private float GetRowHeight(RequestQueue.QueuedRequest req)
         {

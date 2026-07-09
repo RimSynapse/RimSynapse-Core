@@ -142,12 +142,22 @@ namespace RimSynapse
             ModelManager.GetModels(callback);
         }
         /// <summary>
-        /// Registers a low-priority background task that will only be executed when the Core LLM queue is idle.
+        /// Registers a low-priority background task linked to a SynapseOpportunisticTaskDef.
+        /// Priority, weight, and cooldown are defined in XML. The companion mod only provides the callback.
         /// </summary>
         /// <param name="mod">Your mod handle.</param>
-        /// <param name="taskId">A unique identifier for this task.</param>
-        /// <param name="callback">The function to call when the queue is idle (this should enqueue a low priority prompt).</param>
-        /// <param name="cooldownTicks">How many in-game ticks must pass between invocations (e.g., 30000 for 12 hours).</param>
+        /// <param name="defName">The defName of the SynapseOpportunisticTaskDef in your mod's Defs/.</param>
+        /// <param name="callback">The function to call when the queue is idle.</param>
+        public static void RegisterOpportunisticTask(SynapseModHandle mod, string defName, Action callback)
+        {
+            RimSynapse.Internal.OpportunisticTaskManager.RegisterTask(mod, defName, callback);
+        }
+
+        /// <summary>
+        /// Legacy overload. Cooldown is only used if no matching SynapseOpportunisticTaskDef exists.
+        /// Prefer the 3-parameter overload with XML-defined task defs.
+        /// </summary>
+        [System.Obsolete("Use RegisterOpportunisticTask(mod, defName, callback) with an XML-defined SynapseOpportunisticTaskDef.")]
         public static void RegisterOpportunisticTask(SynapseModHandle mod, string taskId, Action callback, int cooldownTicks)
         {
             RimSynapse.Internal.OpportunisticTaskManager.RegisterTask(mod, taskId, callback, cooldownTicks);
