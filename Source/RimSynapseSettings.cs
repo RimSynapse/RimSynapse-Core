@@ -2,6 +2,15 @@ using Verse;
 
 namespace RimSynapse
 {
+    public enum ApiProvider
+    {
+        Local_LMStudio = 0,
+        Google_Gemini = 1,
+        OpenAI = 2,
+        Anthropic_Claude = 3,
+        Custom = 4
+    }
+
     /// <summary>
     /// Persistent mod settings stored in RimWorld's config directory.
     /// Accessible in-game via Mod Settings → RimSynapse Core.
@@ -9,15 +18,19 @@ namespace RimSynapse
     public class RimSynapseSettings : ModSettings
     {
         // --- Connection ---
+        public ApiProvider apiProvider = ApiProvider.Local_LMStudio;
         public string lmStudioUrl = "http://127.0.0.1:1234";
 
         /// <summary>
-        /// True if the LM Studio URL points to a remote host instead of localhost.
+        /// True if using a cloud provider, or if the Custom/LMStudio URL points to a remote host.
         /// </summary>
-        public bool IsRemoteUrl => !string.IsNullOrEmpty(lmStudioUrl) && 
-                                   !lmStudioUrl.Contains("localhost") && 
-                                   !lmStudioUrl.Contains("127.0.0.1") && 
-                                   !lmStudioUrl.Contains("::1");
+        public bool IsRemoteUrl => apiProvider == ApiProvider.Google_Gemini || 
+                                   apiProvider == ApiProvider.OpenAI || 
+                                   apiProvider == ApiProvider.Anthropic_Claude ||
+                                   (!string.IsNullOrEmpty(lmStudioUrl) && 
+                                    !lmStudioUrl.Contains("localhost") && 
+                                    !lmStudioUrl.Contains("127.0.0.1") && 
+                                    !lmStudioUrl.Contains("::1"));
         public string lmStudioApiKey = "";
 
         // --- Behavior ---
@@ -51,6 +64,7 @@ namespace RimSynapse
         public override void ExposeData()
         {
             base.ExposeData();
+            Scribe_Values.Look(ref apiProvider, "apiProvider", ApiProvider.Local_LMStudio);
             Scribe_Values.Look(ref lmStudioUrl, "lmStudioUrl", "http://127.0.0.1:1234");
             Scribe_Values.Look(ref lmStudioApiKey, "lmStudioApiKey", "");
             Scribe_Values.Look(ref autoMapModel, "autoMapModel", true);

@@ -63,14 +63,52 @@ namespace RimSynapse
             listing.Begin(viewRect);
 
             // ── Connection Settings ──────────────────────────────────
-            listing.Label("Connection Settings", tooltip: "Configure your LM Studio connection.");
+            listing.Label("Connection Settings", tooltip: "Configure your LLM provider.");
             listing.GapLine();
 
-            Settings.lmStudioUrl = listing.TextEntryLabeled(
-                "LM Studio URL:  ", Settings.lmStudioUrl);
+            // API Provider Dropdown
+            if (listing.ButtonText($"Provider: {Settings.apiProvider.ToString().Replace("_", " ")} (Experimental)"))
+            {
+                var list = new System.Collections.Generic.List<FloatMenuOption>();
+                foreach (ApiProvider provider in System.Enum.GetValues(typeof(ApiProvider)))
+                {
+                    ApiProvider localProvider = provider; // capture
+                    list.Add(new FloatMenuOption(localProvider.ToString().Replace("_", " "), () =>
+                    {
+                        Settings.apiProvider = localProvider;
+                        
+                        // Set default URLs based on selection
+                        if (localProvider == ApiProvider.Local_LMStudio) Settings.lmStudioUrl = "http://127.0.0.1:1234";
+                        else if (localProvider == ApiProvider.Google_Gemini) Settings.lmStudioUrl = "https://generativelanguage.googleapis.com";
+                        else if (localProvider == ApiProvider.OpenAI) Settings.lmStudioUrl = "https://api.openai.com";
+                        else if (localProvider == ApiProvider.Anthropic_Claude) Settings.lmStudioUrl = "https://api.anthropic.com";
+                    }));
+                }
+                Find.WindowStack.Add(new FloatMenu(list));
+            }
 
-            Settings.lmStudioApiKey = listing.TextEntryLabeled(
-                "API Key (optional):  ", Settings.lmStudioApiKey);
+            listing.Gap(6f);
+
+            if (Settings.apiProvider != ApiProvider.Local_LMStudio)
+            {
+                listing.Label("You have selected a Cloud API Provider.", tooltip: "Be aware of API usage costs. Auto-throttle will default to Conservative.");
+                Settings.lmStudioApiKey = listing.TextEntryLabeled("API Key:  ", Settings.lmStudioApiKey);
+                
+                if (Settings.apiProvider == ApiProvider.Custom)
+                {
+                    Settings.lmStudioUrl = listing.TextEntryLabeled("Custom API URL:  ", Settings.lmStudioUrl);
+                }
+                
+                if (listing.ButtonText("Open API Setup Guide (GitHub)"))
+                {
+                    UnityEngine.Application.OpenURL("https://github.com/RimSynapse/RimSynapse-Core/wiki/Cloud-API-Setup");
+                }
+            }
+            else
+            {
+                Settings.lmStudioUrl = listing.TextEntryLabeled("LM Studio URL:  ", Settings.lmStudioUrl);
+                Settings.lmStudioApiKey = listing.TextEntryLabeled("API Key (optional):  ", Settings.lmStudioApiKey);
+            }
 
             listing.Gap(6f);
 
