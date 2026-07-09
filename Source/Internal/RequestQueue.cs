@@ -1,18 +1,19 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
+using System.Linq;
 
 namespace RimSynapse.Internal
 {
     /// <summary>
-    /// Dynamic request queue with per-mod budget enforcement and tick-aware throttling.
+    /// Dynamic request queue with per-mod budget enforcement, tick-aware throttling,
+    /// dynamic priority scaling, and TTL dropping.
     /// Serializes LLM requests (one at a time) and scales back under load.
     /// </summary>
-    internal static class RequestQueue
+    public static class RequestQueue
     {
-        /// <summary>A queued LLM request with mod attribution.</summary>
-        private class QueuedRequest
+        /// <summary>A queued LLM request with mod attribution and scoring info.</summary>
+        public class QueuedRequest
         {
             public SynapseModHandle Mod;
             public List<ChatMessage> Messages;
@@ -20,10 +21,11 @@ namespace RimSynapse.Internal
             public Action<ChatResult> Callback;
             public int Priority;
             public DateTime EnqueuedAt;
+            public double CurrentScore;
         }
 
-        private static readonly ConcurrentQueue<QueuedRequest> _queue =
-            new ConcurrentQueue<QueuedRequest>();
+        private static readonly List<QueuedRequest> _queue = new List<QueuedRequest>();
+        private static readonly object _queueLock = new object();
 
         private static readonly Thread _workerThread;
         private static readonly AutoResetEvent _signal = new AutoResetEvent(false);
@@ -36,15 +38,27 @@ namespace RimSynapse.Internal
         private static readonly TimeSpan WindowDuration = TimeSpan.FromSeconds(60);
 
         // Public stats
-        internal static int QueueDepth => _queue.Count;
-        internal static float ThrottleLevel => _throttleLevel;
-        internal static bool IsProcessing { get; private set; }
+        public static int QueueDepth
+        {
+            get
+            {
+                lock (_queueLock)
+                {
+                    return _queue.Count;
+                }
+            }
+        }
+        
+        public static float ThrottleLevel => _throttleLevel;
+        public static bool IsProcessing { get; private set; }
+        
+        public static QueuedRequest ActiveRequest { get; private set; }
+        public static System.Diagnostics.Stopwatch ActiveRequestStopwatch { get; private set; } = new System.Diagnostics.Stopwatch();
 
         /// <summary>
         /// Average response time in milliseconds across recent requests.
-        /// Used by QueryBudgetProfile for performance-based budget scaling.
         /// </summary>
-        internal static float AverageResponseMs
+        public static float AverageResponseMs
         {
             get
             {
@@ -69,6 +83,17 @@ namespace RimSynapse.Internal
         }
 
         /// <summary>
+        /// Expose a snapshot of the queue for the debug monitor.
+        /// </summary>
+        public static List<QueuedRequest> GetQueueSnapshot()
+        {
+            lock (_queueLock)
+            {
+                return _queue.ToList();
+            }
+        }
+
+        /// <summary>
         /// Enqueue a chat completion request. Budget-checked and priority-ordered.
         /// </summary>
         internal static void Enqueue(SynapseModHandle mod, List<ChatMessage> messages,
@@ -82,6 +107,7 @@ namespace RimSynapse.Internal
                 Callback = callback,
                 Priority = options?.priority ?? 0,
                 EnqueuedAt = DateTime.UtcNow,
+                CurrentScore = 0
             };
 
             if (mod != null)
@@ -89,16 +115,20 @@ namespace RimSynapse.Internal
                 mod.QueuedCount++;
             }
 
-            _queue.Enqueue(request);
+            lock (_queueLock)
+            {
+                _queue.Add(request);
+            }
+            
             _signal.Set(); // Wake the worker
 
             SynapseLog.Debug("queue",
-                $"Request enqueued for {mod?.DisplayName ?? "unknown"}. Queue depth: {_queue.Count}.",
+                $"Request enqueued for {mod?.DisplayName ?? "unknown"}. Queue depth: {QueueDepth}.",
                 mod?.ModId);
         }
 
         /// <summary>
-        /// Background worker loop. Processes one request at a time.
+        /// Background worker loop. Processes one request at a time based on dynamic scoring.
         /// </summary>
         private static void WorkerLoop()
         {
@@ -117,37 +147,61 @@ namespace RimSynapse.Internal
                     UpdateThrottle();
                 }
 
-                // Process next request
-                if (!_queue.TryDequeue(out var request))
-                    continue;
+                QueuedRequest requestToProcess = null;
+                var now = DateTime.UtcNow;
 
-                if (request.Mod != null)
+                lock (_queueLock)
                 {
-                    request.Mod.QueuedCount = Math.Max(0, request.Mod.QueuedCount - 1);
+                    if (_queue.Count == 0)
+                        continue;
+
+                    var settings = RimSynapseMod.Instance?.Settings;
+                    int maxPerWindow = settings?.maxRequestsPerMinute ?? 30;
+
+                    // Evaluate queue: Drop stale requests and calculate dynamic scores
+                    for (int i = _queue.Count - 1; i >= 0; i--)
+                    {
+                        var req = _queue[i];
+                        double ageMs = (now - req.EnqueuedAt).TotalMilliseconds;
+
+                        // TTL Check
+                        if (req.Options?.maxWaitMs.HasValue == true && ageMs > req.Options.maxWaitMs.Value)
+                        {
+                            SynapseLog.Warn("queue", $"Request for {req.Mod?.DisplayName} dropped (exceeded maxWaitMs of {req.Options.maxWaitMs.Value}).");
+                            if (req.Mod != null) req.Mod.QueuedCount = Math.Max(0, req.Mod.QueuedCount - 1);
+                            
+                            var cb = req.Callback;
+                            SynapseGameComponent.Enqueue(() => cb?.Invoke(ChatResult.Failure("Request timed out in queue.")));
+                            
+                            _queue.RemoveAt(i);
+                            continue;
+                        }
+
+                        // Calculate Dynamic Score: (Priority * 10,000) + Age
+                        req.CurrentScore = (req.Priority * 10000.0) + ageMs;
+
+                        // Budget Penalty: If over budget, apply massive penalty
+                        if (req.Mod != null && !ModRegistry.IsWithinBudget(req.Mod, maxPerWindow))
+                        {
+                            req.CurrentScore -= 1000000.0;
+                        }
+                    }
+
+                    if (_queue.Count == 0)
+                        continue;
+
+                    // Sort descending by score and pick the top
+                    _queue.Sort((a, b) => b.CurrentScore.CompareTo(a.CurrentScore));
+                    
+                    requestToProcess = _queue[0];
+                    _queue.RemoveAt(0);
                 }
 
-                // Budget check — if over budget, deprioritize (re-enqueue behind others)
-                var settings = RimSynapseMod.Instance?.Settings;
-                int maxPerWindow = settings?.maxRequestsPerMinute ?? 30;
+                if (requestToProcess == null) continue;
 
-                if (request.Mod != null && !ModRegistry.IsWithinBudget(request.Mod, maxPerWindow))
+                if (requestToProcess.Mod != null)
                 {
-                    // Check if there are under-budget requests waiting
-                    if (_queue.Count > 0)
-                    {
-                        SynapseLog.Debug("queue",
-                            $"Mod \"{request.Mod.DisplayName}\" over budget. Re-enqueueing.",
-                            request.Mod.ModId);
-
-                        // Re-enqueue at the back
-                        request.Mod.QueuedCount++;
-                        _queue.Enqueue(request);
-
-                        // Apply throttle delay to avoid busy-spinning
-                        Thread.Sleep(100);
-                        continue;
-                    }
-                    // If only over-budget requests remain, process anyway (don't stall)
+                    requestToProcess.Mod.QueuedCount = Math.Max(0, requestToProcess.Mod.QueuedCount - 1);
                 }
 
                 // Throttle delay
@@ -156,92 +210,79 @@ namespace RimSynapse.Internal
                     int delayMs = (int)((1.0f - _throttleLevel) * 2000);
                     if (delayMs > 0)
                     {
-                        SynapseLog.Debug("queue",
-                            $"Throttle delay: {delayMs}ms (level: {_throttleLevel:F2}).");
                         Thread.Sleep(delayMs);
                     }
                 }
 
                 // Execute
                 IsProcessing = true;
+                ActiveRequest = requestToProcess;
+                ActiveRequestStopwatch.Restart();
                 var wasThrottled = _throttleLevel < 0.9f;
 
                 try
                 {
                     SynapseLog.Info("queue",
-                        $"Processing request for {request.Mod?.DisplayName ?? "unknown"}. " +
-                        $"Remaining: {_queue.Count}.",
-                        request.Mod?.ModId);
+                        $"Processing request for {requestToProcess.Mod?.DisplayName ?? "unknown"}. Score: {requestToProcess.CurrentScore:F0}",
+                        requestToProcess.Mod?.ModId);
 
-                    // Resolve model
-                    string model = ModelManager.ResolveModel(request.Options?.model);
-                    if (!string.IsNullOrEmpty(model) && request.Options != null)
+                    string model = ModelManager.ResolveModel(requestToProcess.Options?.model);
+                    if (!string.IsNullOrEmpty(model) && requestToProcess.Options != null)
                     {
-                        request.Options.model = model;
+                        requestToProcess.Options.model = model;
                     }
 
-                    // ── Context injection ──
-                    // If context embedding is enabled and the request has an eventType,
-                    // build the context block and prepend it to the system message.
+                    // Context injection
                     if (SynapseCoreContext.IsEnabled() &&
-                        !string.IsNullOrEmpty(request.Options?.eventType))
+                        !string.IsNullOrEmpty(requestToProcess.Options?.eventType))
                     {
                         try
                         {
                             var contextText = SynapseCoreContext.GetContextText(
-                                request.Options.eventType,
-                                request.Options.sourcePawn,
-                                request.Options.targetPawn,
-                                request.Options.contextTiers ?? request.Mod?.DefaultTiers,
-                                request.Options.weightOverrides);
+                                requestToProcess.Options.eventType,
+                                requestToProcess.Options.sourcePawn,
+                                requestToProcess.Options.targetPawn,
+                                requestToProcess.Options.contextTiers ?? requestToProcess.Mod?.DefaultTiers,
+                                requestToProcess.Options.weightOverrides);
 
                             if (!string.IsNullOrEmpty(contextText))
                             {
-                                // Resolve the system prompt
-                                string systemPrompt = request.Mod?.SystemPrompt
+                                string systemPrompt = requestToProcess.Mod?.SystemPrompt
                                     ?? SynapseCoreContext.ResolvePrompt(
-                                        request.Options.eventType,
-                                        request.Mod?.ModId);
+                                        requestToProcess.Options.eventType,
+                                        requestToProcess.Mod?.ModId);
 
                                 string fullSystemMessage = string.IsNullOrEmpty(systemPrompt)
                                     ? contextText
                                     : $"{systemPrompt}\n---\n{contextText}";
 
-                                // Inject or replace the system message
-                                var sysMsg = request.Messages.Find(m => m.role == "system");
+                                var sysMsg = requestToProcess.Messages.Find(m => m.role == "system");
                                 if (sysMsg != null)
                                 {
                                     sysMsg.content = fullSystemMessage;
                                 }
                                 else
                                 {
-                                    request.Messages.Insert(0, new ChatMessage
+                                    requestToProcess.Messages.Insert(0, new ChatMessage
                                     {
                                         role = "system",
                                         content = fullSystemMessage,
                                     });
                                 }
-
-                                SynapseLog.Debug("context",
-                                    $"Context injected for {request.Mod?.DisplayName}: " +
-                                    $"{request.Options.eventType}",
-                                    request.Mod?.ModId);
                             }
                         }
-                        catch (System.Exception ctxEx)
+                        catch (Exception ctxEx)
                         {
-                            SynapseLog.Warn("context",
-                                $"Context assembly failed, proceeding without context: {ctxEx.Message}",
-                                request.Mod?.ModId);
+                            SynapseLog.Warn("context", $"Context assembly failed: {ctxEx.Message}");
                         }
                     }
 
-                    // Synchronous HTTP call — blocks worker thread until response
+                    // Synchronous HTTP call
                     var result = HttpEngine.PostChatCompletionSync(
-                        request.Messages, request.Options);
+                        requestToProcess.Messages, requestToProcess.Options);
 
                     result.wasThrottled = wasThrottled;
-                    ModRegistry.RecordRequest(request.Mod);
+                    ModRegistry.RecordRequest(requestToProcess.Mod);
 
                     // Track duration for throttle calculations
                     lock (_recentDurations)
@@ -251,29 +292,25 @@ namespace RimSynapse.Internal
                             _recentDurations.RemoveAt(0);
                     }
 
-                    // Dispatch user callback to main thread
-                    var cb = request.Callback;
+                    var cb = requestToProcess.Callback;
                     SynapseGameComponent.Enqueue(() => cb?.Invoke(result));
                 }
                 catch (Exception ex)
                 {
-                    SynapseLog.Error("queue", $"Queue worker error: {ex.Message}",
-                        request.Mod?.ModId);
-                    var cb = request.Callback;
+                    SynapseLog.Error("queue", $"Queue worker error: {ex.Message}");
+                    var cb = requestToProcess.Callback;
                     SynapseGameComponent.Enqueue(() =>
                         cb?.Invoke(ChatResult.Failure($"Queue error: {ex.Message}")));
                 }
                 finally
                 {
                     IsProcessing = false;
+                    ActiveRequest = null;
+                    ActiveRequestStopwatch.Stop();
                 }
             }
         }
 
-        /// <summary>
-        /// Recalculate throttle level based on recent request durations and queue depth.
-        /// Called once per rate-limit window.
-        /// </summary>
         private static void UpdateThrottle()
         {
             lock (_recentDurations)
@@ -284,35 +321,19 @@ namespace RimSynapse.Internal
                     return;
                 }
 
-                // Average response time
                 long sum = 0;
                 foreach (var d in _recentDurations) sum += d;
                 float avgMs = sum / (float)_recentDurations.Count;
 
-                // Estimate load: if avg response > 10s and queue > 3, start throttling
-                float loadFactor = (avgMs / 10000f) * Math.Max(1, _queue.Count);
+                float loadFactor = (avgMs / 10000f) * Math.Max(1, QueueDepth);
 
-                if (loadFactor > 2.0f)
-                    _throttleLevel = 0.3f;  // Heavy throttle
-                else if (loadFactor > 1.0f)
-                    _throttleLevel = 0.6f;  // Moderate throttle
-                else if (loadFactor > 0.5f)
-                    _throttleLevel = 0.8f;  // Light throttle
-                else
-                    _throttleLevel = 1.0f;  // Full speed
-
-                if (_throttleLevel < 1.0f)
-                {
-                    SynapseLog.Info("queue",
-                        $"Throttle updated: {_throttleLevel:F2} (avg response: {avgMs:F0}ms, " +
-                        $"queue: {_queue.Count}, load factor: {loadFactor:F2}).");
-                }
+                if (loadFactor > 2.0f) _throttleLevel = 0.3f;
+                else if (loadFactor > 1.0f) _throttleLevel = 0.6f;
+                else if (loadFactor > 0.5f) _throttleLevel = 0.8f;
+                else _throttleLevel = 1.0f;
             }
         }
 
-        /// <summary>
-        /// Shutdown the worker thread.
-        /// </summary>
         internal static void Shutdown()
         {
             _shutdown = true;

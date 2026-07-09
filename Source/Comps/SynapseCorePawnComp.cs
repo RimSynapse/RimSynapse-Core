@@ -13,6 +13,7 @@ namespace RimSynapse.Comps
         public List<OpinionSample> opinionHistory = new List<OpinionSample>();
         public string personalitySummary;
         public string dynamicBackstory;
+        public string clinicalAssessment;
         public List<string> llmTraits = new List<string>();
         
         // Active AI-driven modifiers shared across mods
@@ -29,6 +30,7 @@ namespace RimSynapse.Comps
             Scribe_Collections.Look(ref opinionHistory, "synapseOpinionHistory", LookMode.Deep);
             Scribe_Values.Look(ref personalitySummary, "synapsePersonality");
             Scribe_Values.Look(ref dynamicBackstory, "dynamicBackstory");
+            Scribe_Values.Look(ref clinicalAssessment, "clinicalAssessment");
             Scribe_Collections.Look(ref llmTraits, "llmTraits", LookMode.Value);
             
             Scribe_Collections.Look(ref thoughtSensitivities, "thoughtSensitivities", LookMode.Value, LookMode.Value);

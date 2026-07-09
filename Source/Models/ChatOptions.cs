@@ -27,6 +27,9 @@ namespace RimSynapse
         /// <summary>Request priority. 0 = normal, higher = processed sooner within mod's budget.</summary>
         public int priority;
 
+        /// <summary>Maximum time in milliseconds this request can sit in the queue before being dropped. Null = infinite.</summary>
+        public int? maxWaitMs;
+
         // --- Context Embedding ---
 
         /// <summary>

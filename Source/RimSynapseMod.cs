@@ -151,6 +151,13 @@ namespace RimSynapse
             listing.Label("Advanced", tooltip: "Sanitization, keep-alive, and logging.");
             listing.GapLine();
 
+            if (listing.ButtonText("Open LLM Queue Monitor (Linux top-style)"))
+            {
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_QueueMonitor());
+            }
+
+            listing.Gap(6f);
+
             listing.CheckboxLabeled("Auto-map to active model",
                 ref Settings.autoMapModel,
                 "Automatically use the first loaded model in LM Studio.");
