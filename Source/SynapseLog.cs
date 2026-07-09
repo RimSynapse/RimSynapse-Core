@@ -51,6 +51,18 @@ namespace RimSynapse
 
             var entry = new LogEntry(level, category, message, modId);
 
+            if (Verse.UnityData.IsInMainThread)
+            {
+                DispatchAndNotify(level, entry);
+            }
+            else
+            {
+                SynapseGameComponent.Enqueue(() => DispatchAndNotify(level, entry));
+            }
+        }
+
+        private static void DispatchAndNotify(LogLevel level, LogEntry entry)
+        {
             // Always log to RimWorld's dev console
             switch (level)
             {
