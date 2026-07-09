@@ -20,6 +20,8 @@ namespace RimSynapse.UI
             this.absorbInputAroundWindow = false;
             this.closeOnClickedOutside = false;
             this.preventCameraMotion = false;
+            this.draggable = true;
+            this.resizeable = true;
         }
 
         public override void DoWindowContents(Rect inRect)
