@@ -321,8 +321,10 @@ namespace RimSynapse.Internal
                     }
 
                     // ── Handle Model Swap Errors ──
-                    if (!result.success && !string.IsNullOrEmpty(result.error) && 
-                        (result.error.Contains("400") || result.error.Contains("404") || result.error.ToLowerInvariant().Contains("model")))
+                    if (!result.success && !string.IsNullOrEmpty(result.error))
+                    {
+                        string errLower = result.error.ToLowerInvariant();
+                        if (errLower.Contains("model not found") || errLower.Contains("404") || (errLower.Contains("400") && errLower.Contains("model")))
                     {
                         // Force cache refresh to try to discover the new model
                         ModelManager.RefreshCache();
