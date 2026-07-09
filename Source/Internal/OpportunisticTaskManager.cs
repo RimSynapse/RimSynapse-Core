@@ -65,6 +65,7 @@ namespace RimSynapse.Internal
             public SynapseModHandle Mod;
             public string TaskId;
             public Action Callback;
+            public Func<bool> CallbackBool;
             public OpportunisticTaskConfig Config;
             public int LastRunTick = -999999;
             public float EffectiveWeight;
@@ -99,6 +100,40 @@ namespace RimSynapse.Internal
         }
 
         /// <summary>
+        /// Registers an opportunistic task with full metadata that can return whether it performed work.
+        /// If it returns true, it triggers a short burst cooldown to rapidly process remaining targets.
+        /// If it returns false, it falls back to the full polling cooldown.
+        /// </summary>
+        public static void RegisterTask(SynapseModHandle mod, string taskId, Func<bool> callback, OpportunisticTaskConfig config = null)
+        {
+            lock (_lock)
+            {
+                var existing = _tasks.Find(t => t.TaskId == taskId);
+                if (existing != null)
+                {
+                    existing.CallbackBool = callback;
+                    existing.Callback = null;
+                    existing.Mod = mod;
+                    if (config != null) existing.Config = config;
+                    return;
+                }
+
+                var entry = new TaskEntry
+                {
+                    Mod = mod,
+                    TaskId = taskId,
+                    CallbackBool = callback,
+                    Config = config ?? new OpportunisticTaskConfig { Label = taskId },
+                    EffectiveWeight = config?.Weight ?? 1.0f
+                };
+
+                _tasks.Add(entry);
+                SynapseLog.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
+                    $"(P{entry.Priority}, W{entry.BaseWeight:F1}, CD{entry.CooldownTicks}t, Dynamic)");
+            }
+        }
+
+        /// <summary>
         /// Registers an opportunistic task with full metadata.
         /// This is the primary API — any mod can call this without needing XML Defs or type references.
         /// </summary>
@@ -114,6 +149,7 @@ namespace RimSynapse.Internal
                 if (existing != null)
                 {
                     existing.Callback = callback;
+                    existing.CallbackBool = null;
                     existing.Mod = mod;
                     if (config != null) existing.Config = config;
                     return;
@@ -223,7 +259,7 @@ namespace RimSynapse.Internal
 
                 // Group eligible tasks by priority (highest first)
                 var eligible = _tasks
-                    .Where(t => t.Enabled && t.Callback != null &&
+                    .Where(t => t.Enabled && (t.Callback != null || t.CallbackBool != null) &&
                            currentTick - t.LastRunTick >= (int)(t.CooldownTicks * cooldownMultiplier))
                     .OrderByDescending(t => t.Priority)
                     .ToList();
@@ -261,11 +297,36 @@ namespace RimSynapse.Internal
                         $"(P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
 
                     var callback = selected.Callback;
+                    var callbackBool = selected.CallbackBool;
+                    
                     SynapseGameComponent.Enqueue(() =>
                     {
                         try
                         {
-                            callback?.Invoke();
+                            bool didWork = false;
+                            if (callbackBool != null)
+                            {
+                                didWork = callbackBool();
+                            }
+                            else if (callback != null)
+                            {
+                                callback();
+                                didWork = true; // Legacy actions assume work was done
+                            }
+                            
+                            if (didWork)
+                            {
+                                // The task found targets and performed work. It might have more targets.
+                                // We reduce its cooldown significantly so it cycles to the next target quickly.
+                                lock (_lock)
+                                {
+                                    int cooldown = (int)(selected.CooldownTicks * cooldownMultiplier);
+                                    // Set LastRunTick so it expires in 250 ticks (4 seconds at 1x speed)
+                                    selected.LastRunTick = currentTick - cooldown + 250;
+                                }
+                            }
+                            // If !didWork, it didn't find any eligible pawns/targets. 
+                            // It remains at currentTick, so it waits the full CooldownTicks before polling again.
                         }
                         catch (Exception ex)
                         {

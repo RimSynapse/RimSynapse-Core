@@ -90,6 +90,11 @@ namespace RimSynapse
 
         public int BacklogCount => _backlogQueue.Count;
 
+        public IEnumerable<PastEvent> GetRecentEvents(int count)
+        {
+            return System.Linq.Enumerable.Skip(_backlogQueue, System.Math.Max(0, _backlogQueue.Count - count));
+        }
+
         public override void WorldComponentTick()
         {
             base.WorldComponentTick();

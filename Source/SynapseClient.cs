@@ -167,6 +167,14 @@ namespace RimSynapse
         }
 
         /// <summary>
+        /// Registers a dynamic low-priority background task. The callback returns true if it performed work.
+        /// </summary>
+        public static void RegisterOpportunisticTask(SynapseModHandle mod, string taskId, Func<bool> callback, Internal.OpportunisticTaskConfig config)
+        {
+            Internal.OpportunisticTaskManager.RegisterTask(mod, taskId, callback, config);
+        }
+
+        /// <summary>
         /// Registers a low-priority background task with default scheduling.
         /// Use the config overload to customize priority, weight, and cooldown.
         /// </summary>
