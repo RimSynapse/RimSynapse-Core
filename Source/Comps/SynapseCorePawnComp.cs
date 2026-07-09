@@ -121,5 +121,45 @@ namespace RimSynapse.Comps
             
             opinionHistory = newHistory;
         }
+
+        /// <summary>
+        /// Aggregates all memory weights by their tags and returns the top N burdens.
+        /// This creates a summarized 'Sensitivity' profile for the LLM without sending every raw memory.
+        /// </summary>
+        public string GetTopMemoryBurdens(int topN = 5, float minWeightThreshold = 0f)
+        {
+            if (memories == null || memories.Count == 0) return "None";
+
+            var tagWeights = new Dictionary<string, float>();
+            var tagCounts = new Dictionary<string, int>();
+
+            foreach (var memory in memories)
+            {
+                if (memory.tags == null) continue;
+                foreach (string tag in memory.tags)
+                {
+                    string normalizedTag = tag.Trim().ToLower();
+                    if (!tagWeights.ContainsKey(normalizedTag))
+                    {
+                        tagWeights[normalizedTag] = 0f;
+                        tagCounts[normalizedTag] = 0;
+                    }
+                    tagWeights[normalizedTag] += memory.weight;
+                    tagCounts[normalizedTag]++;
+                }
+            }
+
+            var topTags = tagWeights.Where(kv => kv.Value >= minWeightThreshold).OrderByDescending(kv => kv.Value).Take(topN).ToList();
+            
+            if (topTags.Count == 0) return "None";
+
+            List<string> burdenStrings = new List<string>();
+            foreach (var kvp in topTags)
+            {
+                burdenStrings.Add($"[{kvp.Key}]: Weight {kvp.Value:F1} ({tagCounts[kvp.Key]} related instances)");
+            }
+
+            return string.Join(" | ", burdenStrings);
+        }
     }
 }
