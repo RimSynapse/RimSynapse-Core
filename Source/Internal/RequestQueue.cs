@@ -153,7 +153,14 @@ namespace RimSynapse.Internal
                 lock (_queueLock)
                 {
                     if (_queue.Count == 0)
+                    {
+                        // Queue is empty, attempt opportunistic background work
+                        if (ActiveRequest == null)
+                        {
+                            OpportunisticTaskManager.TryRunOpportunisticTask();
+                        }
                         continue;
+                    }
 
                     var settings = RimSynapseMod.Instance?.Settings;
                     int maxPerWindow = settings?.maxRequestsPerMinute ?? 30;

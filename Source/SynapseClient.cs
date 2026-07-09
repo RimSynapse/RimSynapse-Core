@@ -141,5 +141,16 @@ namespace RimSynapse
         {
             ModelManager.GetModels(callback);
         }
+        /// <summary>
+        /// Registers a low-priority background task that will only be executed when the Core LLM queue is idle.
+        /// </summary>
+        /// <param name="mod">Your mod handle.</param>
+        /// <param name="taskId">A unique identifier for this task.</param>
+        /// <param name="callback">The function to call when the queue is idle (this should enqueue a low priority prompt).</param>
+        /// <param name="cooldownTicks">How many in-game ticks must pass between invocations (e.g., 30000 for 12 hours).</param>
+        public static void RegisterOpportunisticTask(SynapseModHandle mod, string taskId, Action callback, int cooldownTicks)
+        {
+            RimSynapse.Internal.OpportunisticTaskManager.RegisterTask(mod, taskId, callback, cooldownTicks);
+        }
     }
 }
