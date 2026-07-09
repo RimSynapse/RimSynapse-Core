@@ -6,66 +6,67 @@ using System.Linq;
 
 namespace RimSynapse.Patches
 {
-    [HarmonyPatch(typeof(TaleRecorder), "RecordTale")]
-    internal static class TaleRecorder_RecordTale_Patch
+    /// <summary>
+    /// Shared helper for native event interception.
+    /// Both Tale and Kill patches route through here to avoid code duplication.
+    /// </summary>
+    internal static class EventPatchHelper
     {
-        static void Postfix(TaleDef def, params object[] args)
+        public static void EnqueueIfPlaying(string category, string description)
         {
             if (Current.ProgramState != ProgramState.Playing || Find.World == null) return;
 
             var coreComp = Find.World.GetComponent<RimSynapse.SynapseCoreWorldComponent>();
             if (coreComp == null) return;
 
-            // Attempt to find the primary pawn involved in this tale
+            coreComp.EnqueuePastEvent(new PastEvent
+            {
+                gameTick = GenTicks.TicksGame,
+                category = category,
+                eventDescription = description
+            });
+        }
+    }
+
+    /// <summary>
+    /// Intercepts RimWorld's Tale system (marriages, legendary crafting, recruitment, etc.)
+    /// and enqueues a PastEvent so the LLM can generate personalized memories.
+    /// </summary>
+    [HarmonyPatch(typeof(TaleRecorder), "RecordTale")]
+    internal static class Patch_TaleRecorder_RecordTale
+    {
+        static void Postfix(TaleDef def, params object[] args)
+        {
             Pawn primaryPawn = args.OfType<Pawn>().FirstOrDefault();
             if (primaryPawn != null && (primaryPawn.IsColonist || primaryPawn.IsPrisonerOfColony))
             {
-                // Push tale to the backlog
                 string taleLabel = def.label ?? def.defName;
-                string description = $"Tale Recorded: {taleLabel} involving {primaryPawn.Name.ToStringShort}.";
-                
-                PastEvent evt = new PastEvent
-                {
-                    gameTick = GenTicks.TicksGame,
-                    category = "NativeTale",
-                    eventDescription = description
-                };
-                
-                coreComp.EnqueuePastEvent(evt);
+                EventPatchHelper.EnqueueIfPlaying("NativeTale",
+                    $"Tale Recorded: {taleLabel} involving {primaryPawn.Name.ToStringShort}.");
             }
         }
     }
 
+    /// <summary>
+    /// Intercepts pawn deaths where a colonist is involved (as victim or killer).
+    /// This catches deaths that TaleRecorder misses (starvation, disease, environmental).
+    /// </summary>
     [HarmonyPatch(typeof(Pawn), nameof(Pawn.Kill))]
-    internal static class Pawn_Kill_Patch
+    internal static class Patch_Pawn_Kill
     {
         static void Prefix(Pawn __instance, DamageInfo? dinfo, Hediff exactCulprit = null)
         {
-            if (Current.ProgramState != ProgramState.Playing || Find.World == null) return;
-
-            var coreComp = Find.World.GetComponent<RimSynapse.SynapseCoreWorldComponent>();
-            if (coreComp == null) return;
-
             Pawn victim = __instance;
             Pawn killer = dinfo?.Instigator as Pawn;
 
-            // Only log if a colonist was involved (died or killed)
-            bool colonistInvolved = (victim.IsColonist || victim.IsPrisonerOfColony) || 
+            bool colonistInvolved = (victim.IsColonist || victim.IsPrisonerOfColony) ||
                                     (killer != null && (killer.IsColonist || killer.IsPrisonerOfColony));
 
             if (colonistInvolved)
             {
                 string killerStr = killer != null ? killer.Name.ToStringShort : "Unknown Causes";
-                string description = $"Death: {victim.Name.ToStringShort} was killed by {killerStr}.";
-                
-                PastEvent evt = new PastEvent
-                {
-                    gameTick = GenTicks.TicksGame,
-                    category = "NativeDeath",
-                    eventDescription = description
-                };
-                
-                coreComp.EnqueuePastEvent(evt);
+                EventPatchHelper.EnqueueIfPlaying("NativeDeath",
+                    $"Death: {victim.Name.ToStringShort} was killed by {killerStr}.");
             }
         }
     }

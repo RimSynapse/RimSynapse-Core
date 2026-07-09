@@ -30,6 +30,11 @@ RimSynapse Core is a powerful, asynchronous background engine that allows RimWor
 [*] [b]Dynamic Priority Queue:[/b] Intelligently manages hundreds of requests with an advanced Linux-style top-monitor queue system, prioritizing critical events and starving obsolete prompts.
 [*] [b]Auto-Discovery:[/b] Automatically detects your active models and manages keep-alive pings to ensure your LLMs don't sleep when you need them.
 [*] [b]GPU Monitoring:[/b] Built-in framework to keep track of local VRAM and processing overhead.
+[*] [b]Native Event Interception:[/b] Automatically captures major vanilla game events (marriages, legendary crafts, pawn deaths) via Harmony patches and routes them to companion mods for AI processing.
+[*] [b]Faction Perception Tracking:[/b] Each faction maintains subjective "Perceived Wealth" and "Perceived Strength" values for your colony, updated only through direct contact (visitors, traders, caravans).
+[*] [b]Memory Infrastructure:[/b] Provides the per-pawn memory bank, weighted tag system, and decay engine used by companion mods to give colonists persistent, evolving memories.
+[*] [b]Colony Snapshots:[/b] When events occur, the framework captures a snapshot of the colony's wealth, nutrition, and pawn status, providing rich context for AI-generated responses.
+[*] [b]Opportunistic Task Scheduling:[/b] A background task manager that feeds low-priority LLM requests (backstory generation, memory creation) into idle GPU cycles without impacting gameplay performance.
 [/list]
 
 [h2]A Personal Note[/h2]
