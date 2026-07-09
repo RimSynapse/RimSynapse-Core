@@ -12,6 +12,8 @@ namespace RimSynapse.Comps
         public List<WeightedMemory> memories = new List<WeightedMemory>();
         public List<OpinionSample> opinionHistory = new List<OpinionSample>();
         public string personalitySummary;
+        public string dynamicBackstory;
+        public List<string> llmTraits = new List<string>();
         
         // Active AI-driven modifiers shared across mods
         public Dictionary<string, float> thoughtSensitivities = new Dictionary<string, float>();
@@ -26,6 +28,8 @@ namespace RimSynapse.Comps
             Scribe_Collections.Look(ref memories, "synapseMemories", LookMode.Deep);
             Scribe_Collections.Look(ref opinionHistory, "synapseOpinionHistory", LookMode.Deep);
             Scribe_Values.Look(ref personalitySummary, "synapsePersonality");
+            Scribe_Values.Look(ref dynamicBackstory, "dynamicBackstory");
+            Scribe_Collections.Look(ref llmTraits, "llmTraits", LookMode.Value);
             
             Scribe_Collections.Look(ref thoughtSensitivities, "thoughtSensitivities", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref relationSensitivities, "relationSensitivities", LookMode.Value, LookMode.Value);
@@ -34,6 +38,7 @@ namespace RimSynapse.Comps
             {
                 if (memories == null) memories = new List<WeightedMemory>();
                 if (opinionHistory == null) opinionHistory = new List<OpinionSample>();
+                if (llmTraits == null) llmTraits = new List<string>();
                 if (thoughtSensitivities == null) thoughtSensitivities = new Dictionary<string, float>();
                 if (relationSensitivities == null) relationSensitivities = new Dictionary<string, float>();
             }
