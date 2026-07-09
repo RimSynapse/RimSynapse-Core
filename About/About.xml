@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-    <name>RimSynapse Core</name>
+    <name>RimSynapse - Core</name>
     <author>RimSynapse Team</author>
     <packageId>RimSynapse.Core</packageId>
     <url>https://github.com/RimSynapse/RimSynapse-Core</url>
@@ -18,24 +18,45 @@
         <li>brrainz.harmony</li>
     </loadAfter>
     <description>
-[h1]RimSynapse Core[/h1]
+[h1]RimSynapse - Core[/h1]
 [b]The foundational LM Studio and Ollama Connector for RimWorld.[/b]
 
-RimSynapse Core is a powerful, asynchronous background engine that allows RimWorld mods to communicate with local Large Language Models (LLMs). On its own, this mod does not change gameplay, but it serves as the essential bridge required by all RimSynapse companion mods to bring true narrative intelligence to the Rim.
+RimSynapse Core is a powerful, asynchronous background engine that allows RimWorld mods to communicate with Large Language Models (LLMs). On its own, this mod does not change gameplay, but it serves as the essential bridge required by all RimSynapse companion mods to bring true narrative intelligence to the Rim.
 
 [h2]Features[/h2]
 [list]
-[*] [b]Universal Backend Support:[/b] Connects seamlessly to LM Studio, Ollama, or any OpenAI-compatible local API.
+[*] [b]Universal Backend Support:[/b] Connects seamlessly to [url=https://lmstudio.ai]LM Studio[/url], Ollama, or any OpenAI-compatible local API.
 [*] [b]Background Threading:[/b] Never drops a frame. All LLM requests are queued, processed, and sanitized asynchronously on separate threads.
 [*] [b]Dynamic Priority Queue:[/b] Intelligently manages hundreds of requests with an advanced Linux-style top-monitor queue system, prioritizing critical events and starving obsolete prompts.
 [*] [b]Auto-Discovery:[/b] Automatically detects your active models and manages keep-alive pings to ensure your LLMs don't sleep when you need them.
 [*] [b]GPU Monitoring:[/b] Built-in framework to keep track of local VRAM and processing overhead.
 [/list]
 
+[h2]A Personal Note[/h2]
+AI is incredibly cool, and having a framework to utilize powerful, no-cost local models really appealed to me. RimWorld is relatively light on GPU overhead, making it the absolute perfect candidate to max out those graphics cards by running a local LLM in the background. My goal with RimSynapse is to push the boundaries of emergent storytelling using the hardware you already own.
+
+[h2]Roadmap and Future Goals[/h2]
+While this framework was built with local, free models in mind (via LM Studio), I want to make sure everyone can enjoy narrative AI. My future goals for the core framework include:
+[list]
+[*] Built-in API configurations for [b]ChatGPT[/b] (OpenAI)
+[*] Built-in API configurations for [b]Gemini[/b] (Google)
+[*] Built-in API configurations for [b]Claude[/b] (Anthropic)
+[/list]
+
+[h2]For Developers and Open Source[/h2]
+RimSynapse is an open-source framework designed to be easily hooked into by other modders. I highly encourage you to read the framework documentation and build your own LLM-driven mods!
+[list]
+[*] [url=https://github.com/RimSynapse/RimSynapse-Core]RimSynapse - Core Source and Docs[/url]
+[*] [url=https://github.com/RimSynapse/RimSynapse-Psychology]RimSynapse - Psychology Source[/url]
+[*] [url=https://github.com/RimSynapse/RimSynapse-Chat]RimSynapse - Chat Source[/url]
+[*] [url=https://github.com/RimSynapse/RimSynapse-StoryTeller]RimSynapse - StoryTeller Source[/url]
+[*] [url=https://github.com/RimSynapse/RimSynapse-NVIDIA-Tool]RimSynapse - NVIDIA Tool Source[/url]
+[/list]
+
 [h2]Requirements[/h2]
 [list]
 [*] [b]Harmony[/b] is required.
-[*] You must be running a local LLM server (like LM Studio or Ollama). We recommend 8B+ parameter models for optimal reasoning.
+[*] You must be running a local LLM server (like [url=https://lmstudio.ai]LM Studio[/url] or Ollama). We recommend 8B+ parameter models for optimal reasoning.
 [/list]
 
 [h2]Support the Project[/h2]
