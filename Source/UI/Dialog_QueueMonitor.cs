@@ -32,7 +32,7 @@ namespace RimSynapse.UI
 
             // Header
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0, 0, inRect.width, 35f), "LLM Queue Monitor (Linux top-style)");
+            Widgets.Label(new Rect(0, 0, inRect.width, 35f), "LLM Queue Monitor");
             Text.Font = GameFont.Small;
 
             // Global stats
@@ -177,7 +177,7 @@ namespace RimSynapse.UI
 
         private void DrawOpportunisticHeader(Rect rect)
         {
-            float[] widths = { 100f, 220f, 60f, 120f, 80f, 100f, 120f };
+            float[] widths = { 100f, 200f, 60f, 120f, 80f, 100f, 180f };
             float curX = rect.x;
             string[] labels = { "STATUS", "TASK", "PRIO", "WEIGHT (eff/base)", "RUNS", "COOLDOWN", "MOD" };
             for (int i = 0; i < labels.Length && i < widths.Length; i++)
@@ -190,7 +190,7 @@ namespace RimSynapse.UI
         private void DrawOpportunisticRow(Rect rect, string status, string task, string prio,
             string weight, string runs, string cooldown, string mod)
         {
-            float[] widths = { 100f, 220f, 60f, 120f, 80f, 100f, 120f };
+            float[] widths = { 100f, 200f, 60f, 120f, 80f, 100f, 180f };
             float curX = rect.x;
             string[] vals = { status, task, prio, weight, runs, cooldown, mod };
             for (int i = 0; i < vals.Length && i < widths.Length; i++)

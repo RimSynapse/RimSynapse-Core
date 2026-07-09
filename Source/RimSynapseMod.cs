@@ -152,7 +152,7 @@ namespace RimSynapse
             listing.Label("Advanced", tooltip: "Sanitization, keep-alive, and logging.");
             listing.GapLine();
 
-            if (listing.ButtonText("Open LLM Queue Monitor (Linux top-style)"))
+            if (listing.ButtonText("Open LLM Queue Monitor"))
             {
                 Find.WindowStack.Add(new RimSynapse.UI.Dialog_QueueMonitor());
             }
