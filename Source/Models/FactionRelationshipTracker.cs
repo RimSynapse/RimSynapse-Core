@@ -1,14 +1,17 @@
-using System.Collections.Generic;
 using Verse;
 
 namespace RimSynapse.Models
 {
+    /// <summary>
+    /// Slim base faction tracker owned by Core.
+    /// Stores only the fields Core needs: faction identity and 
+    /// perceived wealth/strength from the knowledge propagation system.
+    /// StoryTeller-specific fields (goodwill history, custom natural goodwill,
+    /// faction history) live in StoryTeller's extended tracker.
+    /// </summary>
     public class FactionRelationshipTracker : IExposable
     {
         public string factionId;
-        public List<GoodwillSample> goodwillHistory = new List<GoodwillSample>();
-        public float goodwillIntegral;
-        public int lastEventTick;
 
         public float perceivedWealth;
         public float perceivedStrength;
@@ -16,17 +19,6 @@ namespace RimSynapse.Models
         public void ExposeData()
         {
             Scribe_Values.Look(ref factionId, "factionId");
-            Scribe_Collections.Look(ref goodwillHistory, "goodwillHistory", LookMode.Deep);
-            Scribe_Values.Look(ref goodwillIntegral, "goodwillIntegral");
-            Scribe_Values.Look(ref lastEventTick, "lastEventTick");
-            
-            // Ensure lists aren't null after load
-            if (Scribe.mode == LoadSaveMode.PostLoadInit)
-            {
-                if (goodwillHistory == null)
-                    goodwillHistory = new List<GoodwillSample>();
-            }
-
             Scribe_Values.Look(ref perceivedWealth, "perceivedWealth");
             Scribe_Values.Look(ref perceivedStrength, "perceivedStrength");
         }

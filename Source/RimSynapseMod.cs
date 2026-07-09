@@ -37,9 +37,10 @@ namespace RimSynapse
             var harmony = new Harmony(HarmonyId);
             harmony.PatchAll();
 
-            // Start background services (keep-alive, model discovery, HttpClient)
+            // Start background services (keep-alive, model discovery, HttpClient, SessionLogger)
             // immediately — uses system timers, independent of game ticks.
             SynapseCore.Initialize();
+            Internal.SessionLogger.Initialize();
 
             // Defer VRAM check until after all mods finish loading.
             // During the constructor, the HTTP client may not be ready and
@@ -288,7 +289,7 @@ namespace RimSynapse
 
             listing.Gap(6f);
             listing.CheckboxLabeled("Enable file logging",
-                ref Settings.enableFileLogging,
+                ref Settings.enableSessionLogging,
                 "Dumps events and metrics to text files in the RimSynapse_Logs directory.");
             
             if (listing.ButtonText("Open Log Folder"))

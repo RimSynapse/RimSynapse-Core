@@ -51,19 +51,30 @@ namespace RimSynapse
 
             var entry = new LogEntry(level, category, message, modId);
 
+            // Always notify subscribers immediately (they handle their own thread safety)
+            try
+            {
+                OnLog?.Invoke(entry);
+            }
+            catch (Exception ex)
+            {
+                // Can't use Verse.Log here safely from background threads
+                System.Diagnostics.Debug.WriteLine($"[RimSynapse] Log subscriber threw: {ex}");
+            }
+
+            // RimWorld console output must happen on the main thread
             if (Verse.UnityData.IsInMainThread)
             {
-                DispatchAndNotify(level, entry);
+                WriteToConsole(level, entry);
             }
             else
             {
-                SynapseGameComponent.Enqueue(() => DispatchAndNotify(level, entry));
+                SynapseGameComponent.Enqueue(() => WriteToConsole(level, entry));
             }
         }
 
-        private static void DispatchAndNotify(LogLevel level, LogEntry entry)
+        private static void WriteToConsole(LogLevel level, LogEntry entry)
         {
-            // Always log to RimWorld's dev console
             switch (level)
             {
                 case LogLevel.Error:
@@ -75,16 +86,6 @@ namespace RimSynapse
                 default:
                     Verse.Log.Message(entry.ToString());
                     break;
-            }
-
-            // Notify subscribers
-            try
-            {
-                OnLog?.Invoke(entry);
-            }
-            catch (Exception ex)
-            {
-                Verse.Log.Error($"[RimSynapse] Log subscriber threw: {ex}");
             }
         }
     }
