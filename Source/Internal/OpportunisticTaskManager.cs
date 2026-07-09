@@ -21,10 +21,38 @@ namespace RimSynapse.Internal
     }
 
     /// <summary>
+    /// Registration metadata for an opportunistic task.
+    /// Companion mods pass this when registering to provide Core with all scheduling info.
+    /// </summary>
+    public class OpportunisticTaskConfig
+    {
+        /// <summary>Human-readable label shown in the Queue Monitor and Settings.</summary>
+        public string Label = "Unknown Task";
+
+        /// <summary>Tooltip description shown in Settings.</summary>
+        public string Description = "";
+
+        /// <summary>Higher priority tasks are checked first. Scale: 0 (disabled) to 10 (critical). Default: 5.</summary>
+        public int Priority = 5;
+
+        /// <summary>Base weight for weighted random selection among tasks at the same priority. Default: 1.0.</summary>
+        public float Weight = 1.0f;
+
+        /// <summary>Minimum in-game ticks between invocations. 60000 ≈ 1 day. Default: 15000 ≈ 6 hours.</summary>
+        public int CooldownTicks = 15000;
+
+        /// <summary>Whether this task starts enabled. Can be toggled in-game.</summary>
+        public bool Enabled = true;
+    }
+
+    /// <summary>
     /// Centralized scheduler for low-priority background AI tasks.
-    /// Companion mods register callbacks linked to XML-defined SynapseOpportunisticTaskDefs.
-    /// The manager handles weighted selection, cooldown tracking, priority ordering,
+    /// Companion mods register callbacks with metadata via C# — no Def system required.
+    /// Core handles weighted selection, cooldown tracking, priority ordering,
     /// and throttle-aware scheduling.
+    ///
+    /// Third-party mods: just call SynapseClient.RegisterOpportunisticTask() with your
+    /// callback and an OpportunisticTaskConfig. No XML or type dependencies needed.
     /// </summary>
     public static class OpportunisticTaskManager
     {
@@ -35,34 +63,32 @@ namespace RimSynapse.Internal
         public class TaskEntry
         {
             public SynapseModHandle Mod;
-            public string DefName;
+            public string TaskId;
             public Action Callback;
+            public OpportunisticTaskConfig Config;
             public int LastRunTick = -999999;
             public float EffectiveWeight;
             public int TimesRun;
 
-            /// <summary>
-            /// Linked Def (resolved after DefDatabase is ready). May be null
-            /// if the companion mod registered before defs loaded.
-            /// </summary>
-            public SynapseOpportunisticTaskDef Def;
-
-            // Derived properties (fall back to sensible defaults if Def is null)
-            public int Priority => Def?.priority ?? 5;
-            public float BaseWeight => Def?.weight ?? 1.0f;
-            public int CooldownTicks => Def?.cooldownTicks ?? 15000;
-            public bool Enabled => Def?.enabled ?? true;
-            public string Label => Def?.label ?? DefName;
-            public string Description => Def?.description ?? "";
+            // Accessors through config
+            public int Priority => Config?.Priority ?? 5;
+            public float BaseWeight => Config?.Weight ?? 1.0f;
+            public int CooldownTicks => Config?.CooldownTicks ?? 15000;
+            public bool Enabled
+            {
+                get => Config?.Enabled ?? true;
+                set { if (Config != null) Config.Enabled = value; }
+            }
+            public string Label => Config?.Label ?? TaskId;
+            public string Description => Config?.Description ?? "";
         }
 
         private static readonly List<TaskEntry> _tasks = new List<TaskEntry>();
         private static readonly object _lock = new object();
         private static DateTime _lastIdleCheck = DateTime.MinValue;
-        private static bool _defsResolved = false;
 
         /// <summary>
-        /// Read-only snapshot of all registered tasks for the Queue Monitor UI.
+        /// Read-only snapshot of all registered tasks for the Queue Monitor and Settings UI.
         /// </summary>
         public static List<TaskEntry> GetTaskSnapshot()
         {
@@ -73,94 +99,52 @@ namespace RimSynapse.Internal
         }
 
         /// <summary>
-        /// Registers an opportunistic task linked to a SynapseOpportunisticTaskDef.
-        /// The Def provides priority, weight, and cooldown. Only the callback is provided by C#.
+        /// Registers an opportunistic task with full metadata.
+        /// This is the primary API — any mod can call this without needing XML Defs or type references.
         /// </summary>
-        public static void RegisterTask(SynapseModHandle mod, string defName, Action callback)
+        /// <param name="mod">Your mod handle from SynapseCore.Register().</param>
+        /// <param name="taskId">Unique string ID for this task (e.g., "MyMod_BackstoryGen").</param>
+        /// <param name="callback">The function to call when the queue is idle.</param>
+        /// <param name="config">Scheduling metadata (priority, weight, cooldown, label). If null, sensible defaults are used.</param>
+        public static void RegisterTask(SynapseModHandle mod, string taskId, Action callback, OpportunisticTaskConfig config = null)
         {
             lock (_lock)
             {
-                var existing = _tasks.Find(t => t.DefName == defName);
+                var existing = _tasks.Find(t => t.TaskId == taskId);
                 if (existing != null)
                 {
                     existing.Callback = callback;
                     existing.Mod = mod;
+                    if (config != null) existing.Config = config;
+                    return;
                 }
-                else
+
+                var entry = new TaskEntry
                 {
-                    var entry = new TaskEntry
-                    {
-                        Mod = mod,
-                        DefName = defName,
-                        Callback = callback,
-                        EffectiveWeight = 1.0f
-                    };
+                    Mod = mod,
+                    TaskId = taskId,
+                    Callback = callback,
+                    Config = config ?? new OpportunisticTaskConfig { Label = taskId },
+                    EffectiveWeight = config?.Weight ?? 1.0f
+                };
 
-                    // Try to resolve Def immediately (may fail if called before defs load)
-                    TryResolveDef(entry);
-
-                    _tasks.Add(entry);
-                    SynapseLog.Info("core", $"Registered Opportunistic Task '{defName}' for {mod.DisplayName}");
-                }
+                _tasks.Add(entry);
+                SynapseLog.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
+                    $"(P{entry.Priority}, W{entry.BaseWeight:F1}, CD{entry.CooldownTicks}t)");
             }
         }
 
         /// <summary>
-        /// Legacy overload for backward compatibility. Cooldown is used only if no Def exists.
+        /// Legacy overload for backward compatibility.
         /// </summary>
-        [Obsolete("Use RegisterTask(mod, defName, callback) instead. Cooldown should be defined in XML.")]
+        [Obsolete("Use RegisterTask(mod, taskId, callback, config) with an OpportunisticTaskConfig.")]
         public static void RegisterTask(SynapseModHandle mod, string taskId, Action callback, int cooldownTicks)
         {
-            lock (_lock)
+            RegisterTask(mod, taskId, callback, new OpportunisticTaskConfig
             {
-                var existing = _tasks.Find(t => t.DefName == taskId);
-                if (existing != null)
-                {
-                    existing.Callback = callback;
-                    existing.Mod = mod;
-                }
-                else
-                {
-                    var entry = new TaskEntry
-                    {
-                        Mod = mod,
-                        DefName = taskId,
-                        Callback = callback,
-                        EffectiveWeight = 1.0f
-                    };
-
-                    TryResolveDef(entry);
-
-                    _tasks.Add(entry);
-                    SynapseLog.Info("core", $"Registered Opportunistic Task '{taskId}' for {mod.DisplayName} (legacy, cooldown: {cooldownTicks})");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Called once after all Defs are loaded to link tasks to their XML definitions.
-        /// </summary>
-        public static void ResolveDefs()
-        {
-            lock (_lock)
-            {
-                foreach (var task in _tasks)
-                {
-                    TryResolveDef(task);
-                }
-                _defsResolved = true;
-                SynapseLog.Info("core", $"Opportunistic Task Defs resolved. {_tasks.Count} tasks registered.");
-            }
-        }
-
-        private static void TryResolveDef(TaskEntry entry)
-        {
-            if (entry.Def != null) return;
-            entry.Def = DefDatabase<SynapseOpportunisticTaskDef>.GetNamedSilentFail(entry.DefName);
-            if (entry.Def != null)
-            {
-                entry.EffectiveWeight = entry.Def.weight;
-            }
+                Label = taskId,
+                CooldownTicks = cooldownTicks
+            });
         }
 
         /// <summary>
@@ -210,12 +194,6 @@ namespace RimSynapse.Internal
             if (Current.ProgramState != ProgramState.Playing || Find.TickManager == null)
             {
                 return;
-            }
-
-            // Resolve defs if we haven't yet (handles late registration)
-            if (!_defsResolved)
-            {
-                ResolveDefs();
             }
 
             int currentTick = Find.TickManager.TicksGame;
@@ -279,7 +257,8 @@ namespace RimSynapse.Internal
                     selected.EffectiveWeight = 0f; // Decay to zero immediately
                     selected.TimesRun++;
 
-                    SynapseLog.Debug("queue", $"Opportunistic [{mode}]: Firing '{selected.Label}' (P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
+                    SynapseLog.Debug("queue", $"Opportunistic [{mode}]: Firing '{selected.Label}' " +
+                        $"(P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
 
                     var callback = selected.Callback;
                     SynapseGameComponent.Enqueue(() =>
@@ -290,7 +269,7 @@ namespace RimSynapse.Internal
                         }
                         catch (Exception ex)
                         {
-                            SynapseLog.Error("core", $"Error executing opportunistic task '{selected.DefName}': {ex.Message}");
+                            SynapseLog.Error("core", $"Error executing opportunistic task '{selected.TaskId}': {ex.Message}");
                         }
                     });
 

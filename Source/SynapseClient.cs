@@ -142,25 +142,46 @@ namespace RimSynapse
             ModelManager.GetModels(callback);
         }
         /// <summary>
-        /// Registers a low-priority background task linked to a SynapseOpportunisticTaskDef.
-        /// Priority, weight, and cooldown are defined in XML. The companion mod only provides the callback.
+        /// Registers a low-priority background task with scheduling metadata.
+        /// This is the primary API for opportunistic tasks. No XML Defs or type dependencies required.
+        ///
+        /// Example usage from a companion mod:
+        /// <code>
+        /// SynapseClient.RegisterOpportunisticTask(ModHandle, "MyMod_BackstoryGen", MyCallback,
+        ///     new OpportunisticTaskConfig {
+        ///         Label = "Backstory Generation",
+        ///         Description = "Generates backstories for NPCs during idle time.",
+        ///         Priority = 5,
+        ///         Weight = 2.0f,
+        ///         CooldownTicks = 15000
+        ///     });
+        /// </code>
         /// </summary>
-        /// <param name="mod">Your mod handle.</param>
-        /// <param name="defName">The defName of the SynapseOpportunisticTaskDef in your mod's Defs/.</param>
+        /// <param name="mod">Your mod handle from SynapseCore.Register().</param>
+        /// <param name="taskId">Unique string ID for this task.</param>
         /// <param name="callback">The function to call when the queue is idle.</param>
-        public static void RegisterOpportunisticTask(SynapseModHandle mod, string defName, Action callback)
+        /// <param name="config">Scheduling config. If null, sensible defaults are used.</param>
+        public static void RegisterOpportunisticTask(SynapseModHandle mod, string taskId, Action callback, Internal.OpportunisticTaskConfig config)
         {
-            RimSynapse.Internal.OpportunisticTaskManager.RegisterTask(mod, defName, callback);
+            Internal.OpportunisticTaskManager.RegisterTask(mod, taskId, callback, config);
         }
 
         /// <summary>
-        /// Legacy overload. Cooldown is only used if no matching SynapseOpportunisticTaskDef exists.
-        /// Prefer the 3-parameter overload with XML-defined task defs.
+        /// Registers a low-priority background task with default scheduling.
+        /// Use the config overload to customize priority, weight, and cooldown.
         /// </summary>
-        [System.Obsolete("Use RegisterOpportunisticTask(mod, defName, callback) with an XML-defined SynapseOpportunisticTaskDef.")]
+        public static void RegisterOpportunisticTask(SynapseModHandle mod, string taskId, Action callback)
+        {
+            Internal.OpportunisticTaskManager.RegisterTask(mod, taskId, callback);
+        }
+
+        /// <summary>
+        /// Legacy overload for backward compatibility. Prefer the config-based overload.
+        /// </summary>
+        [System.Obsolete("Use RegisterOpportunisticTask(mod, taskId, callback, config) with an OpportunisticTaskConfig.")]
         public static void RegisterOpportunisticTask(SynapseModHandle mod, string taskId, Action callback, int cooldownTicks)
         {
-            RimSynapse.Internal.OpportunisticTaskManager.RegisterTask(mod, taskId, callback, cooldownTicks);
+            Internal.OpportunisticTaskManager.RegisterTask(mod, taskId, callback, cooldownTicks);
         }
     }
 }
