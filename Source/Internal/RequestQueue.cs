@@ -36,6 +36,7 @@ namespace RimSynapse.Internal
         private static readonly List<long> _recentDurations = new List<long>();
         private static DateTime _windowStart = DateTime.UtcNow;
         private static readonly TimeSpan WindowDuration = TimeSpan.FromSeconds(60);
+        private static DateTime _lastModelWarning = DateTime.MinValue;
 
         // Public stats
         public static int QueueDepth
@@ -317,6 +318,28 @@ namespace RimSynapse.Internal
                             respLog.AppendLine($"ERROR: {result.error}");
                         }
                         SynapseLog.Debug("response", respLog.ToString(), requestToProcess.Mod?.ModId);
+                    }
+
+                    // ── Handle Model Swap Errors ──
+                    if (!result.success && !string.IsNullOrEmpty(result.error) && 
+                        (result.error.Contains("400") || result.error.Contains("404") || result.error.ToLowerInvariant().Contains("model")))
+                    {
+                        // Force cache refresh to try to discover the new model
+                        ModelManager.RefreshCache();
+                        
+                        var settings = RimSynapseMod.Instance?.Settings;
+                        if (settings != null && !settings.autoMapModel)
+                        {
+                            if ((DateTime.UtcNow - _lastModelWarning).TotalSeconds > 10)
+                            {
+                                _lastModelWarning = DateTime.UtcNow;
+                                SynapseGameComponent.Enqueue(() => {
+                                    Verse.Messages.Message(
+                                        "RimSynapse LLM Error: Model not found. Did you swap models in LM Studio? Please open RimSynapse Core Mod Settings and reselect your model (or enable Auto-map).",
+                                        Verse.MessageTypeDefOf.RejectInput, false);
+                                });
+                            }
+                        }
                     }
 
                     // Track duration for throttle calculations
