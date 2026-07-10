@@ -386,6 +386,9 @@ namespace RimSynapse.Internal
                 result.wasThrottled = false; // Throttling removed
                 ModRegistry.RecordRequest(requestToProcess.Mod);
 
+                // ── Info: Concise completion and timing ──
+                SynapseLog.Info("queue", $"Completed LLM request for {requestToProcess.Mod?.DisplayName ?? "unknown"} in {result.durationMs}ms. (Success: {result.success})", requestToProcess.Mod?.ModId);
+
                 // ── Debug: Log full response ──
                 if (SynapseLog.Level <= LogLevel.Debug)
                 {
