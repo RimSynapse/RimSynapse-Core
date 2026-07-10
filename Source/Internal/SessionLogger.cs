@@ -28,18 +28,12 @@ namespace RimSynapse.Internal
         {
             if (RimSynapseMod.Instance?.Settings?.enableSessionLogging != true) return;
 
+            if (Current.ProgramState != ProgramState.Playing) return;
+
             string colonyName = "UnknownColony";
-            if (Current.ProgramState == ProgramState.Playing && Find.World?.info != null)
+            if (Find.World?.info != null)
             {
                 colonyName = Find.World.info.name ?? "UnnamedColony";
-            }
-            else if (Current.ProgramState == ProgramState.MapInitializing)
-            {
-                colonyName = "GeneratingWorld";
-            }
-            else
-            {
-                colonyName = "MainMenu";
             }
 
             // Remove invalid path chars
