@@ -4,7 +4,7 @@
     <author>RimSynapse Team</author>
     <packageId>RimSynapse.Core</packageId>
     <url>https://github.com/RimSynapse/RimSynapse-Core</url>
-    <modVersion>0.2.0</modVersion>
+    <modVersion>0.2.1</modVersion>
     <supportedVersions>
         <li>1.6</li>
     </supportedVersions>
@@ -73,4 +73,5 @@ If you enjoy this framework and want to support the development of genuine AI-dr
 [url=https://buymeacoffee.com/archdukejim]â˜• Buy me a coffee[/url]
     </description>
 </ModMetaData>
+
 
