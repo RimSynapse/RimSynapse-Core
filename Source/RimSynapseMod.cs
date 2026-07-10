@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -38,7 +38,7 @@ namespace RimSynapse
             harmony.PatchAll();
 
             // Start background services (keep-alive, model discovery, HttpClient, SessionLogger)
-            // immediately — uses system timers, independent of game ticks.
+            // immediately â€” uses system timers, independent of game ticks.
             SynapseCore.Initialize();
             Internal.SessionLogger.Initialize();
 
@@ -50,7 +50,7 @@ namespace RimSynapse
                 VramAdvisor.Check();
             }, null, false, null);
 
-            Log.Message("[RimSynapse] Core initialized. Harmony patches applied.");
+            RimSynapse.SynapseLog.Info("core", "[RimSynapse] Core initialized. Harmony patches applied.");
         }
 
         public override string SettingsCategory() => "RimSynapse Core";
@@ -63,7 +63,7 @@ namespace RimSynapse
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            // ── Connection Settings ──────────────────────────────────
+            // â”€â”€ Connection Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             listing.Label("Connection Settings", tooltip: "Configure your LLM provider.");
             listing.GapLine();
 
@@ -126,7 +126,7 @@ namespace RimSynapse
 
             listing.Gap(6f);
 
-            // ── Prompt Bench ─────────────────────────────────────────
+            // â”€â”€ Prompt Bench â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             listing.Label("Prompt Bench",
                 tooltip: "Test prompts against LM Studio. Use to tune speed and compare thinking on/off.");
             listing.GapLine();
@@ -169,7 +169,7 @@ namespace RimSynapse
             }
 
 
-            // ── Context Embedding ───────────────────────────────────
+            // â”€â”€ Context Embedding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             listing.Label("Context Embedding",
                 tooltip: "Inject game state (pawn data, colony, factions) into LLM requests. " +
                     "Configure prompts and weights via XML files in Defs/.");
@@ -193,7 +193,7 @@ namespace RimSynapse
 
             listing.Gap(12f);
 
-            // ── Advanced ─────────────────────────────────────────────
+            // â”€â”€ Advanced â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             listing.Label("Advanced", tooltip: "Sanitization, keep-alive, and logging.");
             listing.GapLine();
 
@@ -219,7 +219,7 @@ namespace RimSynapse
                     var modelIds = Internal.ModelManager.CachedModelIds;
                     if (modelIds.Count == 0)
                     {
-                        // No cached models — trigger a refresh
+                        // No cached models â€” trigger a refresh
                         _testStatus = "Fetching model list...";
                         _testStatusColor = Color.yellow;
                         System.Threading.Tasks.Task.Run(() =>
@@ -304,7 +304,7 @@ namespace RimSynapse
 
             listing.Gap(12f);
 
-            // ── Opportunistic Tasks ─────────────────────────────────────
+            // â”€â”€ Opportunistic Tasks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             listing.Label("Opportunistic Tasks",
                 tooltip: "Controls how aggressively the mod fills idle GPU time with background AI tasks.\n" +
                     "Aggressive: Maximizes local LLM usage.\nConservative: Minimizes API costs.");
@@ -312,7 +312,7 @@ namespace RimSynapse
 
             // Throttle mode selector
             string[] modeLabels = { "Auto-Detect", "Aggressive (Local)", "Balanced", "Conservative (Paid API)" };
-            int modeIndex = Settings.opportunisticThrottleMode + 1; // -1→0, 0→1, 1→2, 2→3
+            int modeIndex = Settings.opportunisticThrottleMode + 1; // -1â†’0, 0â†’1, 1â†’2, 2â†’3
             listing.Label($"Throttle Mode: {modeLabels[Math.Max(0, Math.Min(modeIndex, 3))]}");
             if (listing.ButtonText("Cycle Throttle Mode"))
             {
@@ -343,7 +343,7 @@ namespace RimSynapse
 
             listing.Gap(12f);
 
-            // ── Notifications ───────────────────────────────────────────
+            // â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             listing.Label("Notifications", tooltip: "Control startup notifications.");
             listing.GapLine();
 
@@ -356,7 +356,7 @@ namespace RimSynapse
             Widgets.EndScrollView();
         }
 
-        // ── Helper Methods ───────────────────────────────────────────
+        // â”€â”€ Helper Methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private void RunTestConnection()
         {
@@ -426,7 +426,7 @@ namespace RimSynapse
                             $"{result.promptTokens}p/{result.completionTokens}c tokens | " +
                             $"thinking: {thinkingLabel}]\n{preview}";
                         _testStatusColor = Color.green;
-                        Log.Message($"[RimSynapse] Test: {result.content}");
+                        RimSynapse.SynapseLog.Info("core", $"[RimSynapse] Test: {result.content}");
                     }
                     else
                     {
@@ -447,3 +447,4 @@ namespace RimSynapse
         }
     }
 }
+

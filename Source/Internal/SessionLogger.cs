@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Verse;
 
@@ -57,7 +57,7 @@ namespace RimSynapse.Internal
                     }
                     catch (Exception ex)
                     {
-                        Verse.Log.Warning($"[RimSynapse] Failed to write to session log: {ex.Message}");
+                        Verse.RimSynapse.SynapseLog.Warn("core", $"[RimSynapse] Failed to write to session log: {ex.Message}");
                     }
                 }
             }
@@ -93,7 +93,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                Verse.Log.Warning($"[RimSynapse] Failed to create new session log file: {ex.Message}");
+                Verse.RimSynapse.SynapseLog.Warn("core", $"[RimSynapse] Failed to create new session log file: {ex.Message}");
                 currentLogFilePath = null;
             }
         }
@@ -115,3 +115,4 @@ namespace RimSynapse.Internal
         }
     }
 }
+

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Verse;
 
@@ -36,7 +36,7 @@ namespace RimSynapse.Utils
             }
             catch (Exception ex)
             {
-                Log.Error($"[RimSynapse-{moduleName}] Failed to write debug log: {ex.Message}");
+                RimSynapse.SynapseLog.Error("core", $"[RimSynapse-{moduleName}] Failed to write debug log: {ex.Message}");
             }
         }
 
@@ -64,8 +64,9 @@ namespace RimSynapse.Utils
             }
             catch (Exception ex)
             {
-                Log.Error($"[RimSynapse-{moduleName}] Failed to write metric log: {ex.Message}");
+                RimSynapse.SynapseLog.Error("core", $"[RimSynapse-{moduleName}] Failed to write metric log: {ex.Message}");
             }
         }
     }
 }
+
