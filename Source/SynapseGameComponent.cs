@@ -41,6 +41,23 @@ namespace RimSynapse
         }
 
         /// <summary>
+        /// Clears the main thread callback queue.
+        /// </summary>
+        public static void ClearMainThreadQueue()
+        {
+            while (_mainThreadQueue.TryDequeue(out _)) { }
+        }
+
+        /// <summary>
+        /// Clears both the background LLM queue and the main thread callback queue.
+        /// </summary>
+        public static void ClearAllQueues()
+        {
+            ClearMainThreadQueue();
+            Internal.RequestQueue.Clear();
+        }
+
+        /// <summary>
         /// Called every Unity frame on the main thread — even while paused.
         /// Processes queued callbacks and handles pause-time opportunistic task firing.
         /// </summary>
@@ -125,6 +142,20 @@ namespace RimSynapse
         {
             base.FinalizeInit();
             SynapseLog.Debug("core", "Game loaded. Main-thread dispatcher active (frame-based, pause-aware).");
+        }
+
+        public override void StartedNewGame()
+        {
+            base.StartedNewGame();
+            ClearAllQueues();
+            SynapseLog.Debug("core", "Started new game. Queues cleared.");
+        }
+
+        public override void LoadedGame()
+        {
+            base.LoadedGame();
+            ClearAllQueues();
+            SynapseLog.Debug("core", "Loaded game. Queues cleared.");
         }
     }
 }

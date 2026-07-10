@@ -29,7 +29,7 @@ namespace RimSynapse.Utils
         /// </summary>
         public static long GetAdjustmentTick()
         {
-            return (long)Find.TickManager.TicksAbs - (long)Find.TickManager.TicksGame;
+            return (long)GenTicks.TicksAbs - (long)Find.TickManager.TicksGame;
         }
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace RimSynapse.Utils
         /// </summary>
         public static long GetCurrentAbsTick()
         {
-            return Find.TickManager.TicksAbs;
+            return GenTicks.TicksAbs;
         }
 
         /// <summary>
