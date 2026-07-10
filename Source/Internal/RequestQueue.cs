@@ -338,9 +338,10 @@ namespace RimSynapse.Internal
                                 SynapseGameComponent.Enqueue(() => {
                                     Verse.Messages.Message(
                                         "RimSynapse LLM Error: Model not found. Did you swap models in LM Studio? Please open RimSynapse Core Mod Settings and reselect your model (or enable Auto-map).",
-                                        Verse.MessageTypeDefOf.RejectInput, false);
+                                        RimWorld.MessageTypeDefOf.RejectInput, false);
                                 });
                             }
+                        }
                         }
                     }
 
