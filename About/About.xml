@@ -1,10 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
     <name>RimSynapse - Core</name>
     <author>RimSynapse Team</author>
     <packageId>RimSynapse.Core</packageId>
     <url>https://github.com/RimSynapse/RimSynapse-Core</url>
-    <modVersion>0.2.0</modVersion>
+    <modVersion>0.2.1</modVersion>
     <supportedVersions>
         <li>1.6</li>
     </supportedVersions>
@@ -13,6 +13,7 @@
             <packageId>brrainz.harmony</packageId>
             <displayName>Harmony</displayName>
             <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+            <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
         </li>
     </modDependencies>
     <loadAfter>
@@ -20,6 +21,8 @@
     </loadAfter>
     <description>
 [h1]RimSynapse - Core[/h1]
+[b]📚 [url=https://github.com/RimSynapse/RimSynapse-Core/wiki]Official Wiki & Documentation[/url][/b]
+
 [b]The foundational LM Studio and Ollama Connector for RimWorld.[/b]
 
 RimSynapse Core is a powerful, asynchronous background engine that allows RimWorld mods to communicate with Large Language Models (LLMs). On its own, this mod does not change gameplay, but it serves as the essential bridge required by all RimSynapse companion mods to bring true narrative intelligence to the Rim.
@@ -67,6 +70,8 @@ RimSynapse is an open-source framework designed to be easily hooked into by othe
 
 [h2]Support the Project[/h2]
 If you enjoy this framework and want to support the development of genuine AI-driven gameplay, consider buying me a coffee!
-[url=https://buymeacoffee.com/archdukejim]☕ Buy me a coffee[/url]
+[url=https://buymeacoffee.com/archdukejim]â˜• Buy me a coffee[/url]
     </description>
 </ModMetaData>
+
+

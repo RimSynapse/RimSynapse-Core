@@ -374,6 +374,7 @@ namespace RimSynapse.Internal
         internal static void TryRunPauseOpportunisticTask()
         {
             if (Current.ProgramState != ProgramState.Playing) return;
+            if (RequestQueue.QueueDepth > 0) return; // Wait for queue to drain
 
             var settings = RimSynapseMod.Instance?.Settings;
             var mode = ResolveThrottleMode(settings);

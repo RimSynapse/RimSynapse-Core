@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Verse;
 
@@ -28,18 +28,12 @@ namespace RimSynapse.Internal
         {
             if (RimSynapseMod.Instance?.Settings?.enableSessionLogging != true) return;
 
+            if (Current.ProgramState != ProgramState.Playing) return;
+
             string colonyName = "UnknownColony";
-            if (Current.ProgramState == ProgramState.Playing && Find.World?.info != null)
+            if (Find.World?.info != null)
             {
                 colonyName = Find.World.info.name ?? "UnnamedColony";
-            }
-            else if (Current.ProgramState == ProgramState.MapInitializing)
-            {
-                colonyName = "GeneratingWorld";
-            }
-            else
-            {
-                colonyName = "MainMenu";
             }
 
             // Remove invalid path chars
@@ -63,7 +57,7 @@ namespace RimSynapse.Internal
                     }
                     catch (Exception ex)
                     {
-                        Verse.Log.Warning($"[RimSynapse] Failed to write to session log: {ex.Message}");
+                        Verse.RimSynapse.SynapseLog.Warn("core", $"[RimSynapse] Failed to write to session log: {ex.Message}");
                     }
                 }
             }
@@ -99,7 +93,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                Verse.Log.Warning($"[RimSynapse] Failed to create new session log file: {ex.Message}");
+                Verse.RimSynapse.SynapseLog.Warn("core", $"[RimSynapse] Failed to create new session log file: {ex.Message}");
                 currentLogFilePath = null;
             }
         }
@@ -121,3 +115,4 @@ namespace RimSynapse.Internal
         }
     }
 }
+
