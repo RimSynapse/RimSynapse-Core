@@ -19,6 +19,11 @@ namespace RimSynapse.Internal
     internal static class ContextAssembler
     {
         /// <summary>
+        /// Fired when assembling a pawn packet so expansion integrations can inject data.
+        /// </summary>
+        public static event Action<Pawn, PawnPacket, List<ContextSlot>> OnAssemblePawnPacket;
+
+        /// <summary>
         /// Build a complete context packet for a request.
         /// </summary>
         /// <param name="eventType">Event type driving context assembly</param>
@@ -378,33 +383,8 @@ namespace RimSynapse.Internal
                 slots.Add(MakeSlot("equipment", FormatEquipment(packet)));
             }
 
-            // Ideology (DLC safe)
-            try
-            {
-                if (ModsConfig.IdeologyActive && pawn.Ideo != null)
-                {
-                    packet.ideology = pawn.Ideo.name;
-                    packet.precepts = pawn.Ideo.PreceptsListForReading?
-                        .Select(p => p.Label).ToList();
-                    slots.Add(MakeSlot("ideology",
-                        $"[Ideology] {packet.ideology}"));
-                }
-            }
-            catch { /* DLC not loaded */ }
-
-            // Royalty title (DLC safe)
-            try
-            {
-                if (ModsConfig.RoyaltyActive && pawn.royalty != null)
-                {
-                    var title = pawn.royalty.MostSeniorTitle;
-                    if (title != null)
-                    {
-                        packet.royaltyTitle = title.def.label;
-                    }
-                }
-            }
-            catch { /* DLC not loaded */ }
+            // Let expansion integrations inject their data
+            OnAssemblePawnPacket?.Invoke(pawn, packet, slots);
 
             // Weather / Season / Biome (lightweight, attached to pawn state)
             if (pawn.Map != null)
@@ -765,7 +745,7 @@ namespace RimSynapse.Internal
         //  Slot helper
         // ────────────────────────────────────────────────────────
 
-        private static ContextSlot MakeSlot(string name, string text)
+        public static ContextSlot MakeSlot(string name, string text)
         {
             // Read base weight from XML Def
             var weightDef = DefDatabase<SynapseWeightDef>.AllDefs
@@ -781,9 +761,9 @@ namespace RimSynapse.Internal
         }
 
         /// <summary>
-        /// Internal slot representation for budget trimming.
+        /// Slot representation for budget trimming.
         /// </summary>
-        private class ContextSlot
+        public class ContextSlot
         {
             public string Name;
             public string Text;
