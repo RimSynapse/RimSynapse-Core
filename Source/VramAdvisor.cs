@@ -24,9 +24,6 @@ namespace RimSynapse
         /// since our estimates are less precise than real NVML data).</summary>
         private const float MinFreeGb = 4.0f;
 
-        /// <summary>Only check once per game session.</summary>
-        private static bool _hasChecked;
-
         /// <summary>
         /// Called once during mod startup (StaticConstructorOnStartup).
         /// Uses Unity's SystemInfo to estimate VRAM headroom.
@@ -44,8 +41,6 @@ namespace RimSynapse
 
         internal static void Check()
         {
-            if (_hasChecked) return;
-            _hasChecked = true;
 
             // Track whether NVIDIA Tool handles the VRAM advisory —
             // but we ALWAYS check for LM Studio connectivity (no model = mod broken)

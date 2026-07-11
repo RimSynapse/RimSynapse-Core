@@ -255,6 +255,18 @@ namespace RimSynapse.Internal
                         float recovery = (float)ticksSinceRun / Math.Max(1, cooldown);
                         task.EffectiveWeight = task.BaseWeight * recovery;
                     }
+
+                    // Apply token penalty
+                    float avgTokens = 0f;
+                    lock (RequestQueue.AvgTokensPerType)
+                    {
+                        if (RequestQueue.AvgTokensPerType.TryGetValue(task.Label, out float tokens))
+                        {
+                            avgTokens = tokens;
+                        }
+                    }
+                    float tokenPenalty = Math.Max(1f, avgTokens / 100f);
+                    task.EffectiveWeight /= tokenPenalty;
                 }
 
                 // Group eligible tasks by priority (highest first)
@@ -405,14 +417,30 @@ namespace RimSynapse.Internal
                 int topPriority = eligible[0].Priority;
                 var topGroup = eligible.Where(t => t.Priority == topPriority).ToList();
 
-                float totalWeight = topGroup.Sum(t => Math.Max(0.01f, t.BaseWeight));
+                // Calculate effective weights with token penalty
+                var pauseWeights = new Dictionary<TaskEntry, float>();
+                foreach (var task in topGroup)
+                {
+                    float avgTokens = 0f;
+                    lock (RequestQueue.AvgTokensPerType)
+                    {
+                        if (RequestQueue.AvgTokensPerType.TryGetValue(task.Label, out float tokens))
+                        {
+                            avgTokens = tokens;
+                        }
+                    }
+                    float tokenPenalty = Math.Max(1f, avgTokens / 100f);
+                    pauseWeights[task] = task.BaseWeight / tokenPenalty;
+                }
+
+                float totalWeight = topGroup.Sum(t => Math.Max(0.01f, pauseWeights[t]));
                 float roll = Rand.Range(0f, totalWeight);
                 float cumulative = 0f;
                 TaskEntry selected = topGroup.Last();
 
                 foreach (var task in topGroup)
                 {
-                    cumulative += Math.Max(0.01f, task.BaseWeight);
+                    cumulative += Math.Max(0.01f, pauseWeights[task]);
                     if (roll <= cumulative)
                     {
                         selected = task;

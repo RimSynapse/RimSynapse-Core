@@ -332,6 +332,10 @@ namespace RimSynapse
                 "Shows estimated GPU memory breakdown when the game starts.\n" +
                 "Uncheck to disable (only shows if NVIDIA Tool is not installed).");
 
+            listing.CheckboxLabeled("Show LLM Queue Monitor icon on toolbar",
+                ref Settings.showQueueMonitorIcon,
+                "Shows the AI queue monitor icon in the bottom right play settings toolbar.");
+
             listing.End();
             Widgets.EndScrollView();
         }

@@ -22,10 +22,17 @@ namespace RimSynapse.Internal
             public int Priority;
             public DateTime EnqueuedAt;
             public double CurrentScore;
+            
+            // History tracking
+            public ChatResult Result;
+            public DateTime? CompletedAt;
         }
 
         private static readonly List<QueuedRequest> _queue = new List<QueuedRequest>();
+        private static readonly List<QueuedRequest> _history = new List<QueuedRequest>();
         private static readonly object _queueLock = new object();
+        
+        public static float HistoryRetentionSeconds = 5f;
 
         private static readonly Thread _workerThread;
         private static readonly AutoResetEvent _signal = new AutoResetEvent(false);
@@ -37,6 +44,11 @@ namespace RimSynapse.Internal
         private static DateTime _windowStart = DateTime.UtcNow;
         private static readonly TimeSpan WindowDuration = TimeSpan.FromSeconds(60);
         private static DateTime _lastModelWarning = DateTime.MinValue;
+
+        // Token and TOPS tracking
+        public static Dictionary<string, float> AvgTokensPerType = new Dictionary<string, float>();
+        private static Queue<ChatResult> _recentResults = new Queue<ChatResult>();
+        private static object _topsLock = new object();
 
         // Public stats
         public static int QueueDepth
@@ -73,6 +85,29 @@ namespace RimSynapse.Internal
             }
         }
 
+        /// <summary>
+        /// Global Token Operations Per Second (TOPS) over the last 60 seconds.
+        /// </summary>
+        public static float GlobalTops
+        {
+            get
+            {
+                lock (_topsLock)
+                {
+                    if (_recentResults.Count == 0) return 0f;
+                    long totalTokens = 0;
+                    long totalMs = 0;
+                    foreach (var r in _recentResults)
+                    {
+                        totalTokens += r.completionTokens;
+                        totalMs += r.durationMs;
+                    }
+                    if (totalMs == 0) return 0f;
+                    return (totalTokens / (float)totalMs) * 1000f;
+                }
+            }
+        }
+
         static RequestQueue()
         {
             _workerThread = new Thread(WorkerLoop)
@@ -91,6 +126,14 @@ namespace RimSynapse.Internal
             lock (_queueLock)
             {
                 return _queue.ToList();
+            }
+        }
+
+        public static List<QueuedRequest> GetHistorySnapshot()
+        {
+            lock (_queueLock)
+            {
+                return _history.ToList();
             }
         }
 
@@ -200,6 +243,16 @@ namespace RimSynapse.Internal
                     }
 
                     int maxPerWindow = settings?.maxRequestsPerMinute ?? 30;
+
+                    // Prune history
+                    for (int i = _history.Count - 1; i >= 0; i--)
+                    {
+                        var req = _history[i];
+                        if (req.CompletedAt.HasValue && (now - req.CompletedAt.Value).TotalSeconds > HistoryRetentionSeconds)
+                        {
+                            _history.RemoveAt(i);
+                        }
+                    }
 
                     // Evaluate queue: Drop stale requests and calculate dynamic scores
                     for (int i = _queue.Count - 1; i >= 0; i--)
@@ -436,6 +489,36 @@ namespace RimSynapse.Internal
                     _recentDurations.Add(result.durationMs);
                     if (_recentDurations.Count > 20)
                         _recentDurations.RemoveAt(0);
+                }
+                
+                // Track Tokens and EMA
+                if (result.success && result.completionTokens > 0)
+                {
+                    lock (_topsLock)
+                    {
+                        _recentResults.Enqueue(result);
+                        if (_recentResults.Count > 50) _recentResults.Dequeue();
+                    }
+
+                    string rName = requestToProcess.Options?.requestName ?? "Unknown";
+                    lock (AvgTokensPerType)
+                    {
+                        if (!AvgTokensPerType.ContainsKey(rName))
+                        {
+                            AvgTokensPerType[rName] = result.completionTokens;
+                        }
+                        else
+                        {
+                            AvgTokensPerType[rName] = (AvgTokensPerType[rName] * 0.8f) + (result.completionTokens * 0.2f);
+                        }
+                    }
+                }
+
+                requestToProcess.Result = result;
+                requestToProcess.CompletedAt = DateTime.UtcNow;
+                lock (_queueLock)
+                {
+                    _history.Add(requestToProcess);
                 }
 
                 var cb = requestToProcess.Callback;

@@ -14,6 +14,12 @@ namespace RimSynapse
         /// <summary>Sampling temperature. Null = LM Studio default.</summary>
         public float? temperature;
 
+        /// <summary>Friendly name for the task type, used for UI display and tracking token averages. E.g., "Generating Childhood Memory"</summary>
+        public string requestName;
+
+        /// <summary>Friendly name for the target, used for UI display. E.g., "Pawn: John"</summary>
+        public string targetName;
+
         /// <summary>Enable response sanitization (strip think blocks, repair JSON). Default: true.</summary>
         public bool sanitize = true;
 

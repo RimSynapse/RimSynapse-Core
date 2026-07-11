@@ -62,6 +62,23 @@ namespace RimSynapse
         /// <summary>Show VRAM status on game load (default: true). Disable in settings.</summary>
         public bool showVramAdvisory = true;
 
+        /// <summary>Show Queue Monitor icon in the bottom-right toolbar (default: true).</summary>
+        public bool showQueueMonitorIcon = true;
+
+        // --- Queue Monitor Columns ---
+        public bool qmShowPrio = true;
+        public bool qmShowMod = true;
+        public bool qmShowTarget = true;
+        public bool qmShowTask = true;
+        public bool qmShowAge = true;
+        
+        public bool qmShowStatus = false;
+        public bool qmShowScore = false;
+        public bool qmShowTimeout = false;
+        public bool qmShowTokens = false;
+        public bool qmShowPrompt = false;
+        public bool qmShowResponse = false;
+
         public override void ExposeData()
         {
             base.ExposeData();
@@ -82,6 +99,20 @@ namespace RimSynapse
             Scribe_Values.Look(ref shortTermMemoryHours, "shortTermMemoryHours", 48f);
             Scribe_Values.Look(ref traceDebugMode, "traceDebugMode", false);
             Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
+            Scribe_Values.Look(ref showQueueMonitorIcon, "showQueueMonitorIcon", true);
+
+            Scribe_Values.Look(ref qmShowPrio, "qmShowPrio", true);
+            Scribe_Values.Look(ref qmShowMod, "qmShowMod", true);
+            Scribe_Values.Look(ref qmShowTarget, "qmShowTarget", true);
+            Scribe_Values.Look(ref qmShowTask, "qmShowTask", true);
+            Scribe_Values.Look(ref qmShowAge, "qmShowAge", true);
+            
+            Scribe_Values.Look(ref qmShowStatus, "qmShowStatus", false);
+            Scribe_Values.Look(ref qmShowScore, "qmShowScore", false);
+            Scribe_Values.Look(ref qmShowTimeout, "qmShowTimeout", false);
+            Scribe_Values.Look(ref qmShowTokens, "qmShowTokens", false);
+            Scribe_Values.Look(ref qmShowPrompt, "qmShowPrompt", false);
+            Scribe_Values.Look(ref qmShowResponse, "qmShowResponse", false);
         }
     }
 }
