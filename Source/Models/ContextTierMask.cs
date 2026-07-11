@@ -35,13 +35,16 @@ namespace RimSynapse
         /// <summary>Tier 5: Weighted memories, AI personality, narrative threads (from companion mods).</summary>
         Synthetic = 1 << 4,
 
+        /// <summary>Tier 6: Short-Term History (recent social interactions and global events).</summary>
+        ShortTermHistory = 1 << 5,
+
         // ── Preset Combinations ──
 
-        /// <summary>Identity + PawnState + Synthetic. Default for dialogue and chat.</summary>
-        Standard = Identity | PawnState | Synthetic,
+        /// <summary>Identity + PawnState + Synthetic + ShortTermHistory. Default for dialogue and chat.</summary>
+        Standard = Identity | PawnState | Synthetic | ShortTermHistory,
 
-        /// <summary>All five tiers included.</summary>
-        Full = Identity | PawnState | Colony | World | Synthetic,
+        /// <summary>All six tiers included.</summary>
+        Full = Identity | PawnState | Colony | World | Synthetic | ShortTermHistory,
 
         /// <summary>Identity + Colony + World. For colony-level events.</summary>
         ColonyEvent = Identity | Colony | World,
@@ -71,6 +74,7 @@ namespace RimSynapse
                 "Colony" => ContextTierMask.Colony,
                 "World" => ContextTierMask.World,
                 "Synthetic" => ContextTierMask.Synthetic,
+                "ShortTermHistory" => ContextTierMask.ShortTermHistory,
                 _ => ContextTierMask.None,
             };
         }

@@ -189,6 +189,12 @@ namespace RimSynapse
                 listing.Label($"  Token budget adapts to LM Studio context window " +
                     $"({Internal.ModelManager.ContextLength?.ToString() ?? "unknown"} tokens).");
             }
+            
+            listing.Gap(4f);
+            Settings.shortTermMemoryHours = listing.SliderLabeled(
+                $"Short-Term Memory Window: {Settings.shortTermMemoryHours:F0} hours",
+                Settings.shortTermMemoryHours, 24f, 168f,
+                tooltip: "How long recent social interactions and events are kept in the LLM's context window.");
 
             listing.Gap(12f);
 

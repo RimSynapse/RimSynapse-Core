@@ -42,6 +42,7 @@ namespace RimSynapse
 
         // --- Context Embedding ---
         public bool enableContextEmbedding = false;
+        public float shortTermMemoryHours = 48f;
 
         // --- Performance ---
         public int timeoutSeconds = 120;
@@ -78,6 +79,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref opportunisticThrottleMode, "opportunisticThrottleMode", -1);
             Scribe_Values.Look(ref opportunisticBurstSize, "opportunisticBurstSize", 3);
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
+            Scribe_Values.Look(ref shortTermMemoryHours, "shortTermMemoryHours", 48f);
             Scribe_Values.Look(ref traceDebugMode, "traceDebugMode", false);
             Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
         }

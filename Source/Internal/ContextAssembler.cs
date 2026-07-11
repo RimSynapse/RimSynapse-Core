@@ -98,6 +98,12 @@ namespace RimSynapse.Internal
                 FillSyntheticData(packet, sourcePawn, slots);
             }
 
+            // ── Tier 6: Short-Term History ──
+            if ((tierMask & ContextTierMask.ShortTermHistory) != 0)
+            {
+                FillShortTermHistory(packet, sourcePawn, slots);
+            }
+
             // ── Event type framing ──
             slots.Insert(0, MakeSlot("eventType", $"Event: {eventType}"));
 
@@ -206,6 +212,15 @@ namespace RimSynapse.Internal
                 }
             }
 
+            if (packet.recentEvents?.Count > 0)
+            {
+                sb.AppendLine("[Recent History]");
+                foreach (var ev in packet.recentEvents)
+                {
+                    sb.AppendLine($"- [{ev.date.ToString()}] {ev.description}");
+                }
+            }
+
             sb.AppendLine("--- END CONTEXT ---");
             return sb.ToString();
         }
@@ -213,6 +228,39 @@ namespace RimSynapse.Internal
         // ────────────────────────────────────────────────────────
         //  Pawn data builders (read vanilla APIs)
         // ────────────────────────────────────────────────────────
+
+        private static void FillShortTermHistory(ContextPacket packet, Pawn sourcePawn, List<ContextSlot> slots)
+        {
+            var comp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+            if (comp == null || comp.shortTermEvents == null || comp.shortTermEvents.Count == 0) return;
+
+            // Filter for events involving this pawn, or global events if no source pawn
+            var relevantEvents = new List<Models.ShortTermEvent>();
+            foreach (var ev in comp.shortTermEvents)
+            {
+                if (sourcePawn == null)
+                {
+                    relevantEvents.Add(ev);
+                }
+                else if (ev.involvedPawnIds.Contains(sourcePawn.ThingID) || ev.eventType == Models.ShortTermEventType.GlobalEvent)
+                {
+                    relevantEvents.Add(ev);
+                }
+            }
+
+            if (relevantEvents.Count > 0)
+            {
+                packet.recentEvents = relevantEvents.OrderBy(e => e.gameTick).ToList();
+                
+                var sb = new StringBuilder();
+                foreach (var ev in packet.recentEvents)
+                {
+                    sb.AppendLine($"- [{ev.date.ToString()}] {ev.description}");
+                }
+                
+                slots.Add(MakeSlot("shortTermHistory", sb.ToString()));
+            }
+        }
 
         private static PawnPacket BuildPawnIdentity(Pawn pawn)
         {
