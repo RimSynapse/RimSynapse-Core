@@ -290,6 +290,8 @@ namespace RimSynapse.Internal
                     }
                     finally
                     {
+                        ActiveRequest = null;
+                        ActiveRequestStopwatch.Stop();
                         Interlocked.Decrement(ref _activeRequests);
                         _signal.Set();
                         

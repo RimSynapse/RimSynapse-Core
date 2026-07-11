@@ -35,7 +35,10 @@ namespace RimSynapse.Internal
                     ServerCertificateCustomValidationCallback = (msg, cert, chain, errors) => true,
                 };
 
-                _client = new HttpClient(handler);
+                _client = new HttpClient(handler)
+                {
+                    Timeout = Timeout.InfiniteTimeSpan
+                };
                 _client.DefaultRequestHeaders.Add("Accept", "application/json");
 
                 SynapseLogger.Message("HttpClient initialized.");
@@ -140,10 +143,8 @@ namespace RimSynapse.Internal
                             "Bearer", settings.lmStudioApiKey);
                 }
 
-                // Set timeout
-                var cts = new CancellationTokenSource(
-                    TimeSpan.FromSeconds(settings.timeoutSeconds));
-
+                // Set timeout using CancellationToken because HttpClient.Timeout cannot be modified per-request
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.timeoutSeconds));
                 var response = _client.SendAsync(request, cts.Token).Result;
                 string responseBody = response.Content.ReadAsStringAsync().Result;
 
