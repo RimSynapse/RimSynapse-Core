@@ -15,6 +15,22 @@
             <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
             <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
         </li>
+        <li>
+            <packageId>ludeon.rimworld.royalty</packageId>
+            <displayName>Royalty</displayName>
+        </li>
+        <li>
+            <packageId>ludeon.rimworld.ideology</packageId>
+            <displayName>Ideology</displayName>
+        </li>
+        <li>
+            <packageId>ludeon.rimworld.biotech</packageId>
+            <displayName>Biotech</displayName>
+        </li>
+        <li>
+            <packageId>ludeon.rimworld.anomaly</packageId>
+            <displayName>Anomaly</displayName>
+        </li>
     </modDependencies>
     <loadAfter>
         <li>brrainz.harmony</li>
@@ -81,5 +97,6 @@ If you enjoy this framework and want to support the development of genuine AI-dr
 [url=https://buymeacoffee.com/archdukejim]â˜• Buy me a coffee[/url]
     </description>
 </ModMetaData>
+
 
 
