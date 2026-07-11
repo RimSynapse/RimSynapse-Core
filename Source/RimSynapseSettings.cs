@@ -54,9 +54,8 @@ namespace RimSynapse
         /// <summary>Max tasks to fire per idle check in Aggressive mode (1-5).</summary>
         public int opportunisticBurstSize = 3;
 
-        // --- Logging ---
-        public LogLevel logLevel = LogLevel.Info;
-        public bool enableSessionLogging = true;
+        // --- Logging & Troubleshooting ---
+        public bool traceDebugMode = false;
 
         // --- Notifications ---
         /// <summary>Show VRAM status on game load (default: true). Disable in settings.</summary>
@@ -79,8 +78,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref opportunisticThrottleMode, "opportunisticThrottleMode", -1);
             Scribe_Values.Look(ref opportunisticBurstSize, "opportunisticBurstSize", 3);
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
-            Scribe_Values.Look(ref logLevel, "logLevel", LogLevel.Info);
-            Scribe_Values.Look(ref enableSessionLogging, "enableSessionLogging", true);
+            Scribe_Values.Look(ref traceDebugMode, "traceDebugMode", false);
             Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
         }
     }

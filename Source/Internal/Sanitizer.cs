@@ -44,7 +44,7 @@ namespace RimSynapse.Internal
             var mdMatch = MarkdownWrapperRegex.Match(cleaned);
             if (mdMatch.Success && !string.IsNullOrWhiteSpace(mdMatch.Groups[1].Value))
             {
-                SynapseLog.Debug("sanitize", "Unwrapped markdown code block from LLM output.");
+                SynapseLogger.Message("Unwrapped markdown code block from LLM output.");
                 cleaned = mdMatch.Groups[1].Value.Trim();
             }
 

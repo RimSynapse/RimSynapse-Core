@@ -113,7 +113,7 @@ namespace RimSynapse.Internal
                 }
                 _queue.Clear();
             }
-            SynapseLog.Debug("queue", "RequestQueue cleared.");
+            SynapseLogger.Message("RequestQueue cleared.");
         }
 
         /// <summary>
@@ -145,7 +145,7 @@ namespace RimSynapse.Internal
             
             _signal.Set(); // Wake the worker
 
-            SynapseLog.Debug("queue",
+            SynapseLogger.Debug("queue",
                 $"Request enqueued for {mod?.DisplayName ?? "unknown"}. Queue depth: {QueueDepth}.",
                 mod?.ModId);
         }
@@ -210,7 +210,7 @@ namespace RimSynapse.Internal
                         // TTL Check
                         if (req.Options?.maxWaitMs.HasValue == true && ageMs > req.Options.maxWaitMs.Value)
                         {
-                            SynapseLog.Warn("queue", $"Request for {req.Mod?.DisplayName} dropped (exceeded maxWaitMs of {req.Options.maxWaitMs.Value}).");
+                            SynapseLogger.Warning($"Request for {req.Mod?.DisplayName} dropped (exceeded maxWaitMs of {req.Options.maxWaitMs.Value}).");
                             if (req.Mod != null) req.Mod.QueuedCount = Math.Max(0, req.Mod.QueuedCount - 1);
                             
                             var cb = req.Callback;
@@ -260,7 +260,7 @@ namespace RimSynapse.Internal
                 // ── Prevent firing if game is not active ──
                 if (Verse.Current.ProgramState != Verse.ProgramState.Playing)
                 {
-                    SynapseLog.Debug("queue", $"Discarding request for {requestToProcess.Mod?.DisplayName} because the game is not playing.");
+                    SynapseLogger.Message($"Discarding request for {requestToProcess.Mod?.DisplayName} because the game is not playing.");
                     if (requestToProcess.Mod != null)
                     {
                         requestToProcess.Mod.QueuedCount = Math.Max(0, requestToProcess.Mod.QueuedCount - 1);
@@ -306,7 +306,7 @@ namespace RimSynapse.Internal
         {
             try
             {
-                SynapseLog.Info("queue",
+                SynapseLogger.Info("queue",
                     $"Processing request for {requestToProcess.Mod?.DisplayName ?? "unknown"}. Score: {requestToProcess.CurrentScore:F0}",
                     requestToProcess.Mod?.ModId);
 
@@ -357,12 +357,12 @@ namespace RimSynapse.Internal
                     }
                     catch (Exception ctxEx)
                     {
-                        SynapseLog.Warn("context", $"Context assembly failed: {ctxEx.Message}");
+                        SynapseLogger.Warning($"Context assembly failed: {ctxEx.Message}");
                     }
                 }
 
                 // ── Debug: Log full prompt ──
-                if (SynapseLog.Level <= LogLevel.Debug)
+                if (RimSynapseMod.Instance?.Settings?.traceDebugMode == true)
                 {
                     var promptLog = new System.Text.StringBuilder();
                     promptLog.AppendLine($"── PROMPT → {requestToProcess.Mod?.DisplayName ?? "unknown"} ──");
@@ -370,7 +370,7 @@ namespace RimSynapse.Internal
                     {
                         promptLog.AppendLine($"[{msg.role}]: {msg.content}");
                     }
-                    SynapseLog.Debug("prompt", promptLog.ToString(), requestToProcess.Mod?.ModId);
+                    SynapseLogger.Message(promptLog.ToString(), requestToProcess.Mod?.ModId);
                 }
 
                 // Synchronous HTTP call inside thread pool
@@ -379,7 +379,7 @@ namespace RimSynapse.Internal
 
                 if (SessionId != currentSession)
                 {
-                    SynapseLog.Debug("queue", $"Session changed during request. Discarding response for {requestToProcess.Mod?.DisplayName}.");
+                    SynapseLogger.Message($"Session changed during request. Discarding response for {requestToProcess.Mod?.DisplayName}.");
                     return;
                 }
 
@@ -387,10 +387,10 @@ namespace RimSynapse.Internal
                 ModRegistry.RecordRequest(requestToProcess.Mod);
 
                 // ── Info: Concise completion and timing ──
-                SynapseLog.Info("queue", $"Completed LLM request for {requestToProcess.Mod?.DisplayName ?? "unknown"} in {result.durationMs}ms. (Success: {result.success})", requestToProcess.Mod?.ModId);
+                SynapseLogger.Message($"Completed LLM request for {requestToProcess.Mod?.DisplayName ?? "unknown"} in {result.durationMs}ms. (Success: {result.success})", requestToProcess.Mod?.ModId);
 
                 // ── Debug: Log full response ──
-                if (SynapseLog.Level <= LogLevel.Debug)
+                if (RimSynapseMod.Instance?.Settings?.traceDebugMode == true)
                 {
                     var respLog = new System.Text.StringBuilder();
                     respLog.AppendLine($"── RESPONSE ← {requestToProcess.Mod?.DisplayName ?? "unknown"} ({result.durationMs}ms, success={result.success}) ──");
@@ -402,7 +402,7 @@ namespace RimSynapse.Internal
                     {
                         respLog.AppendLine($"ERROR: {result.error}");
                     }
-                    SynapseLog.Debug("response", respLog.ToString(), requestToProcess.Mod?.ModId);
+                    SynapseLogger.Message(respLog.ToString(), requestToProcess.Mod?.ModId);
                 }
 
                 // ── Handle Model Swap Errors ──
@@ -441,7 +441,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Error("queue", $"Queue worker error: {ex.Message}");
+                SynapseLogger.Error($"Queue worker error: {ex.Message}");
                 if (SessionId == currentSession)
                 {
                     var cb = requestToProcess.Callback;

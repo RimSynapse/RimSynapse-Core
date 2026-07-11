@@ -147,7 +147,7 @@ namespace RimSynapse.Internal
             packet.estimatedTokens = totalTokens;
 
             // Log assembly result
-            SynapseLog.Debug("context",
+            SynapseLogger.Debug("context",
                 $"Context assembled: {eventType} | " +
                 $"{packet.slotsFilled.Count} slots filled, " +
                 $"{packet.slotsDropped.Count} dropped | " +
@@ -155,8 +155,7 @@ namespace RimSynapse.Internal
 
             if (packet.slotsDropped.Count > 0)
             {
-                SynapseLog.Debug("context",
-                    $"Dropped slots: {string.Join(", ", packet.slotsDropped)}");
+                SynapseLogger.Message($"Dropped slots: {string.Join(", ", packet.slotsDropped)}");
             }
 
             return packet;
@@ -455,7 +454,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Debug("context", $"Faction enumeration error: {ex.Message}");
+                SynapseLogger.Message($"Faction enumeration error: {ex.Message}");
             }
 
             // Active quests
@@ -544,8 +543,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Debug("context",
-                    $"Could not read Psychology comp data: {ex.Message}");
+                SynapseLogger.Message($"Could not read Psychology comp data: {ex.Message}");
             }
 
             // Storyteller narrative threads — read from WorldComponent
@@ -598,8 +596,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Debug("context",
-                    $"Could not read Storyteller world data: {ex.Message}");
+                SynapseLogger.Message($"Could not read Storyteller world data: {ex.Message}");
             }
         }
 

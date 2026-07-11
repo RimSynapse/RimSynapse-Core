@@ -32,7 +32,7 @@ namespace RimSynapse
         {
             if (!IsEnabled())
             {
-                SynapseLog.Debug("context", "Context embedding is disabled.");
+                SynapseLogger.Message("Context embedding is disabled.");
                 return null;
             }
 

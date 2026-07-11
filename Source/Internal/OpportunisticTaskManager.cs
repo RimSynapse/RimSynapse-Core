@@ -128,7 +128,7 @@ namespace RimSynapse.Internal
                 };
 
                 _tasks.Add(entry);
-                SynapseLog.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
+                SynapseLogger.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
                     $"(P{entry.Priority}, W{entry.BaseWeight:F1}, CD{entry.CooldownTicks}t, Dynamic)");
             }
         }
@@ -165,7 +165,7 @@ namespace RimSynapse.Internal
                 };
 
                 _tasks.Add(entry);
-                SynapseLog.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
+                SynapseLogger.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
                     $"(P{entry.Priority}, W{entry.BaseWeight:F1}, CD{entry.CooldownTicks}t)");
             }
         }
@@ -293,7 +293,7 @@ namespace RimSynapse.Internal
                     selected.EffectiveWeight = 0f; // Decay to zero immediately
                     selected.TimesRun++;
 
-                    SynapseLog.Debug("queue", $"Opportunistic [{mode}]: Firing '{selected.Label}' " +
+                    SynapseLogger.Debug("queue", $"Opportunistic [{mode}]: Firing '{selected.Label}' " +
                         $"(P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
 
                     var callback = selected.Callback;
@@ -330,7 +330,7 @@ namespace RimSynapse.Internal
                         }
                         catch (Exception ex)
                         {
-                            SynapseLog.Error("core", $"Error executing opportunistic task '{selected.TaskId}': {ex.Message}");
+                            SynapseLogger.Error($"Error executing opportunistic task '{selected.TaskId}': {ex.Message}");
                         }
                     });
 
@@ -423,7 +423,7 @@ namespace RimSynapse.Internal
                 _realTimeCooldowns[selected.TaskId] = now;
                 selected.TimesRun++;
 
-                SynapseLog.Debug("queue", $"Pause-opportunistic [{mode}]: Firing '{selected.Label}' " +
+                SynapseLogger.Debug("queue", $"Pause-opportunistic [{mode}]: Firing '{selected.Label}' " +
                     $"(P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
 
                 // During pause, we can execute directly on the main thread (we're in GameComponentUpdate)
@@ -448,7 +448,7 @@ namespace RimSynapse.Internal
                 }
                 catch (Exception ex)
                 {
-                    SynapseLog.Error("core", $"Error executing pause-opportunistic task '{selected.TaskId}': {ex.Message}");
+                    SynapseLogger.Error($"Error executing pause-opportunistic task '{selected.TaskId}': {ex.Message}");
                 }
             }
         }

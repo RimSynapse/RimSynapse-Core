@@ -34,15 +34,13 @@ namespace RimSynapse.Internal
 
                 if (string.IsNullOrEmpty(msg.content))
                 {
-                    SynapseLog.Warn("input",
-                        $"Message at index {i} (role: {msg.role}) has empty content.");
+                    SynapseLogger.Warning($"Message at index {i} (role: {msg.role}) has empty content.");
                 }
 
                 // Warn on very long messages (likely will blow context window)
                 if (msg.content != null && msg.content.Length > 50000)
                 {
-                    SynapseLog.Warn("input",
-                        $"Message at index {i} is very long ({msg.content.Length} chars). " +
+                    SynapseLogger.Warning($"Message at index {i} is very long ({msg.content.Length} chars). " +
                         $"This may exceed the model's context window.");
                 }
             }

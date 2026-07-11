@@ -66,15 +66,14 @@ namespace RimSynapse
 
                 if (result.online)
                 {
-                    SynapseLog.Info("core",
-                        $"LM Studio online. Models: [{string.Join(", ", result.modelIds)}]" +
+                    SynapseLogger.Message($"LM Studio online. Models: [{string.Join(", ", result.modelIds)}]" +
                         (result.contextLength.HasValue
                             ? $" Context: {result.contextLength.Value} tokens"
                             : ""));
                 }
                 else
                 {
-                    SynapseLog.Warn("core",
+                    SynapseLogger.Warn("core",
                         $"LM Studio offline: {result.error ?? "unknown error"}. " +
                         $"Ensure LM Studio is running at {RimSynapseMod.Instance?.Settings?.lmStudioUrl ?? "http://127.0.0.1:1234"}.");
                 }
@@ -87,7 +86,7 @@ namespace RimSynapse
         /// </summary>
         internal static void Shutdown()
         {
-            SynapseLog.Info("core", "RimSynapse Core shutting down.");
+            SynapseLogger.Message("RimSynapse Core shutting down.");
 
             KeepAlive.Shutdown();
             RequestQueue.Shutdown();

@@ -38,7 +38,7 @@ namespace RimSynapse.Internal
                 _client = new HttpClient(handler);
                 _client.DefaultRequestHeaders.Add("Accept", "application/json");
 
-                SynapseLog.Debug("client", "HttpClient initialized.");
+                SynapseLogger.Message("HttpClient initialized.");
             }
         }
 
@@ -93,8 +93,7 @@ namespace RimSynapse.Internal
                     // Bump low max_tokens for reasoning models
                     if (tokens < 8192)
                     {
-                        SynapseLog.Debug("client",
-                            $"Bumping max_tokens from {tokens} to 8192 for reasoning model headroom.");
+                        SynapseLogger.Message($"Bumping max_tokens from {tokens} to 8192 for reasoning model headroom.");
                         tokens = 8192;
                     }
                     body["max_tokens"] = tokens;
@@ -118,13 +117,15 @@ namespace RimSynapse.Internal
                     // 2. "reasoning_effort": "none"           (OpenAI-compat)
                     body["thinking"] = new JObject { ["type"] = "disabled" };
 
-                    SynapseLog.Debug("client", "Thinking disabled for this request.");
+                    SynapseLogger.Message("Thinking disabled for this request.");
                 }
 
                 // LM Studio quirk: remove response_format.type=json_object to prevent 400
                 body.Remove("response_format");
 
                 string jsonBody = body.ToString(Formatting.None);
+                
+                SynapseLogger.TraceContext(jsonBody, url);
 
                 var request = new HttpRequestMessage(HttpMethod.Post, url)
                 {
@@ -150,7 +151,7 @@ namespace RimSynapse.Internal
                 {
                     long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
                     var error = $"LM Studio returned {(int)response.StatusCode}: {responseBody}";
-                    SynapseLog.Error("client", error);
+                    SynapseLogger.Error(error);
                     return ChatResult.Failure(error, dur);
                 }
 
@@ -171,8 +172,7 @@ namespace RimSynapse.Internal
                         string reasoningContent = message?["reasoning_content"]?.ToString();
                         if (!string.IsNullOrWhiteSpace(reasoningContent))
                         {
-                            SynapseLog.Warn("client",
-                                "Assistant content was empty but reasoning_content present. Using fallback.");
+                            SynapseLogger.Warning("Assistant content was empty but reasoning_content present. Using fallback.");
                             content = reasoningContent;
                         }
                     }
@@ -192,8 +192,7 @@ namespace RimSynapse.Internal
 
                 long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
 
-                SynapseLog.Info("client",
-                    $"Completion received in {durationMs}ms — {promptTokens}p/{completionTokens}c tokens.");
+                SynapseLogger.Message($"Completion received in {durationMs}ms — {promptTokens}p/{completionTokens}c tokens.");
 
                 return ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
             }
@@ -201,7 +200,7 @@ namespace RimSynapse.Internal
             {
                 long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
                 string error = ex.InnerException?.Message ?? ex.Message;
-                SynapseLog.Error("client", $"Request failed: {error}");
+                SynapseLogger.Error($"Request failed: {error}");
                 return ChatResult.Failure(error, dur);
             }
         }
@@ -291,7 +290,7 @@ namespace RimSynapse.Internal
                         {
                             // Overwrite the full list with just the active model
                             result.modelIds = new List<string> { activeModelId };
-                            SynapseLog.Info("model", $"Active model discovered via dummy request: {activeModelId}");
+                            SynapseLogger.Message($"Active model discovered via dummy request: {activeModelId}");
                         }
                     }
                 }
@@ -356,7 +355,7 @@ namespace RimSynapse.Internal
                     var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
                     _client.SendAsync(request, cts.Token).Wait(cts.Token);
 
-                    SynapseLog.Debug("keepalive", $"Keep-alive ping sent to \"{model}\".");
+                    SynapseLogger.Message($"Keep-alive ping sent to \"{model}\".");
                 }
                 catch
                 {

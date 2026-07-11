@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using Verse;
 
@@ -32,7 +32,7 @@ namespace RimSynapse
 
         /// <summary>
         /// Enqueue an action to run on the main thread during the next frame.
-        /// Thread-safe â€” can be called from any background thread.
+        /// Thread-safe — can be called from any background thread.
         /// </summary>
         public static void Enqueue(Action action)
         {
@@ -58,7 +58,7 @@ namespace RimSynapse
         }
 
         /// <summary>
-        /// Called every Unity frame on the main thread â€” even while paused.
+        /// Called every Unity frame on the main thread — even while paused.
         /// Processes queued callbacks and handles pause-time opportunistic task firing.
         /// </summary>
         public override void GameComponentUpdate()
@@ -73,12 +73,12 @@ namespace RimSynapse
                 }
                 catch (Exception ex)
                 {
-                    RimSynapse.SynapseLog.Error("core", $"[RimSynapse] Callback error: {ex}");
+                    RimSynapse.SynapseLogger.Error($"[RimSynapse] Callback error: {ex}");
                 }
                 processed++;
             }
 
-            // â”€â”€ Pause-time opportunistic task handling â”€â”€
+            // ── Pause-time opportunistic task handling ──
             if (Find.TickManager == null) return;
 
             bool isPaused = Find.TickManager.Paused;
@@ -87,7 +87,7 @@ namespace RimSynapse
             {
                 if (!_wasPaused)
                 {
-                    // Just entered pause â€” start the timer
+                    // Just entered pause — start the timer
                     _pauseStartTime = DateTime.UtcNow;
                     _pauseOpportunisticFired = false;
                     _wasPaused = true;
@@ -96,14 +96,14 @@ namespace RimSynapse
                 double pausedSeconds = (DateTime.UtcNow - _pauseStartTime).TotalSeconds;
                 if (pausedSeconds >= PauseIdleThreshold)
                 {
-                    // We've been paused long enough â€” fire opportunistic tasks periodically
+                    // We've been paused long enough — fire opportunistic tasks periodically
                     if ((DateTime.UtcNow - _lastPauseOpportunisticCheck).TotalSeconds >= PauseCheckInterval)
                     {
                         _lastPauseOpportunisticCheck = DateTime.UtcNow;
 
                         if (!_pauseOpportunisticFired)
                         {
-                            SynapseLog.Debug("core", "Pause detected for 5+ seconds â€” enabling pause-time opportunistic processing.");
+                            SynapseLogger.Message("Pause detected for 5+ seconds — enabling pause-time opportunistic processing.");
                             _pauseOpportunisticFired = true;
                         }
 
@@ -116,7 +116,7 @@ namespace RimSynapse
             {
                 if (_wasPaused && _pauseOpportunisticFired)
                 {
-                    SynapseLog.Debug("core", "Game unpaused â€” resuming tick-based opportunistic scheduling.");
+                    SynapseLogger.Message("Game unpaused — resuming tick-based opportunistic scheduling.");
                 }
                 _wasPaused = false;
                 _pauseOpportunisticFired = false;
@@ -125,7 +125,7 @@ namespace RimSynapse
 
         /// <summary>
         /// Called every game tick on the main thread (only while unpaused).
-        /// Kept as a fallback â€” primary processing now happens in GameComponentUpdate.
+        /// Kept as a fallback — primary processing now happens in GameComponentUpdate.
         /// </summary>
         public override void GameComponentTick()
         {
@@ -141,21 +141,21 @@ namespace RimSynapse
         public override void FinalizeInit()
         {
             base.FinalizeInit();
-            SynapseLog.Debug("core", "Game loaded. Main-thread dispatcher active (frame-based, pause-aware).");
+            SynapseLogger.Message("Game loaded. Main-thread dispatcher active (frame-based, pause-aware).");
         }
 
         public override void StartedNewGame()
         {
             base.StartedNewGame();
             ClearAllQueues();
-            SynapseLog.Debug("core", "Started new game. Queues cleared.");
+            SynapseLogger.Message("Started new game. Queues cleared.");
         }
 
         public override void LoadedGame()
         {
             base.LoadedGame();
             ClearAllQueues();
-            SynapseLog.Debug("core", "Loaded game. Queues cleared.");
+            SynapseLogger.Message("Loaded game. Queues cleared.");
         }
     }
 }

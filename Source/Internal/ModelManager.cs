@@ -106,7 +106,7 @@ namespace RimSynapse.Internal
 
                     if (previousModel != ActiveModel)
                     {
-                        SynapseLog.Info("model",
+                        SynapseLogger.Info("model",
                             $"Active model: \"{ActiveModel}\"" +
                             (ContextLength.HasValue
                                 ? $" (context: {ContextLength.Value} tokens)"
