@@ -41,14 +41,6 @@ namespace RimSynapse
             // immediately — uses system timers, independent of game ticks.
             SynapseCore.Initialize();
 
-            // Defer VRAM check until after all mods finish loading.
-            // During the constructor, the HTTP client may not be ready and
-            // ModelManager hasn't polled LM Studio yet.
-            LongEventHandler.QueueLongEvent(() =>
-            {
-                VramAdvisor.Check();
-            }, null, false, null);
-
             RimSynapse.SynapseLogger.Message("[RimSynapse] Core initialized. Harmony patches applied.");
         }
 

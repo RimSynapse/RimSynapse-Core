@@ -123,15 +123,18 @@ namespace RimSynapse
             }
         }
 
+        private bool _vramChecked = false;
+
         /// <summary>
         /// Called every game tick on the main thread (only while unpaused).
-        /// Kept as a fallback — primary processing now happens in GameComponentUpdate.
         /// </summary>
         public override void GameComponentTick()
         {
-            // No-op: all callback processing moved to GameComponentUpdate
-            // so it works during pause. GameComponentTick is retained for
-            // any future tick-specific logic.
+            if (!_vramChecked)
+            {
+                _vramChecked = true;
+                VramAdvisor.Check();
+            }
         }
 
         /// <summary>

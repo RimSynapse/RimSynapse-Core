@@ -114,21 +114,19 @@ namespace RimSynapse
                 return;
             }
 
-            // If no model found from the live API — always warn.
-            // Don't fall back to settings.selectedModel — that's stale data
-            // from a previous session and would mask the fact that LM Studio is offline.
+            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
+
             if (string.IsNullOrEmpty(modelName))
             {
                 bool isRemote = RimSynapseMod.Instance?.Settings?.IsRemoteUrl ?? false;
-                if (!isRemote)
+                SynapseLogger.Warning("VRAM Advisor (Logging): No LLM model detected. LM Studio may not be running or has no model loaded.");
+                
+                if (!isRemote && showNotify)
                 {
                     ShowNoModelWarning(totalGpuGb);
                 }
-                else
+                else if (isRemote)
                 {
-                    // If remote, suppress the local VRAM/GPU popup entirely as requested.
-                    // Just log it. The user will figure out their remote server is down
-                    // when chat doesn't work, but they shouldn't be bothered with local GPU popups.
                     SynapseLogger.Warning("Remote LM Studio host is unreachable or has no model loaded. Popup suppressed.");
                 }
                 return;
@@ -136,31 +134,7 @@ namespace RimSynapse
             // ── Model found — LM Studio is alive ──
             // Now decide whether to show the VRAM breakdown.
             // If NVIDIA Tool handles VRAM, or user disabled notifications, skip it.
-            if (_nvidiaToolHandlesVram)
-            {
-                SynapseLogger.Info("core",
-                    $"LM Studio model confirmed: \"{modelName}\". " +
-                    "NVIDIA Tool will handle VRAM breakdown.");
-                return;
-            }
-
-            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
-            if (!showNotify)
-            {
-                SynapseLogger.Info("core",
-                    $"LM Studio model confirmed: \"{modelName}\". " +
-                    "VRAM advisory disabled in settings.");
-                return;
-            }
-
             bool isRemoteHost = RimSynapseMod.Instance?.Settings?.IsRemoteUrl ?? false;
-            if (isRemoteHost)
-            {
-                SynapseLogger.Info("core",
-                    $"LM Studio model confirmed: \"{modelName}\". " +
-                    "Remote host detected, skipping local VRAM advisory popup.");
-                return;
-            }
 
             float lmEstimateGb = EstimateModelVramGb(modelName);
 
@@ -174,12 +148,17 @@ namespace RimSynapse
             float estimatedUsedGb = lmEstimateGb + rwEstimateGb + systemEstimateGb;
             float estimatedFreeGb = totalGpuGb - estimatedUsedGb;
 
-            SynapseLogger.Info("core",
-                $"VRAM estimate: {totalGpuGb:F1} GB total, " +
+            SynapseLogger.Warning(
+                $"VRAM Advisor (Logging): {totalGpuGb:F1} GB total, " +
                 $"~{lmEstimateGb:F1} GB model ({modelName ?? "none"}), " +
                 $"~{rwEstimateGb:F1} GB RimWorld, " +
                 $"~{systemEstimateGb:F1} GB system. " +
                 $"Est. free: ~{estimatedFreeGb:F1} GB.");
+
+            if (!showNotify || _nvidiaToolHandlesVram || isRemoteHost)
+            {
+                return;
+            }
 
             ShowAdvisory(totalGpuGb, lmEstimateGb, estimatedFreeGb, modelName);
         }
@@ -206,8 +185,7 @@ namespace RimSynapse
                 "Quickstart guide:\n" +
                 "  https://lmstudio.ai/docs/basics/server\n\n" +
                 $"GPU: {gpuName}  •  VRAM: {totalGpuGb:F0} GB total\n\n" +
-                "This warning always appears when no model is detected.\n" +
-                "It cannot be disabled — RimSynapse requires LM Studio to function.";
+                "You can disable this popup in Mod Settings -> RimSynapse Core.";
 
             SynapseLogger.Warning("No LLM model detected. LM Studio may not be running or has no model loaded.");
 
