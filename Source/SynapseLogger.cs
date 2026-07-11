@@ -67,4 +67,12 @@ namespace RimSynapse
             }
         }
     }
+
+    [Obsolete("Use SynapseLogger instead.")]
+    public static class SynapseLog
+    {
+        public static void Info(string category, string message) => SynapseLogger.Info(message, category);
+        public static void Warn(string category, string message) => SynapseLogger.Warning(message, category);
+        public static void Error(string category, string message) => SynapseLogger.Error(message, category);
+    }
 }
