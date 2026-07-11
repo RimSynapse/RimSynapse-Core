@@ -49,63 +49,94 @@ namespace RimSynapse.UI
             }
         }
 
-        private static Texture2D GenerateIconForPatch()
+        private static Texture2D GenerateIconFromMask(string[] mask)
         {
-            const int size = 24;
+            int size = 24;
             var tex = new Texture2D(size, size, TextureFormat.ARGB32, false);
             tex.filterMode = FilterMode.Point;
-
-            var body = new Color32(220, 220, 220, 255);
-            var cyan = new Color32(0, 255, 255, 255);
-            var clear = new Color32(0, 0, 0, 0);
-
             var pixels = new Color32[size * size];
-            for (int i = 0; i < pixels.Length; i++)
-                pixels[i] = clear;
-
-            // Draw an "AI" icon
-            // Background box
-            for (int y = 4; y <= 20; y++)
-                for (int x = 4; x <= 20; x++)
-                    pixels[y * size + x] = body;
-
-            // Black letters for 'AI'
+            var clear = new Color32(0, 0, 0, 0);
+            var body = new Color32(150, 150, 150, 255);
             var black = new Color32(0, 0, 0, 255);
-            
-            // Draw 'A' (x: 6-11, y: 7-17)
-            // Left leg
-            for(int y=7; y<=17; y++) pixels[y * size + 6] = black;
-            for(int y=7; y<=17; y++) pixels[y * size + 7] = black;
-            // Right leg
-            for(int y=7; y<=17; y++) pixels[y * size + 10] = black;
-            for(int y=7; y<=17; y++) pixels[y * size + 11] = black;
-            // Top bar
-            pixels[16 * size + 8] = black; pixels[16 * size + 9] = black;
-            pixels[17 * size + 8] = black; pixels[17 * size + 9] = black;
-            // Middle bar
-            pixels[12 * size + 8] = black; pixels[12 * size + 9] = black;
-            pixels[11 * size + 8] = black; pixels[11 * size + 9] = black;
 
-            // Draw 'I' (x: 14-17, y: 7-17)
-            // Top bar
-            pixels[16 * size + 14] = black; pixels[16 * size + 15] = black; pixels[16 * size + 16] = black; pixels[16 * size + 17] = black;
-            pixels[17 * size + 14] = black; pixels[17 * size + 15] = black; pixels[17 * size + 16] = black; pixels[17 * size + 17] = black;
-            // Bottom bar
-            pixels[7 * size + 14] = black; pixels[7 * size + 15] = black; pixels[7 * size + 16] = black; pixels[7 * size + 17] = black;
-            pixels[8 * size + 14] = black; pixels[8 * size + 15] = black; pixels[8 * size + 16] = black; pixels[8 * size + 17] = black;
-            // Stem
-            for(int y=9; y<=15; y++) pixels[y * size + 15] = black;
-            for(int y=9; y<=15; y++) pixels[y * size + 16] = black;
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = clear;
 
-            // Cyan AI dot in bottom right
-            pixels[17 * size + 18] = cyan;
-            pixels[17 * size + 19] = cyan;
-            pixels[18 * size + 18] = cyan;
-            pixels[18 * size + 19] = cyan;
+            bool[,] isBody = new bool[size, size];
+            for (int y = 0; y < size; y++)
+            {
+                int texY = size - 1 - y;
+                if (y < mask.Length)
+                {
+                    for (int x = 0; x < size && x < mask[y].Length; x++)
+                    {
+                        if (mask[y][x] != ' ') isBody[x, texY] = true;
+                    }
+                }
+            }
+
+            for (int x = 0; x < size; x++)
+            {
+                for (int y = 0; y < size; y++)
+                {
+                    if (isBody[x, y])
+                    {
+                        pixels[y * size + x] = body;
+                    }
+                    else
+                    {
+                        bool nearBody = false;
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            for (int dy = -1; dy <= 1; dy++)
+                            {
+                                int nx = x + dx;
+                                int ny = y + dy;
+                                if (nx >= 0 && nx < size && ny >= 0 && ny < size)
+                                {
+                                    if (isBody[nx, ny]) nearBody = true;
+                                }
+                            }
+                        }
+                        if (nearBody) pixels[y * size + x] = black;
+                    }
+                }
+            }
 
             tex.SetPixels32(pixels);
             tex.Apply(false, true);
             return tex;
+        }
+
+        private static Texture2D GenerateIconForPatch()
+        {
+            string[] aiMask = new string[]
+            {
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "      xxxx      xxxx    ",
+                "     xxxxxx     xxxx    ",
+                "    xx    xx     xx     ",
+                "    xx    xx     xx     ",
+                "   xx      xx    xx     ",
+                "   xx      xx    xx     ",
+                "   xxxxxxxxxx    xx     ",
+                "   xxxxxxxxxx    xx     ",
+                "   xx      xx    xx     ",
+                "   xx      xx    xx     ",
+                "   xx      xx    xx     ",
+                "   xx      xx   xxxx    ",
+                "   xx      xx   xxxx    ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        "
+            };
+            return GenerateIconFromMask(aiMask);
         }
     }
 }

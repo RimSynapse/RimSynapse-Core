@@ -28,6 +28,8 @@ namespace RimSynapse.Expansions.Royalty
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void AssemblePawnPacket(Pawn pawn, PawnPacket packet, List<ContextAssembler.ContextSlot> slots)
         {
+            if (!RimSynapseMod.Instance.Settings.testRoyaltyActive) return;
+
             if (pawn.royalty != null)
             {
                 var title = pawn.royalty.MostSeniorTitle;

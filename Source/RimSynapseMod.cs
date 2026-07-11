@@ -283,6 +283,14 @@ namespace RimSynapse
                 "Dumps the full JSON context sent to LM Studio into the standard developer console for troubleshooting.");
 
             listing.Gap(12f);
+            listing.Label("DLC Context Testing", tooltip: "Simulate disabling DLCs for LLM context generation while they are physically loaded.");
+            listing.GapLine();
+            if (ModsConfig.IdeologyActive) listing.CheckboxLabeled("Include Ideology Context", ref Settings.testIdeologyActive);
+            if (ModsConfig.RoyaltyActive) listing.CheckboxLabeled("Include Royalty Context", ref Settings.testRoyaltyActive);
+            if (ModsConfig.BiotechActive) listing.CheckboxLabeled("Include Biotech Context", ref Settings.testBiotechActive);
+            if (ModsConfig.AnomalyActive) listing.CheckboxLabeled("Include Anomaly Context", ref Settings.testAnomalyActive);
+
+            listing.Gap(12f);
 
             // ── Opportunistic Tasks ─────────────────────────────────────
             listing.Label("Opportunistic Tasks",

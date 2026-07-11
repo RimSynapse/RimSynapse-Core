@@ -57,6 +57,10 @@ namespace RimSynapse
 
         // --- Logging & Troubleshooting ---
         public bool traceDebugMode = false;
+        public bool testIdeologyActive = true;
+        public bool testRoyaltyActive = true;
+        public bool testBiotechActive = true;
+        public bool testAnomalyActive = true;
 
         // --- Notifications ---
         /// <summary>Show VRAM status on game load (default: true). Disable in settings.</summary>
@@ -98,6 +102,10 @@ namespace RimSynapse
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
             Scribe_Values.Look(ref shortTermMemoryHours, "shortTermMemoryHours", 48f);
             Scribe_Values.Look(ref traceDebugMode, "traceDebugMode", false);
+            Scribe_Values.Look(ref testIdeologyActive, "testIdeologyActive", true);
+            Scribe_Values.Look(ref testRoyaltyActive, "testRoyaltyActive", true);
+            Scribe_Values.Look(ref testBiotechActive, "testBiotechActive", true);
+            Scribe_Values.Look(ref testAnomalyActive, "testAnomalyActive", true);
             Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
             Scribe_Values.Look(ref showQueueMonitorIcon, "showQueueMonitorIcon", true);
 

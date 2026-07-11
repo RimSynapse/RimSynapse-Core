@@ -28,6 +28,8 @@ namespace RimSynapse.Expansions.Ideology
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void AssemblePawnPacket(Pawn pawn, PawnPacket packet, List<ContextAssembler.ContextSlot> slots)
         {
+            if (!RimSynapseMod.Instance.Settings.testIdeologyActive) return;
+
             if (pawn.Ideo != null)
             {
                 packet.ideology = pawn.Ideo.name;
