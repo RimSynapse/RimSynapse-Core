@@ -54,9 +54,19 @@ namespace RimSynapse
             SafeExecute(() => Log.Message($"{Prefix}\n{sb.ToString()}"));
         }
 
+        private static int _mainThreadId = -1;
+
+        /// <summary>
+        /// Called by RimSynapseMod constructor on the main thread during game boot.
+        /// </summary>
+        public static void InitMainThread()
+        {
+            _mainThreadId = System.Threading.Thread.CurrentThread.ManagedThreadId;
+        }
+
         private static void SafeExecute(Action action)
         {
-            if (UnityData.IsInMainThread)
+            if (_mainThreadId == -1 || System.Threading.Thread.CurrentThread.ManagedThreadId == _mainThreadId)
             {
                 action();
             }

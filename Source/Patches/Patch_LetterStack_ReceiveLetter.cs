@@ -35,9 +35,11 @@ namespace RimSynapse.Patches
 
             if (!isThreat && !isQuest) return true; // Not something we want to rewrite
 
-            // Attempt to find the Quest Asker
+            bool isNewQuest = isQuest && choiceLet.quest.State == QuestState.NotYetAccepted;
+
+            // Attempt to find the Quest Asker (ONLY for new quest offers)
             Pawn asker = null;
-            if (isQuest && choiceLet.quest.QuestLookTargets != null)
+            if (isNewQuest && choiceLet.quest.QuestLookTargets != null)
             {
                 asker = choiceLet.quest.QuestLookTargets
                     .Select(t => t.Thing as Pawn)
@@ -53,7 +55,7 @@ namespace RimSynapse.Patches
 
             // Ask the LLM to rewrite it
             string systemPrompt = @"You are Aura, the AI Storyteller in RimWorld.
-A new event or quest has occurred. Rewrite the notification letter to fit your sassy, dramatic, or menacing persona.
+A new event or threat has occurred. Rewrite the notification letter to fit your sassy, dramatic, or menacing persona.
 Use the provided vanilla text as the baseline. Maintain all critical gameplay information (who, what, where, rewards, threats).
 Do NOT use bracket tags like [Asker_nameFull]. Just use the resolved names provided in the vanilla text.
 
@@ -63,11 +65,9 @@ You MUST respond strictly in valid JSON:
   ""Description"": ""Your rewritten multi-paragraph description. Mention the consequences.""
 }";
 
-            if (asker != null)
+            if (asker != null && isNewQuest)
             {
                 string factionName = asker.Faction?.Name ?? "an unknown faction";
-                // Wait, StoryTellerRoyaltyIntegration doesn't exist anymore, or maybe it's in Core? 
-                // Let's just use title if available, else omit. We can check for RoyalTitle if Biotech/Royalty is active.
                 string title = "representative";
                 if (asker.royalty != null && asker.royalty.MainTitle() != null)
                 {
@@ -108,8 +108,8 @@ You MUST respond strictly in valid JSON:
                                     let.Label = parsed["Title"];
                                     choiceLet.Text = parsed["Description"];
 
-                                    // If this is tied to a quest, overwrite the quest log too!
-                                    if (choiceLet.quest != null)
+                                    // ONLY overwrite the quest log if this is the initial quest offer!
+                                    if (isNewQuest && choiceLet.quest != null)
                                     {
                                         choiceLet.quest.name = parsed["Title"];
                                         choiceLet.quest.description = parsed["Description"];
@@ -124,7 +124,7 @@ You MUST respond strictly in valid JSON:
                     }
 
                     // Push the letter to the UI on the main thread
-                    Verse.LongEventHandler.ExecuteWhenFinished(() =>
+                    RimSynapse.SynapseGameComponent.Enqueue(() =>
                     {
                         __instance.ReceiveLetter(let, debugInfo, delayTicks, playSound);
                     });

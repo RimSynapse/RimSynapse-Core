@@ -35,6 +35,8 @@ namespace RimSynapse
             Instance = this;
             Settings = GetSettings<RimSynapseSettings>();
 
+            RimSynapse.SynapseLogger.InitMainThread();
+
             // Apply Harmony patches
             var harmony = new Harmony(HarmonyId);
             harmony.PatchAll();

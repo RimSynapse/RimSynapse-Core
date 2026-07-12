@@ -232,6 +232,16 @@ namespace RimSynapse.Internal
 
                 lock (_queueLock)
                 {
+                    // Prune history
+                    for (int i = _history.Count - 1; i >= 0; i--)
+                    {
+                        var req = _history[i];
+                        if (req.CompletedAt.HasValue && (now - req.CompletedAt.Value).TotalSeconds > HistoryRetentionSeconds)
+                        {
+                            _history.RemoveAt(i);
+                        }
+                    }
+
                     if (_queue.Count == 0)
                     {
                         // Queue is empty, attempt opportunistic background work
@@ -243,16 +253,6 @@ namespace RimSynapse.Internal
                     }
 
                     int maxPerWindow = settings?.maxRequestsPerMinute ?? 30;
-
-                    // Prune history
-                    for (int i = _history.Count - 1; i >= 0; i--)
-                    {
-                        var req = _history[i];
-                        if (req.CompletedAt.HasValue && (now - req.CompletedAt.Value).TotalSeconds > HistoryRetentionSeconds)
-                        {
-                            _history.RemoveAt(i);
-                        }
-                    }
 
                     // Evaluate queue: Drop stale requests and calculate dynamic scores
                     for (int i = _queue.Count - 1; i >= 0; i--)
