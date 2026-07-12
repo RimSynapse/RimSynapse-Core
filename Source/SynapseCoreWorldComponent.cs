@@ -202,5 +202,55 @@ namespace RimSynapse
             }
             return 1.0f;
         }
+
+        public float CalculateDynamicThreatPoints(IIncidentTarget target, float vanillaPoints)
+        {
+            Map map = target as Map;
+            if (map == null) return vanillaPoints * TensionModifier;
+
+            float combatCompetence = 0f;
+            int freeColonists = 0;
+
+            foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+            {
+                if (pawn.Downed || pawn.Dead) continue;
+                
+                freeColonists++;
+                
+                // Add points for combat skills
+                combatCompetence += (pawn.skills?.GetSkill(RimWorld.SkillDefOf.Shooting)?.Level ?? 0) * 5f;
+                combatCompetence += (pawn.skills?.GetSkill(RimWorld.SkillDefOf.Melee)?.Level ?? 0) * 5f;
+
+                // Add points for equipped weapons
+                if (pawn.equipment?.Primary != null)
+                {
+                    combatCompetence += pawn.equipment.Primary.MarketValue / 10f;
+                }
+                
+                // Add points for apparel (armor)
+                if (pawn.apparel != null)
+                {
+                    foreach (var app in pawn.apparel.WornApparel)
+                    {
+                        combatCompetence += app.MarketValue / 20f;
+                    }
+                }
+            }
+
+            // Also factor in installed security structures (turrets)
+            float securityPower = 0f;
+            foreach (Thing t in map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingArtificial))
+            {
+                if (t.def.building != null && t.def.building.IsTurret)
+                {
+                    securityPower += t.MarketValue / 5f;
+                }
+            }
+
+            float baseColonistPoints = freeColonists * 35f;
+            float actualThreat = (baseColonistPoints + combatCompetence + securityPower) * TensionModifier;
+
+            return UnityEngine.Mathf.Clamp(actualThreat, 35f, 10000f);
+        }
     }
 }
