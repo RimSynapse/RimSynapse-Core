@@ -16,6 +16,14 @@ namespace RimSynapse
         private Queue<PastEvent> _backlogQueue = new Queue<PastEvent>();
         private int lastPurgeTick = -1;
 
+        // Storyteller properties
+        public Dictionary<string, float> categoryMultipliers = new Dictionary<string, float>();
+        public Dictionary<string, float> incidentMultipliers = new Dictionary<string, float>();
+        public float GlobalPacingMultiplier = 1.0f;
+        public float BasePacingMultiplier = 1.0f;
+        public float TensionModifier = 1.0f;
+        public int lastInvestigationHour = -1;
+
         public SynapseCoreWorldComponent(World world) : base(world)
         {
         }
@@ -29,6 +37,14 @@ namespace RimSynapse
             Scribe_Collections.Look(ref shortTermEvents, "shortTermEvents", LookMode.Deep);
             Scribe_Collections.Look(ref backlogQueueList, "backlogQueueList", LookMode.Deep);
 
+            // Storyteller properties
+            Scribe_Collections.Look(ref categoryMultipliers, "categoryMultipliers", LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref incidentMultipliers, "incidentMultipliers", LookMode.Value, LookMode.Value);
+            Scribe_Values.Look(ref GlobalPacingMultiplier, "globalPacingMultiplier", 1.0f);
+            Scribe_Values.Look(ref BasePacingMultiplier, "basePacingMultiplier", 1.0f);
+            Scribe_Values.Look(ref TensionModifier, "tensionModifier", 1.0f);
+            Scribe_Values.Look(ref lastInvestigationHour, "lastInvestigationHour", -1);
+
             if (Scribe.mode == LoadSaveMode.Saving)
             {
                 backlogQueueList.Clear();
@@ -41,6 +57,9 @@ namespace RimSynapse
                 if (factionTrackers == null) factionTrackers = new List<FactionRelationshipTracker>();
                 if (shortTermEvents == null) shortTermEvents = new List<ShortTermEvent>();
                 if (backlogQueueList == null) backlogQueueList = new List<PastEvent>();
+                
+                if (categoryMultipliers == null) categoryMultipliers = new Dictionary<string, float>();
+                if (incidentMultipliers == null) incidentMultipliers = new Dictionary<string, float>();
                 
                 _backlogQueue.Clear();
                 foreach (var pastEvent in backlogQueueList)
@@ -164,6 +183,24 @@ namespace RimSynapse
         public IEnumerable<PastEvent> GetRecentEvents(int count)
         {
             return System.Linq.Enumerable.Skip(_backlogQueue, System.Math.Max(0, _backlogQueue.Count - count));
+        }
+
+        public float GetCategoryMultiplier(string categoryDefName)
+        {
+            if (categoryMultipliers.TryGetValue(categoryDefName, out float mult))
+            {
+                return mult;
+            }
+            return 1.0f;
+        }
+
+        public float GetIncidentMultiplier(string incidentDefName)
+        {
+            if (incidentMultipliers.TryGetValue(incidentDefName, out float mult))
+            {
+                return mult;
+            }
+            return 1.0f;
         }
     }
 }

@@ -28,6 +28,8 @@ namespace RimSynapse
         // Scrollable content
         private static Vector2 _scrollPosition;
 
+        public static SynapseModHandle ModHandle { get; private set; }
+
         public RimSynapseMod(ModContentPack content) : base(content)
         {
             Instance = this;
@@ -36,6 +38,14 @@ namespace RimSynapse
             // Apply Harmony patches
             var harmony = new Harmony(HarmonyId);
             harmony.PatchAll();
+
+            LongEventHandler.ExecuteWhenFinished(() =>
+            {
+                ModHandle = SynapseCore.Register(
+                    "rimsynapse.core",
+                    "RimSynapse Core"
+                );
+            });
 
             // Start background services (keep-alive, model discovery, HttpClient, SessionLogger)
             // immediately — uses system timers, independent of game ticks.
