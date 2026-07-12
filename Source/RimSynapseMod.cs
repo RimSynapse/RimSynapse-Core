@@ -22,6 +22,7 @@ namespace RimSynapse
 
         // Scrollable content
         private static Vector2 _scrollPosition;
+        private static float _viewHeight = 1500f;
 
         public static SynapseModHandle ModHandle { get; private set; }
 
@@ -82,80 +83,27 @@ namespace RimSynapse
         public override void DoSettingsWindowContents(Rect inRect)
         {
             // Scrollable container for all settings
-            var viewRect = new Rect(0, 0, inRect.width - 20f, 1200f);
+            var viewRect = new Rect(0, 0, inRect.width - 20f, _viewHeight);
             Widgets.BeginScrollView(inRect, ref _scrollPosition, viewRect);
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            // ── Connection Settings ──────────────────────────────────
-            listing.Label("Connection Settings", tooltip: "Configure your local and cloud LLM providers.");
-            listing.GapLine();
+            // ── Main UI Navigation ──────────────────────────────────
+            var prevColor = GUI.color;
+            GUI.color = new Color(0.9f, 0.45f, 0.15f); // Orange
 
-            if (listing.ButtonText("Open Query Routing Window"))
+            if (listing.ButtonText("Customize LLM Providers"))
+            {
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_ProviderSettings());
+            }
+            listing.Gap(4f);
+            if (listing.ButtonText("Map Context to Models"))
             {
                 Find.WindowStack.Add(new RimSynapse.UI.Dialog_QueryRouting());
             }
-            listing.Gap(6f);
 
-            // Local
-            listing.Label("Local LM Studio");
-            Settings.lmStudioUrl = listing.TextEntryLabeled("  URL:  ", Settings.lmStudioUrl);
-            Settings.lmStudioApiKey = listing.TextEntryLabeled("  Key:  ", Settings.lmStudioApiKey);
-            DrawCapabilitiesRow(listing, ref Settings.capsLocal);
-            listing.Gap(4f);
-
-            // OpenAI
-            listing.Label("OpenAI");
-            Settings.openAiUrl = listing.TextEntryLabeled("  URL:  ", Settings.openAiUrl);
-            Settings.openAiApiKey = listing.TextEntryLabeled("  Key:  ", Settings.openAiApiKey);
-            DrawCapabilitiesRow(listing, ref Settings.capsOpenAi);
-            listing.Gap(4f);
-
-            // Gemini
-            listing.Label("Google Gemini");
-            Settings.geminiUrl = listing.TextEntryLabeled("  URL:  ", Settings.geminiUrl);
-            Settings.geminiApiKey = listing.TextEntryLabeled("  Key:  ", Settings.geminiApiKey);
-            DrawCapabilitiesRow(listing, ref Settings.capsGemini);
-            listing.Gap(4f);
-
-            // Claude
-            listing.Label("Anthropic Claude");
-            Settings.claudeUrl = listing.TextEntryLabeled("  URL:  ", Settings.claudeUrl);
-            Settings.claudeApiKey = listing.TextEntryLabeled("  Key:  ", Settings.claudeApiKey);
-            DrawCapabilitiesRow(listing, ref Settings.capsClaude);
-            listing.Gap(4f);
-
-            // Custom
-            listing.Label("Custom / Proxy");
-            Settings.customUrl = listing.TextEntryLabeled("  URL:  ", Settings.customUrl);
-            Settings.customApiKey = listing.TextEntryLabeled("  Key:  ", Settings.customApiKey);
-            DrawCapabilitiesRow(listing, ref Settings.capsCustom);
-            listing.Gap(6f);
-
-            // Default Provider for testing
-            string currentProviderName = Settings.apiProvider.ToString().Replace("_", " ");
-            listing.Label($"Default Provider: {currentProviderName}", tooltip: "This provider is used as a fallback for unrouted queries and for testing below.");
-            if (listing.ButtonText("Change Default Provider"))
-            {
-                var list = new System.Collections.Generic.List<FloatMenuOption>();
-                foreach (ApiProvider provider in System.Enum.GetValues(typeof(ApiProvider)))
-                {
-                    ApiProvider localProvider = provider; // capture
-                    string label = localProvider.ToString().Replace("_", " ");
-                    list.Add(new FloatMenuOption(label, () =>
-                    {
-                        Settings.apiProvider = localProvider;
-                    }));
-                }
-                Find.WindowStack.Add(new FloatMenu(list));
-            }
-
-            listing.Gap(6f);
-
-            if (listing.ButtonText("Open Prompt Bench"))
-            {
-                Find.WindowStack.Add(new RimSynapse.UI.Dialog_PromptBench());
-            }
+            GUI.color = prevColor;
+            listing.Gap(12f);
 
 
             // ── Context Embedding ───────────────────────────────────
@@ -335,9 +283,16 @@ namespace RimSynapse
                 "Shows the AI queue monitor icon in the bottom right play settings toolbar.");
 
             listing.End();
+            _viewHeight = listing.CurHeight;
             Widgets.EndScrollView();
         }
 
     }
 }
+
+
+
+
+
+
 

@@ -251,6 +251,19 @@ namespace RimSynapse
                     }
                     queryRouting.Clear();
                 }
+
+                // Migrate old custom settings into the new CustomProviders list
+                if (customProviders.Count == 0 && !string.IsNullOrEmpty(customUrl))
+                {
+                    customProviders.Add(new CustomProviderSettings
+                    {
+                        id = "0",
+                        name = "Legacy Custom/Proxy",
+                        url = customUrl,
+                        apiKey = customApiKey,
+                        caps = capsCustom
+                    });
+                }
             }
 
             Scribe_Values.Look(ref qmShowTask, "qmShowTask", true);

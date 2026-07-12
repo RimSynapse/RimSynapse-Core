@@ -564,7 +564,7 @@ namespace RimSynapse.Internal
                             }
                             models.Sort();
                         }
-                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(true, models, "Success"));
+                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, models, "Success"));
                     }
                     else
                     {
@@ -585,13 +585,13 @@ namespace RimSynapse.Internal
                             shortError = "Credits Needed!";
                         }
                         
-                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, null, shortError));
+                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, null, shortError));
                     }
                 }
                 catch (Exception ex)
                 {
                     string error = ex.InnerException?.Message ?? ex.Message;
-                    Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, null, error));
+                    RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, null, error));
                 }
             });
         }
@@ -676,11 +676,11 @@ namespace RimSynapse.Internal
                     var response = _client.SendAsync(request, cts.Token).Result;
                     string resBody = response.Content.ReadAsStringAsync().Result;
 
-                    Verse.LongEventHandler.ExecuteWhenFinished(() => Verse.Log.Message($"[API TEST] Endpoint: {endpoint}\nRequest Body: {body.ToString(Newtonsoft.Json.Formatting.Indented)}\nResponse: {(int)response.StatusCode} {response.ReasonPhrase}\n{resBody}"));
+                    RimSynapse.SynapseGameComponent.Enqueue(() => Verse.Log.Message($"[API TEST] Endpoint: {endpoint}\nRequest Body: {body.ToString(Newtonsoft.Json.Formatting.Indented)}\nResponse: {(int)response.StatusCode} {response.ReasonPhrase}\n{resBody}"));
 
                     if (response.IsSuccessStatusCode)
                     {
-                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(true, "Success!"));
+                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, "Success!"));
                     }
                     else
                     {
@@ -697,13 +697,13 @@ namespace RimSynapse.Internal
                         
 
 
-                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, shortError));
+                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, shortError));
                     }
                 }
                 catch (Exception ex)
                 {
                     string error = ex.InnerException?.Message ?? ex.Message;
-                    Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, error));
+                    RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, error));
                 }
             });
         }

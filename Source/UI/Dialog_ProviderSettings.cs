@@ -1,469 +1,152 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Verse;
+using RimSynapse.Internal;
 
 namespace RimSynapse.UI
 {
     public class Dialog_ProviderSettings : Window
     {
-        private Vector2 scrollPosition;
-        private Dictionary<string, string> testStatus = new Dictionary<string, string>();
-        private Dictionary<string, Color> testStatusColor = new Dictionary<string, Color>();
-        private Dictionary<string, bool> isTesting = new Dictionary<string, bool>();
+        public override Vector2 InitialSize => new Vector2(700f, 800f);
+
+        private Vector2 scrollPosition = Vector2.zero;
+        private float viewHeight = 1200f;
+        
         private Dictionary<string, bool> isFetchingModels = new Dictionary<string, bool>();
         private Dictionary<string, List<string>> fetchedModels = new Dictionary<string, List<string>>();
         private Dictionary<string, bool> autoOpenMenu = new Dictionary<string, bool>();
 
         public Dialog_ProviderSettings()
         {
-            this.forcePause = true;
-            this.doCloseX = true;
             this.doCloseButton = true;
-            this.closeOnClickedOutside = true;
+            this.forcePause = true;
             this.absorbInputAroundWindow = true;
-        }
-
-        public override Vector2 InitialSize => new Vector2(700f, 800f);
-
-        private void DrawCapabilitiesRow(Listing_Standard listing, ref LlmCapabilities caps, float indent, bool isFrontierModel)
-        {
-            Rect rect = listing.GetRect(24f);
-            rect.xMin += indent;
-            
-            bool hasText = (caps & LlmCapabilities.Text) == LlmCapabilities.Text;
-            bool hasImage = (caps & LlmCapabilities.Image) == LlmCapabilities.Image;
-            bool hasVision = (caps & LlmCapabilities.Vision) == LlmCapabilities.Vision;
-            bool hasAudio = (caps & LlmCapabilities.Audio) == LlmCapabilities.Audio;
-
-            float curX = rect.x;
-            float spacing = 20f;
-            
-            Vector2 capSz = Text.CalcSize("Capabilities:");
-            Widgets.Label(new Rect(curX, rect.y, capSz.x, rect.height), "Capabilities:");
-            curX += capSz.x + 10f;
-            
-            bool previousEnabled = GUI.enabled;
-            if (isFrontierModel)
-            {
-                GUI.enabled = false;
-            }
-            
-            // Text
-            Vector2 textSz = Text.CalcSize("Text");
-            Widgets.Label(new Rect(curX, rect.y, textSz.x, rect.height), "Text");
-            Widgets.Checkbox(new Vector2(curX + textSz.x + 4f, rect.y), ref hasText);
-            curX += textSz.x + 28f + spacing;
-
-            // Image
-            Vector2 imgSz = Text.CalcSize("Image");
-            Widgets.Label(new Rect(curX, rect.y, imgSz.x, rect.height), "Image");
-            Widgets.Checkbox(new Vector2(curX + imgSz.x + 4f, rect.y), ref hasImage);
-            curX += imgSz.x + 28f + spacing;
-
-            // Vision
-            Vector2 visSz = Text.CalcSize("Vision");
-            Widgets.Label(new Rect(curX, rect.y, visSz.x, rect.height), "Vision");
-            Widgets.Checkbox(new Vector2(curX + visSz.x + 4f, rect.y), ref hasVision);
-            curX += visSz.x + 28f + spacing;
-
-            // Audio
-            Vector2 audSz = Text.CalcSize("Audio");
-            Widgets.Label(new Rect(curX, rect.y, audSz.x, rect.height), "Audio");
-            Widgets.Checkbox(new Vector2(curX + audSz.x + 4f, rect.y), ref hasAudio);
-            
-            GUI.enabled = previousEnabled;
-
-            if (!isFrontierModel)
-            {
-                caps = LlmCapabilities.None;
-                if (hasText) caps |= LlmCapabilities.Text;
-                if (hasImage) caps |= LlmCapabilities.Image;
-                if (hasVision) caps |= LlmCapabilities.Vision;
-                if (hasAudio) caps |= LlmCapabilities.Audio;
-            }
-        }
-
-        private void DrawProviderSection(Listing_Standard listing, string providerName, ApiProvider? providerEnum, ref string url, ref string key, ref string model, ref LlmCapabilities caps, bool isFrontierModel)
-        {
-            Text.Font = GameFont.Medium;
-            Rect headerRect = listing.GetRect(30f);
-            Widgets.Label(headerRect, providerName);
-            Text.Font = GameFont.Small;
-
-            if (providerEnum.HasValue)
-            {
-                var settings = RimSynapseMod.Instance.Settings;
-                int p = 0, c = 0;
-                switch(providerEnum.Value) {
-                    case ApiProvider.Local_LMStudio: p = settings.tokensPromptLocal; c = settings.tokensCompletionLocal; break;
-                    case ApiProvider.OpenAI: p = settings.tokensPromptOpenAi; c = settings.tokensCompletionOpenAi; break;
-                    case ApiProvider.Google_Gemini: p = settings.tokensPromptGemini; c = settings.tokensCompletionGemini; break;
-                    case ApiProvider.Anthropic_Claude: p = settings.tokensPromptClaude; c = settings.tokensCompletionClaude; break;
-                    case ApiProvider.Custom: p = settings.tokensPromptCustom; c = settings.tokensCompletionCustom; break;
-                }
-                if (p > 0 || c > 0)
-                {
-                    string usageText = $"Usage: {p} prompt / {c} completion tokens";
-                    Text.Anchor = TextAnchor.MiddleRight;
-                    UnityEngine.Color oldColor = UnityEngine.GUI.color;
-                    UnityEngine.GUI.color = UnityEngine.Color.gray;
-                    Widgets.Label(headerRect, usageText);
-                    UnityEngine.GUI.color = oldColor;
-                    Text.Anchor = TextAnchor.UpperLeft;
-                }
-            }
-            
-            float indent = 20f;
-            float labelWidth = 70f;
-            
-            bool previousEnabled = GUI.enabled;
-            
-            // Endpoint
-            Rect urlRect = listing.GetRect(24f);
-            urlRect.xMin += indent;
-            Widgets.Label(new Rect(urlRect.x, urlRect.y, labelWidth, urlRect.height), "Endpoint:");
-            
-            if (isFrontierModel) GUI.enabled = false;
-            url = Widgets.TextField(new Rect(urlRect.x + labelWidth, urlRect.y, urlRect.width - labelWidth, urlRect.height), url);
-            GUI.enabled = previousEnabled;
-            
-            listing.Gap(4f);
-            
-            if (providerName != "Pollinations.ai")
-            {
-                Rect modelRect = listing.GetRect(24f);
-                modelRect.xMin += indent;
-                Widgets.Label(new Rect(modelRect.x, modelRect.y, labelWidth, modelRect.height), "Model:");
-                
-                float revertBtnWidth = 60f;
-                float fetchBtnWidth = 24f;
-                Rect fetchBtnRect = new Rect(modelRect.x + labelWidth, modelRect.y, fetchBtnWidth, modelRect.height);
-                Rect modelFieldRect = new Rect(fetchBtnRect.xMax + 4f, modelRect.y, modelRect.width - labelWidth - fetchBtnWidth - revertBtnWidth - 8f, modelRect.height);
-                Rect revertBtnRect = new Rect(modelRect.xMax - revertBtnWidth, modelRect.y, revertBtnWidth, modelRect.height);
-                
-                bool isFetching = isFetchingModels.ContainsKey(providerName) && isFetchingModels[providerName];
-                bool hasFetched = fetchedModels.ContainsKey(providerName) && fetchedModels[providerName] != null;
-
-                if (autoOpenMenu.ContainsKey(providerName) && autoOpenMenu[providerName] && hasFetched)
-                {
-                    autoOpenMenu[providerName] = false;
-                    var list = new List<FloatMenuOption>();
-                    foreach (var m in fetchedModels[providerName])
-                    {
-                        string localM = m;
-                        string pName = providerName;
-                        list.Add(new FloatMenuOption(localM, () => {
-                            var settings = RimSynapseMod.Instance.Settings;
-                            if (pName == "OpenAI") settings.modelOpenAi = localM;
-                            else if (pName == "Google Gemini") settings.modelGemini = localM;
-                            else if (pName == "Anthropic Claude") settings.modelClaude = localM;
-                            else if (pName == "Local LM Studio") settings.modelLocal = localM;
-                            else if (pName == "Custom / Proxy") settings.modelCustom = localM;
-                        }));
-                    }
-                    Find.WindowStack.Add(new FloatMenu(list));
-                }
-
-                if (isFetching)
-                {
-                    bool previousEnabledFetch = GUI.enabled;
-                    GUI.enabled = false;
-                    Widgets.ButtonText(fetchBtnRect, "...");
-                    GUI.enabled = previousEnabledFetch;
-                }
-                else
-                {
-                    if (Widgets.ButtonText(fetchBtnRect, "▼"))
-                    {
-                        if (hasFetched)
-                        {
-                            autoOpenMenu[providerName] = true;
-                        }
-                        else
-                        {
-                            isFetchingModels[providerName] = true;
-                            string fetchUrl = url;
-                            string fetchKey = key;
-                            string pName = providerName;
-                            if (providerEnum.HasValue)
-                            {
-                                RimSynapse.Internal.HttpEngine.FetchProviderModelsAsync(providerEnum.Value, fetchUrl, fetchKey, (ok, modelsList, msg) =>
-                                {
-                                    isFetchingModels[pName] = false;
-                                    if (ok)
-                                    {
-                                        fetchedModels[pName] = modelsList;
-                                        autoOpenMenu[pName] = true;
-                                    }
-                                    else
-                                    {
-                                        // On failure, flash error on the Test button or log it
-                                        Verse.Log.Error($"[RimSynapse] Failed to fetch models for {pName}: {msg}");
-                                    }
-                                });
-                            }
-                        }
-                    }
-                }
-                
-                model = Widgets.TextField(modelFieldRect, model);
-                
-                if (Widgets.ButtonText(revertBtnRect, "Revert"))
-                {
-                    if (providerName == "OpenAI") model = "gpt-5-chat-latest";
-                    else if (providerName == "Google Gemini") model = "gemini-flash-lite-latest";
-                    else if (providerName == "Anthropic Claude") model = "claude-opus-4-6";
-                    else if (providerName == "Local LM Studio") model = RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model";
-                    else if (providerName == "Custom / Proxy") model = "";
-                }
-                
-                listing.Gap(4f);
-            }
-            
-            // Key
-            Rect keyRect = listing.GetRect(24f);
-            keyRect.xMin += indent;
-            Widgets.Label(new Rect(keyRect.x, keyRect.y, labelWidth, keyRect.height), "Key:");
-            
-            Rect keyTextFieldRect = new Rect(keyRect.x + labelWidth, keyRect.y, keyRect.width - labelWidth, keyRect.height);
-            if (string.IsNullOrEmpty(key) && GUIUtility.keyboardControl != GUIUtility.GetControlID(FocusType.Keyboard) - 1)
-            {
-                Color oldColor = GUI.color;
-                GUI.color = Color.grey;
-                Widgets.Label(new Rect(keyTextFieldRect.x + 4f, keyTextFieldRect.y + 2f, keyTextFieldRect.width, keyTextFieldRect.height), "(enter api key here)");
-                GUI.color = oldColor;
-            }
-
-            // Test Button
-            if (providerEnum.HasValue || providerName == "Pollinations.ai")
-            {
-                float testBtnWidth = 60f;
-                Rect testBtnRect = new Rect(keyRect.xMax - testBtnWidth, keyRect.y, testBtnWidth, keyRect.height);
-                
-                // Adjust text field width so it doesn't overlap the test button and its status text
-                float maxStatusTextWidth = 150f;
-                keyTextFieldRect.width -= (testBtnWidth + maxStatusTextWidth + 10f);
-                key = Widgets.TextField(keyTextFieldRect, key);
-                
-                // Draw "(enter api key here)" again if empty because we changed keyTextFieldRect.width
-                if (string.IsNullOrEmpty(key) && GUIUtility.keyboardControl != GUIUtility.GetControlID(FocusType.Keyboard) - 1)
-                {
-                    Color oldColor = GUI.color;
-                    GUI.color = Color.grey;
-                    Widgets.Label(new Rect(keyTextFieldRect.x + 4f, keyTextFieldRect.y + 2f, keyTextFieldRect.width, keyTextFieldRect.height), "(enter api key here)");
-                    GUI.color = oldColor;
-                }
-
-                bool testing = isTesting.ContainsKey(providerName) && isTesting[providerName];
-                
-                if (testing)
-                {
-                    GUI.enabled = false;
-                    Widgets.ButtonText(testBtnRect, "Testing...");
-                    GUI.enabled = previousEnabled;
-                }
-                else
-                {
-                    if (Widgets.ButtonText(testBtnRect, "Test"))
-                    {
-                        isTesting[providerName] = true;
-                        testStatus[providerName] = "Testing connection...";
-                        testStatusColor[providerName] = Color.yellow;
-                        
-                        string testUrl = url;
-                        string testKey = key;
-                        string testModel = model;
-                        string pName = providerName; // capture for closure
-                        
-                        if (providerEnum.HasValue)
-                        {
-                            RimSynapse.Internal.HttpEngine.TestConnectionAsync(providerEnum.Value, testUrl, testKey, testModel, (success, msg) =>
-                            {
-                                isTesting[pName] = false;
-                                testStatus[pName] = success ? "Success!" : $"Failed: {msg}";
-                                testStatusColor[pName] = success ? Color.green : Color.red;
-                            });
-                        }
-                        else if (pName == "Pollinations.ai")
-                        {
-                            System.Threading.Tasks.Task.Run(() => {
-                                try {
-                                    using (var client = new System.Net.Http.HttpClient())
-                                    {
-                                        client.Timeout = System.TimeSpan.FromSeconds(10);
-                                        var request = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Head, testUrl.TrimEnd('/') + "/test");
-                                        var response = client.SendAsync(request).Result;
-                                        bool ok = response.IsSuccessStatusCode;
-                                        string msg = ok ? "Success!" : $"Failed: {(int)response.StatusCode} {response.ReasonPhrase}";
-                                        Verse.LongEventHandler.ExecuteWhenFinished(() => {
-                                            isTesting[pName] = false;
-                                            testStatus[pName] = msg;
-                                            testStatusColor[pName] = ok ? Color.green : Color.red;
-                                        });
-                                    }
-                                } catch (System.Exception ex) {
-                                    string err = ex.InnerException?.Message ?? ex.Message;
-                                    Verse.LongEventHandler.ExecuteWhenFinished(() => {
-                                        isTesting[pName] = false;
-                                        testStatus[pName] = $"Failed: {err}";
-                                        testStatusColor[pName] = Color.red;
-                                    });
-                                }
-                            });
-                        }
-                    }
-                }
-                
-                if (testStatus.TryGetValue(providerName, out string statusMsg))
-                {
-                    Rect statusRect = new Rect(keyTextFieldRect.xMax + 10f, keyRect.y, maxStatusTextWidth, keyRect.height);
-                    Color oldColor = GUI.color;
-                    GUI.color = testStatusColor.ContainsKey(providerName) ? testStatusColor[providerName] : Color.white;
-                    Widgets.Label(statusRect, statusMsg.Truncate(maxStatusTextWidth));
-                    TooltipHandler.TipRegion(statusRect, statusMsg);
-                    GUI.color = oldColor;
-                }
-            }
-            else
-            {
-                key = Widgets.TextField(keyTextFieldRect, key);
-                if (string.IsNullOrEmpty(key) && GUIUtility.keyboardControl != GUIUtility.GetControlID(FocusType.Keyboard) - 1)
-                {
-                    Color oldColor = GUI.color;
-                    GUI.color = Color.grey;
-                    Widgets.Label(new Rect(keyTextFieldRect.x + 4f, keyTextFieldRect.y + 2f, keyTextFieldRect.width, keyTextFieldRect.height), "(enter api key here)");
-                    GUI.color = oldColor;
-                }
-            }
-            
-            listing.Gap(4f);
-            
-            // Capabilities
-            DrawCapabilitiesRow(listing, ref caps, indent, isFrontierModel);
-            
-            listing.Gap(12f);
-            listing.GapLine();
-            listing.Gap(12f);
+            this.closeOnClickedOutside = false;
         }
 
         public override void DoWindowContents(Rect inRect)
         {
+            try
+            {
+                DoWindowContentsInner(inRect);
+            }
+            catch (Exception ex)
+            {
+                Verse.Log.Error($"[RimSynapse] Exception in DoWindowContents: {ex}");
+            }
+        }
+
+        private float CalculateViewHeight(Rect outRect)
+        {
             var settings = RimSynapseMod.Instance.Settings;
+            float h = 0f;
+            // 4 default standard providers (Local, OpenAI, Gemini, Claude)
+            h += 174f * 4;
+            // Pollinations (no model field)
+            h += 146f;
+            // Custom providers
+            if (settings.customProviders != null)
+            {
+                h += 174f * settings.customProviders.Count;
+            }
+            // Add Custom Provider button
+            h += 30f;
+            // Extra padding
+            h += 40f;
+            return UnityEngine.Mathf.Max(h, outRect.height);
+        }
+
+        private void DoWindowContentsInner(Rect inRect)
+        {
+            var settings = RimSynapseMod.Instance.Settings;
+            
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0, 0, inRect.width, 35f), "LLM Provider Settings");
+            Widgets.Label(new Rect(0, 0, inRect.width, 35f), "Customize LLM Providers");
             Text.Font = GameFont.Small;
             
-            Rect instructionRect = new Rect(0, 40f, inRect.width, 24f);
-            if (Widgets.ButtonText(instructionRect, "For detailed setup instructions and how to obtain API keys, visit the RimSynapse Wiki.", drawBackground: false, doMouseoverSound: true, active: true))
-            {
-                Application.OpenURL("https://github.com/RimSynapse/RimSynapse-Wiki/cloud-llms");
-            }
-            Color oldCol = GUI.color;
-            GUI.color = new Color(0.3f, 0.7f, 1f); // Make it look like a link
-            Widgets.Label(instructionRect, "For detailed setup instructions and how to obtain API keys, visit the RimSynapse Wiki.");
-            GUI.color = oldCol;
-
-            var outRect = new Rect(0, 70f, inRect.width, inRect.height - 120f);
+            Rect helpRect = new Rect(0, 35f, inRect.width, 24f);
+            Widgets.Label(helpRect, "Configure endpoints, API keys, and models for text generation.");
             
-            var viewRect = new Rect(0, 0, inRect.width - 16f, 1200f);
+            var outRect = new Rect(0, 70f, inRect.width, inRect.height - 120f);
+            viewHeight = CalculateViewHeight(outRect);
+            var viewRect = new Rect(0, 0, inRect.width - 16f, viewHeight);
 
             Widgets.BeginScrollView(outRect, ref scrollPosition, viewRect);
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            DrawProviderSection(listing, "Local LM Studio", ApiProvider.Local_LMStudio, ref settings.lmStudioUrl, ref settings.lmStudioApiKey, ref settings.modelLocal, ref settings.capsLocal, false);
-            DrawProviderSection(listing, "OpenAI", ApiProvider.OpenAI, ref settings.openAiUrl, ref settings.openAiApiKey, ref settings.modelOpenAi, ref settings.capsOpenAi, true);
-            DrawProviderSection(listing, "Google Gemini", ApiProvider.Google_Gemini, ref settings.geminiUrl, ref settings.geminiApiKey, ref settings.modelGemini, ref settings.capsGemini, true);
-            DrawProviderSection(listing, "Anthropic Claude", ApiProvider.Anthropic_Claude, ref settings.claudeUrl, ref settings.claudeApiKey, ref settings.modelClaude, ref settings.capsClaude, true);
+            // --- Default Providers ---
+            string nLocal = "Local LM Studio";
+            string nOpenAi = "OpenAI";
+            string nGemini = "Google Gemini";
+            string nClaude = "Anthropic Claude";
+            string nPolli = "Pollinations.ai";
+
+            ProviderUIHelper.DrawProviderSection(listing, ref nLocal, ApiProvider.Local_LMStudio, ref settings.lmStudioUrl, ref settings.lmStudioApiKey, ref settings.modelLocal, ref settings.capsLocal, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
             
-            // Pollinations.ai doesn't use the standard fields, but we pass dummy vars
+            ProviderUIHelper.DrawProviderSection(listing, ref nOpenAi, ApiProvider.OpenAI, ref settings.openAiUrl, ref settings.openAiApiKey, ref settings.modelOpenAi, ref settings.capsOpenAi, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
+            
+            ProviderUIHelper.DrawProviderSection(listing, ref nGemini, ApiProvider.Google_Gemini, ref settings.geminiUrl, ref settings.geminiApiKey, ref settings.modelGemini, ref settings.capsGemini, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
+            
+            ProviderUIHelper.DrawProviderSection(listing, ref nClaude, ApiProvider.Anthropic_Claude, ref settings.claudeUrl, ref settings.claudeApiKey, ref settings.modelClaude, ref settings.capsClaude, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
+            
             string dummyUrl = "https://image.pollinations.ai/prompt";
             string dummyKey = "";
             string dummyModel = "";
             LlmCapabilities dummyCaps = LlmCapabilities.Image;
-            DrawProviderSection(listing, "Pollinations.ai", null, ref dummyUrl, ref dummyKey, ref dummyModel, ref dummyCaps, false);
-
+            ProviderUIHelper.DrawProviderSection(listing, ref nPolli, null, ref dummyUrl, ref dummyKey, ref dummyModel, ref dummyCaps, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
             listing.Gap(12f);
-            Text.Font = GameFont.Medium;
-            listing.Label("Custom Providers");
-            Text.Font = GameFont.Small;
             listing.GapLine();
+            listing.Gap(12f);
 
-            for (int i = 0; i < settings.customProviders.Count; i++)
+            // --- Custom Providers Loop ---
+            CustomProviderSettings toDelete = null;
+            if (settings.customProviders != null)
             {
-                var custom = settings.customProviders[i];
-                DrawProviderSection(listing, custom.name, ApiProvider.Custom, ref custom.url, ref custom.apiKey, ref custom.model, ref custom.caps, false);
-                
-                Rect row = listing.GetRect(24f);
-                if (Widgets.ButtonText(new Rect(row.x, row.y, 100f, 24f), "Rename"))
+                for (int i = 0; i < settings.customProviders.Count; i++)
                 {
-                    Find.WindowStack.Add(new Dialog_RenameCustomProvider(custom));
+                    var custom = settings.customProviders[i];
+                    if (custom == null) continue; // Safety check against malformed XML
+
+                    ProviderUIHelper.DrawProviderSection(listing, ref custom.name, ApiProvider.Custom, ref custom.url, ref custom.apiKey, ref custom.model, ref custom.caps, false, () => {
+                        toDelete = custom;
+                    }, isFetchingModels, fetchedModels, autoOpenMenu);
+                    
+                    listing.Gap(12f);
+                    listing.GapLine();
+                    listing.Gap(12f);
                 }
-                if (Widgets.ButtonText(new Rect(row.x + 110f, row.y, 100f, 24f), "Remove"))
+
+                if (toDelete != null)
                 {
-                    settings.customProviders.RemoveAt(i);
-                    i--;
+                    settings.customProviders.Remove(toDelete);
                 }
-                listing.Gap(12f);
             }
 
+            var oldColor2 = GUI.color;
+            GUI.color = new Color(0.9f, 0.45f, 0.15f);
             if (listing.ButtonText("Add Custom Provider"))
             {
+                if (settings.customProviders == null) settings.customProviders = new List<CustomProviderSettings>();
                 settings.customProviders.Add(new CustomProviderSettings());
             }
-
-            listing.Gap(24f);
-
-            // Default Provider for testing
-            string currentProviderName = settings.apiProvider.ToString().Replace("_", " ");
-            listing.Label($"Default Provider: {currentProviderName}", tooltip: "This provider is used as a fallback for unrouted queries and for testing.");
-            if (listing.ButtonText("Change Default Provider"))
-            {
-                var list = new List<FloatMenuOption>();
-                foreach (ApiProvider provider in System.Enum.GetValues(typeof(ApiProvider)))
-                {
-                    ApiProvider localProvider = provider; // capture
-                    string label = localProvider.ToString().Replace("_", " ");
-                    list.Add(new FloatMenuOption(label, () =>
-                    {
-                        settings.apiProvider = localProvider;
-                    }));
-                }
-                Find.WindowStack.Add(new FloatMenu(list));
-            }
+            GUI.color = oldColor2;
 
             listing.End();
             Widgets.EndScrollView();
-        }
-    }
-
-    public class Dialog_RenameCustomProvider : Window
-    {
-        private CustomProviderSettings _provider;
-        private string _newName;
-
-        public Dialog_RenameCustomProvider(CustomProviderSettings provider)
-        {
-            _provider = provider;
-            _newName = provider.name;
-            doCloseX = true;
-            forcePause = true;
-            absorbInputAroundWindow = true;
-            closeOnClickedOutside = true;
-        }
-
-        public override Vector2 InitialSize => new Vector2(300f, 150f);
-
-        public override void DoWindowContents(Rect inRect)
-        {
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(0, 0, inRect.width, 24f), "Rename Custom Provider");
-            _newName = Widgets.TextField(new Rect(0, 30f, inRect.width, 24f), _newName);
-            if (Widgets.ButtonText(new Rect(0, 60f, inRect.width, 24f), "Save"))
-            {
-                _provider.name = _newName;
-                Close();
-            }
         }
     }
 }
