@@ -74,99 +74,152 @@ namespace RimSynapse.Internal
             long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             try
             {
-                ProviderRouting routing = ProviderRouting.LocalOnly;
+                string routingId = RoutingId.LocalOnly;
                 string queryKey = $"{mod?.ModId}:{options?.queryId}";
-                if (mod != null && !string.IsNullOrEmpty(options?.queryId) && settings.queryRouting.TryGetValue(queryKey, out var savedRouting))
+                if (mod != null && !string.IsNullOrEmpty(options?.queryId) && settings.queryRoutingIds.TryGetValue(queryKey, out var savedRouting))
                 {
-                    routing = savedRouting;
+                    routingId = savedRouting;
+                }
+                else
+                {
+                    LlmCapabilities reqCaps = LlmCapabilities.Text;
+                    if (mod != null && !string.IsNullOrEmpty(options?.queryId) && mod.RegisteredQueries.TryGetValue(options.queryId, out var queryDef))
+                    {
+                        reqCaps = queryDef.requiredCaps;
+                    }
+                    
+                    if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) routingId = settings.defaultRoutingImage;
+                    else if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) routingId = settings.defaultRoutingVision;
+                    else if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) routingId = settings.defaultRoutingAudio;
+                    else routingId = settings.defaultRoutingText;
                 }
 
                 string baseUrl = settings.lmStudioUrl;
                 string apiKey = settings.lmStudioApiKey;
                 ApiProvider providerHit = ApiProvider.Local_LMStudio;
 
-                if (routing == ProviderRouting.Specific_OpenAI)
+                if (routingId == RoutingId.OpenAI)
                 {
                     baseUrl = settings.openAiUrl;
                     apiKey = settings.openAiApiKey;
                     providerHit = ApiProvider.OpenAI;
                 }
-                else if (routing == ProviderRouting.Specific_Gemini)
+                else if (routingId == RoutingId.Gemini)
                 {
                     baseUrl = settings.geminiUrl;
                     apiKey = settings.geminiApiKey;
                     providerHit = ApiProvider.Google_Gemini;
                 }
-                else if (routing == ProviderRouting.Specific_Claude)
+                else if (routingId == RoutingId.Claude)
                 {
                     baseUrl = settings.claudeUrl;
                     apiKey = settings.claudeApiKey;
                     providerHit = ApiProvider.Anthropic_Claude;
                 }
-                else if (routing == ProviderRouting.Specific_Custom)
+                else if (routingId != null && routingId.StartsWith(RoutingId.CustomPrefix))
                 {
-                    baseUrl = settings.customUrl;
-                    apiKey = settings.customApiKey;
-                    providerHit = ApiProvider.Custom;
+                    string customId = routingId.Substring(RoutingId.CustomPrefix.Length);
+                    var custom = settings.customProviders.Find(c => c.id == customId);
+                    if (custom != null)
+                    {
+                        baseUrl = custom.url;
+                        apiKey = custom.apiKey;
+                        providerHit = ApiProvider.Custom;
+                        if (string.IsNullOrEmpty(options?.model))
+                        {
+                            options = new ChatOptions {
+                                queryId = options?.queryId,
+                                maxTokens = options?.maxTokens,
+                                temperature = options?.temperature,
+                                model = custom.model, // inject the custom provider's model
+                                thinking = options?.thinking,
+                                sanitize = options?.sanitize ?? true,
+                                priority = options?.priority ?? 0,
+                                maxWaitMs = options?.maxWaitMs,
+                                eventType = options?.eventType,
+                                contextTiers = options?.contextTiers,
+                                weightOverrides = options?.weightOverrides,
+                                sourcePawn = options?.sourcePawn,
+                                targetPawn = options?.targetPawn
+                            };
+                        }
+                    }
                 }
 
                 baseUrl = baseUrl.TrimEnd('/');
-                string url = $"{baseUrl}/v1/chat/completions";
-                
-                if (providerHit == ApiProvider.Google_Gemini && baseUrl.Contains("generativelanguage"))
+                string url;
+                if (providerHit == ApiProvider.Anthropic_Claude)
                 {
-                    url = $"{baseUrl}/v1beta/openai/chat/completions";
+                    if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1/messages")) url = $"{baseUrl.Replace("/v1/messages", "/v1")}/messages";
+                    else url = $"{baseUrl}/v1/messages";
+                }
+                else
+                {
+                    if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages")) url = $"{baseUrl.Replace("/v1/messages", "/v1")}/chat/completions";
+                    else url = $"{baseUrl}/v1/chat/completions";
                 }
 
-                // Build request body
-                var body = new JObject
-                {
-                    ["messages"] = JArray.FromObject(messages),
-                };
-
-                // Model (null = let ModelManager resolve)
+                JObject body;
                 string targetModel = options?.model;
-                if (!string.IsNullOrEmpty(targetModel))
+                if (providerHit == ApiProvider.Anthropic_Claude)
                 {
-                    body["model"] = targetModel;
-                }
+                    body = new JObject();
+                    if (!string.IsNullOrEmpty(targetModel)) body["model"] = targetModel;
+                    else body["model"] = "claude-opus-4-6"; // default fallback
 
-                // Optional parameters
-                if (options?.maxTokens.HasValue == true)
-                {
-                    int tokens = options.maxTokens.Value;
-                    // Bump low max_tokens for reasoning models
-                    if (tokens < 8192)
-                    {
-                        SynapseLogger.Message($"Bumping max_tokens from {tokens} to 8192 for reasoning model headroom.");
-                        tokens = 8192;
-                    }
+                    // max_tokens is required by Anthropic
+                    int tokens = options?.maxTokens ?? 8192;
                     body["max_tokens"] = tokens;
-                }
 
-                if (options?.temperature.HasValue == true)
+                    if (options?.temperature.HasValue == true)
+                        body["temperature"] = options.temperature.Value;
+
+                    string systemStr = "";
+                    var anthropicMessages = new JArray();
+                    foreach (var msg in messages)
+                    {
+                        if (msg.role == "system")
+                        {
+                            if (systemStr.Length > 0) systemStr += "\n";
+                            systemStr += msg.content;
+                        }
+                        else
+                        {
+                            anthropicMessages.Add(new JObject { ["role"] = msg.role, ["content"] = msg.content });
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(systemStr))
+                        body["system"] = systemStr;
+                    body["messages"] = anthropicMessages;
+                }
+                else
                 {
-                    body["temperature"] = options.temperature.Value;
+                    body = new JObject { ["messages"] = JArray.FromObject(messages) };
+                    if (!string.IsNullOrEmpty(targetModel)) body["model"] = targetModel;
+
+                    if (options?.maxTokens.HasValue == true)
+                    {
+                        int tokens = options.maxTokens.Value;
+                        if (tokens < 8192)
+                        {
+                            SynapseLogger.Message($"Bumping max_tokens from {tokens} to 8192 for reasoning model headroom.");
+                            tokens = 8192;
+                        }
+                        body["max_tokens"] = tokens;
+                    }
+
+                    if (options?.temperature.HasValue == true)
+                        body["temperature"] = options.temperature.Value;
+
+                    bool thinkingEnabled = options?.thinking ?? !settings.disableThinking;
+                    if (!thinkingEnabled)
+                    {
+                        body["thinking"] = new JObject { ["type"] = "disabled" };
+                        SynapseLogger.Message("Thinking disabled for this request.");
+                    }
+                    body.Remove("response_format");
                 }
-
-                // Thinking/reasoning control:
-                // Per-request options.thinking overrides global setting.
-                // null = use global, true = force on, false = force off.
-                bool thinkingEnabled = options?.thinking
-                    ?? !settings.disableThinking; // Global default: thinking OFF
-
-                if (!thinkingEnabled)
-                {
-                    // LM Studio supports both formats for disabling thinking:
-                    // 1. "thinking": { "type": "disabled" }  (newer LM Studio)
-                    // 2. "reasoning_effort": "none"           (OpenAI-compat)
-                    body["thinking"] = new JObject { ["type"] = "disabled" };
-
-                    SynapseLogger.Message("Thinking disabled for this request.");
-                }
-
-                // LM Studio quirk: remove response_format.type=json_object to prevent 400
-                body.Remove("response_format");
 
                 string jsonBody = body.ToString(Formatting.None);
                 
@@ -180,9 +233,15 @@ namespace RimSynapse.Internal
                 // Auth header
                 if (!string.IsNullOrEmpty(apiKey))
                 {
-                    request.Headers.Authorization =
-                        new System.Net.Http.Headers.AuthenticationHeaderValue(
-                            "Bearer", apiKey);
+                    if (providerHit == ApiProvider.Anthropic_Claude)
+                    {
+                        request.Headers.Add("x-api-key", apiKey);
+                        request.Headers.Add("anthropic-version", "2023-06-01");
+                    }
+                    else
+                    {
+                        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                    }
                 }
 
                 // Set timeout using CancellationToken because HttpClient.Timeout cannot be modified per-request
@@ -200,25 +259,45 @@ namespace RimSynapse.Internal
 
                 var result = JObject.Parse(responseBody);
 
-                // Extract response content
                 string content = null;
-                var choices = result["choices"] as JArray;
-                if (choices != null && choices.Count > 0)
-                {
-                    var message = choices[0]?["message"];
-                    content = message?["content"]?.ToString();
+                int promptTokens = 0;
+                int completionTokens = 0;
+                string model = targetModel ?? "unknown";
 
-                    // Reasoning content fallback: if content is empty but
-                    // reasoning_content exists, use that instead
-                    if (string.IsNullOrWhiteSpace(content))
+                if (providerHit == ApiProvider.Anthropic_Claude)
+                {
+                    var contentArr = result["content"] as JArray;
+                    if (contentArr != null && contentArr.Count > 0)
                     {
-                        string reasoningContent = message?["reasoning_content"]?.ToString();
-                        if (!string.IsNullOrWhiteSpace(reasoningContent))
+                        content = contentArr[0]?["text"]?.ToString();
+                    }
+                    var usage = result["usage"];
+                    promptTokens = usage?["input_tokens"]?.Value<int>() ?? 0;
+                    completionTokens = usage?["output_tokens"]?.Value<int>() ?? 0;
+                    model = result["model"]?.ToString() ?? model;
+                }
+                else
+                {
+                    var choices = result["choices"] as JArray;
+                    if (choices != null && choices.Count > 0)
+                    {
+                        var message = choices[0]?["message"];
+                        content = message?["content"]?.ToString();
+
+                        if (string.IsNullOrWhiteSpace(content))
                         {
-                            SynapseLogger.Warning("Assistant content was empty but reasoning_content present. Using fallback.");
-                            content = reasoningContent;
+                            string reasoningContent = message?["reasoning_content"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(reasoningContent))
+                            {
+                                SynapseLogger.Warning("Assistant content was empty but reasoning_content present. Using fallback.");
+                                content = reasoningContent;
+                            }
                         }
                     }
+                    var usage = result["usage"];
+                    promptTokens = usage?["prompt_tokens"]?.Value<int>() ?? 0;
+                    completionTokens = usage?["completion_tokens"]?.Value<int>() ?? 0;
+                    model = result["model"]?.ToString() ?? model;
                 }
 
                 // Sanitize if enabled
@@ -226,12 +305,6 @@ namespace RimSynapse.Internal
                 {
                     content = Sanitizer.Clean(content);
                 }
-
-                // Extract usage
-                var usage = result["usage"];
-                int promptTokens = usage?["prompt_tokens"]?.Value<int>() ?? 0;
-                int completionTokens = usage?["completion_tokens"]?.Value<int>() ?? 0;
-                string model = result["model"]?.ToString() ?? targetModel ?? "unknown";
 
                 long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
 
@@ -279,10 +352,14 @@ namespace RimSynapse.Internal
                 else if (settings.apiProvider == ApiProvider.Custom) { baseUrl = settings.customUrl; apiKey = settings.customApiKey; }
 
                 baseUrl = baseUrl.TrimEnd('/');
-                string url = $"{baseUrl}/v1/models";
-                if (settings.apiProvider == ApiProvider.Google_Gemini && baseUrl.Contains("generativelanguage"))
+                string url;
+                if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages"))
                 {
-                    url = $"{baseUrl}/v1beta/openai/models";
+                    url = $"{baseUrl}/models";
+                }
+                else
+                {
+                    url = $"{baseUrl}/v1/models";
                 }
 
                 var result = new ModelsResult();
@@ -424,6 +501,209 @@ namespace RimSynapse.Internal
                 catch
                 {
                     // Best-effort — silently ignore
+                }
+            });
+        }
+
+        /// <summary>
+        /// Test the API connection for a specific provider.
+        /// Sends a minimal ping and returns the result asynchronously via callback on the main thread.
+        /// </summary>
+        public static void FetchProviderModelsAsync(ApiProvider provider, string baseUrl, string apiKey, Action<bool, System.Collections.Generic.List<string>, string> callback)
+        {
+            EnsureInitialized();
+            Task.Run(() =>
+            {
+                try
+                {
+                    baseUrl = baseUrl.TrimEnd('/');
+                    string url;
+                    if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages"))
+                    {
+                        url = $"{baseUrl}/models";
+                    }
+                    else
+                    {
+                        url = $"{baseUrl}/v1/models";
+                    }
+
+                    var request = new HttpRequestMessage(HttpMethod.Get, url);
+
+                    if (!string.IsNullOrEmpty(apiKey))
+                    {
+                        if (provider == ApiProvider.Anthropic_Claude)
+                        {
+                            request.Headers.Add("x-api-key", apiKey);
+                            request.Headers.Add("anthropic-version", "2023-06-01");
+                        }
+                        else
+                        {
+                            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                        }
+                    }
+
+                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var response = _client.SendAsync(request, cts.Token).Result;
+                    string resBody = response.Content.ReadAsStringAsync().Result;
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var json = JObject.Parse(resBody);
+                        var data = json["data"] as JArray;
+                        var models = new System.Collections.Generic.List<string>();
+                        if (data != null)
+                        {
+                            foreach (var m in data)
+                            {
+                                string id = m["id"]?.ToString();
+                                if (!string.IsNullOrEmpty(id))
+                                {
+                                    if (id.StartsWith("models/")) id = id.Substring(7);
+                                    models.Add(id);
+                                }
+                            }
+                            models.Sort();
+                        }
+                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(true, models, "Success"));
+                    }
+                    else
+                    {
+                        string shortError = $"{(int)response.StatusCode} {response.ReasonPhrase}";
+                        try
+                        {
+                            var errJson = JObject.Parse(resBody);
+                            if (errJson["error"] != null)
+                            {
+                                shortError += $": {errJson["error"]["message"]?.ToString()}";
+                            }
+                        }
+                        catch { }
+                        
+                        string lowerError = shortError.ToLowerInvariant();
+                        if (lowerError.Contains("credit balance is too low") || lowerError.Contains("insufficient_quota") || lowerError.Contains("exceeded your current quota"))
+                        {
+                            shortError = "Credits Needed!";
+                        }
+                        
+                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, null, shortError));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    string error = ex.InnerException?.Message ?? ex.Message;
+                    Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, null, error));
+                }
+            });
+        }
+
+        public static void TestConnectionAsync(ApiProvider provider, string url, string apiKey, string overrideModel, Action<bool, string> callback)
+        {
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    EnsureInitialized();
+                    // Strip any zero-width spaces or hidden unicode characters that users might accidentally paste
+                    url = System.Text.RegularExpressions.Regex.Replace(url ?? "", @"[^\u0020-\u007E]+", string.Empty);
+                    apiKey = System.Text.RegularExpressions.Regex.Replace(apiKey ?? "", @"[^\u0020-\u007E]+", string.Empty);
+
+                    string baseUrl = url.Trim().TrimEnd('/');
+                    
+                    // We'll use the models endpoint for the test if possible, as it's a cheap GET request
+                    // that doesn't require a valid model name, except for Anthropic which doesn't have a standard /models endpoint in OpenAI compat mode.
+                    // For safety and universal compatibility across our proxy setups, we will send a 1-token dummy chat completion.
+                    
+                    string endpoint;
+                    if (provider == ApiProvider.Anthropic_Claude)
+                    {
+                        if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1/messages")) endpoint = $"{baseUrl.Replace("/v1/messages", "/v1")}/messages";
+                        else endpoint = $"{baseUrl}/v1/messages";
+                    }
+                    else
+                    {
+                        if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages")) endpoint = $"{baseUrl.Replace("/v1/messages", "/v1")}/chat/completions";
+                        else endpoint = $"{baseUrl}/v1/chat/completions";
+                    }
+
+                    string testModel = "test";
+                    if (!string.IsNullOrEmpty(overrideModel))
+                    {
+                        testModel = overrideModel;
+                    }
+                    else
+                    {
+                        var settings = RimSynapseMod.Instance.Settings;
+                        if (provider == ApiProvider.OpenAI) testModel = !string.IsNullOrEmpty(settings.modelOpenAi) ? settings.modelOpenAi : "gpt-5-chat-latest";
+                        else if (provider == ApiProvider.Google_Gemini) testModel = !string.IsNullOrEmpty(settings.modelGemini) ? settings.modelGemini : "gemini-flash-lite-latest";
+                        else if (provider == ApiProvider.Anthropic_Claude) testModel = !string.IsNullOrEmpty(settings.modelClaude) ? settings.modelClaude : "claude-opus-4-6";
+                        else if (provider == ApiProvider.Local_LMStudio) testModel = !string.IsNullOrEmpty(settings.modelLocal) ? settings.modelLocal : (RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model");
+                        else if (provider == ApiProvider.Custom) testModel = !string.IsNullOrEmpty(settings.modelCustom) ? settings.modelCustom : "test";
+                    }
+
+
+                    var body = new JObject();
+                    body["model"] = testModel;
+                    body["max_tokens"] = 1;
+
+                    if (provider == ApiProvider.Anthropic_Claude)
+                    {
+                        body["messages"] = new JArray { new JObject { ["role"] = "user", ["content"] = "ping" } };
+                    }
+                    else
+                    {
+                        body["messages"] = new JArray { new JObject { ["role"] = "user", ["content"] = "ping" } };
+                    }
+
+                    var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                    {
+                        Content = new StringContent(body.ToString(Formatting.None), Encoding.UTF8, "application/json"),
+                    };
+
+                    if (!string.IsNullOrEmpty(apiKey))
+                    {
+                        if (provider == ApiProvider.Anthropic_Claude)
+                        {
+                            request.Headers.Add("x-api-key", apiKey);
+                            request.Headers.Add("anthropic-version", "2023-06-01");
+                        }
+                        else
+                        {
+                            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                        }
+                    }
+
+                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var response = _client.SendAsync(request, cts.Token).Result;
+                    string resBody = response.Content.ReadAsStringAsync().Result;
+
+                    Verse.LongEventHandler.ExecuteWhenFinished(() => Verse.Log.Message($"[API TEST] Endpoint: {endpoint}\nRequest Body: {body.ToString(Newtonsoft.Json.Formatting.Indented)}\nResponse: {(int)response.StatusCode} {response.ReasonPhrase}\n{resBody}"));
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(true, "Success!"));
+                    }
+                    else
+                    {
+                        string shortError = $"{(int)response.StatusCode} {response.ReasonPhrase}";
+                        try
+                        {
+                            var errJson = JObject.Parse(resBody);
+                            if (errJson["error"] != null)
+                            {
+                                shortError += $": {errJson["error"]["message"]?.ToString()}";
+                            }
+                        }
+                        catch { }
+                        
+
+
+                        Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, shortError));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    string error = ex.InnerException?.Message ?? ex.Message;
+                    Verse.LongEventHandler.ExecuteWhenFinished(() => callback(false, error));
                 }
             });
         }

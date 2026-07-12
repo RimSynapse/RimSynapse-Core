@@ -70,7 +70,7 @@ Analyze the situation and provide the PacingMultiplier.";
                         }
                     }
                 },
-                new ChatOptions { priority = 1, requestName = "Aura Pacing", targetName = "Colony" }
+                new ChatOptions { queryId = "aura_pacing", priority = 1, requestName = "Aura Pacing", targetName = "Colony" }
             );
 
             return true;
@@ -157,7 +157,7 @@ Provide the incident def name.";
                         }
                     }
                 },
-                new ChatOptions { priority = 10, requestName = "Aura Event Selection", targetName = category.defName } // High priority for events
+                new ChatOptions { queryId = "aura_event_selection", priority = 10, requestName = "Aura Event Selection", targetName = category.defName }
             );
         }
     }

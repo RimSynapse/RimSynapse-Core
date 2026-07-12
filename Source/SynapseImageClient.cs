@@ -89,7 +89,7 @@ namespace RimSynapse
                 
                 string worldName = Find.World?.info?.name ?? "UnknownWorld";
                 int tick = Find.TickManager != null ? Find.TickManager.TicksGame : 0;
-                string saveName = Current.Game?.Info?.permadeathMode == true ? Current.Game.Info.permadeathModeUniqueName : GenFilePaths.LastSavedGameName;
+                string saveName = Current.Game?.Info?.permadeathMode == true ? Current.Game.Info.permadeathModeUniqueName : worldName;
                 
                 if (string.IsNullOrEmpty(saveName)) saveName = worldName;
                 

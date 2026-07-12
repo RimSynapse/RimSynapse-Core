@@ -11,6 +11,7 @@ namespace RimSynapse
         Custom = 4
     }
 
+    // Deprecated, use string routing IDs instead.
     public enum ProviderRouting
     {
         LocalOnly = 0,
@@ -19,6 +20,16 @@ namespace RimSynapse
         Specific_Gemini = 3,
         Specific_Claude = 4,
         Specific_Custom = 5
+    }
+
+    public static class RoutingId
+    {
+        public const string LocalOnly = "LocalOnly";
+        public const string OpenAI = "Specific_OpenAI";
+        public const string Gemini = "Specific_Gemini";
+        public const string Claude = "Specific_Claude";
+        public const string CustomPrefix = "Custom_";
+        public const string Pollinations = "Pollinations.ai";
     }
 
     /// <summary>
@@ -32,17 +43,24 @@ namespace RimSynapse
         public string lmStudioUrl = "http://127.0.0.1:1234";
         public string lmStudioApiKey = "";
         
-        public string openAiUrl = "https://api.openai.com";
+        public string openAiUrl = "https://api.openai.com/v1";
         public string openAiApiKey = "";
         
-        public string geminiUrl = "https://generativelanguage.googleapis.com";
+        public string geminiUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
         public string geminiApiKey = "";
         
-        public string claudeUrl = "https://api.anthropic.com";
+        public string claudeUrl = "https://api.anthropic.com/v1";
         public string claudeApiKey = "";
         
         public string customUrl = "";
         public string customApiKey = "";
+
+        // --- Models ---
+        public string modelLocal = "local-model";
+        public string modelOpenAi = "gpt-5-chat-latest";
+        public string modelGemini = "gemini-flash-lite-latest";
+        public string modelClaude = "claude-opus-4-6";
+        public string modelCustom = "";
 
         // --- Capabilities ---
         public LlmCapabilities capsLocal = LlmCapabilities.Text;
@@ -52,7 +70,18 @@ namespace RimSynapse
         public LlmCapabilities capsCustom = LlmCapabilities.Text;
 
         // --- Query Routing Ledger ---
+        [System.Obsolete("Use queryRoutingIds instead.")]
         public System.Collections.Generic.Dictionary<string, ProviderRouting> queryRouting = new System.Collections.Generic.Dictionary<string, ProviderRouting>();
+        
+        public System.Collections.Generic.Dictionary<string, string> queryRoutingIds = new System.Collections.Generic.Dictionary<string, string>();
+
+        public string defaultRoutingText = RoutingId.LocalOnly;
+        public string defaultRoutingImage = RoutingId.LocalOnly;
+        public string defaultRoutingVision = RoutingId.LocalOnly;
+        public string defaultRoutingAudio = RoutingId.LocalOnly;
+        
+        // --- Custom Providers List ---
+        public System.Collections.Generic.List<CustomProviderSettings> customProviders = new System.Collections.Generic.List<CustomProviderSettings>();
 
         // --- Token Tracking ---
         public int tokensPromptLocal = 0;
@@ -134,17 +163,31 @@ namespace RimSynapse
             
             Scribe_Values.Look(ref lmStudioUrl, "lmStudioUrl", "http://127.0.0.1:1234");
             Scribe_Values.Look(ref lmStudioApiKey, "lmStudioApiKey", "");
-            Scribe_Values.Look(ref openAiUrl, "openAiUrl", "https://api.openai.com");
+            Scribe_Values.Look(ref openAiUrl, "openAiUrl", "https://api.openai.com/v1");
             Scribe_Values.Look(ref openAiApiKey, "openAiApiKey", "");
-            Scribe_Values.Look(ref geminiUrl, "geminiUrl", "https://generativelanguage.googleapis.com");
+            Scribe_Values.Look(ref geminiUrl, "geminiUrl", "https://generativelanguage.googleapis.com/v1beta/openai");
             Scribe_Values.Look(ref geminiApiKey, "geminiApiKey", "");
-            Scribe_Values.Look(ref claudeUrl, "claudeUrl", "https://api.anthropic.com");
+            Scribe_Values.Look(ref claudeUrl, "claudeUrl", "https://api.anthropic.com/v1");
             Scribe_Values.Look(ref claudeApiKey, "claudeApiKey", "");
             Scribe_Values.Look(ref customUrl, "customUrl", "");
             Scribe_Values.Look(ref customApiKey, "customApiKey", "");
 
-            Scribe_Collections.Look(ref queryRouting, "queryRouting", LookMode.Value, LookMode.Value);
-            if (queryRouting == null) queryRouting = new System.Collections.Generic.Dictionary<string, ProviderRouting>();
+            Scribe_Values.Look(ref modelLocal, "modelLocal", "local-model");
+            Scribe_Values.Look(ref modelOpenAi, "modelOpenAi", "gpt-5-chat-latest");
+            Scribe_Values.Look(ref modelGemini, "modelGemini", "gemini-flash-lite-latest");
+            Scribe_Values.Look(ref modelClaude, "modelClaude", "claude-opus-4-6");
+            Scribe_Values.Look(ref modelCustom, "modelCustom", "");
+
+            Scribe_Collections.Look(ref queryRoutingIds, "queryRoutingIds", LookMode.Value, LookMode.Value);
+            if (queryRoutingIds == null) queryRoutingIds = new System.Collections.Generic.Dictionary<string, string>();
+            
+            Scribe_Collections.Look(ref customProviders, "customProviders", LookMode.Deep);
+            if (customProviders == null) customProviders = new System.Collections.Generic.List<CustomProviderSettings>();
+
+            Scribe_Values.Look(ref defaultRoutingText, "defaultRoutingText", RoutingId.LocalOnly);
+            Scribe_Values.Look(ref defaultRoutingImage, "defaultRoutingImage", RoutingId.LocalOnly);
+            Scribe_Values.Look(ref defaultRoutingVision, "defaultRoutingVision", RoutingId.LocalOnly);
+            Scribe_Values.Look(ref defaultRoutingAudio, "defaultRoutingAudio", RoutingId.LocalOnly);
 
             Scribe_Values.Look(ref capsLocal, "capsLocal", LlmCapabilities.Text);
             Scribe_Values.Look(ref capsOpenAi, "capsOpenAi", LlmCapabilities.Text | LlmCapabilities.Image | LlmCapabilities.Vision | LlmCapabilities.Audio);
@@ -185,6 +228,31 @@ namespace RimSynapse
             Scribe_Values.Look(ref qmShowPrio, "qmShowPrio", true);
             Scribe_Values.Look(ref qmShowMod, "qmShowMod", true);
             Scribe_Values.Look(ref qmShowTarget, "qmShowTarget", true);
+
+            // Migration from old enum routing to string routing
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                if (queryRouting != null && queryRouting.Count > 0)
+                {
+                    foreach (var kvp in queryRouting)
+                    {
+                        if (!queryRoutingIds.ContainsKey(kvp.Key))
+                        {
+                            switch (kvp.Value)
+                            {
+                                case ProviderRouting.LocalOnly: queryRoutingIds[kvp.Key] = RoutingId.LocalOnly; break;
+                                case ProviderRouting.Specific_OpenAI: queryRoutingIds[kvp.Key] = RoutingId.OpenAI; break;
+                                case ProviderRouting.Specific_Gemini: queryRoutingIds[kvp.Key] = RoutingId.Gemini; break;
+                                case ProviderRouting.Specific_Claude: queryRoutingIds[kvp.Key] = RoutingId.Claude; break;
+                                case ProviderRouting.Specific_Custom: queryRoutingIds[kvp.Key] = RoutingId.CustomPrefix + "0"; break;
+                                default: queryRoutingIds[kvp.Key] = RoutingId.LocalOnly; break;
+                            }
+                        }
+                    }
+                    queryRouting.Clear();
+                }
+            }
+
             Scribe_Values.Look(ref qmShowTask, "qmShowTask", true);
             Scribe_Values.Look(ref qmShowAge, "qmShowAge", true);
             

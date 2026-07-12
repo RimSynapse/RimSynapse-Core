@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using Verse;
@@ -34,6 +34,21 @@ namespace RimSynapse.UI
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
+            // --- Capability Defaults ---
+            listing.Label("Capability Defaults", tooltip: "Default provider for unrouted queries needing specific capabilities.");
+            listing.GapLine();
+
+            DrawDefaultRoutingDropdown(listing, "Text Queries", settings.defaultRoutingText, v => settings.defaultRoutingText = v, LlmCapabilities.Text);
+            DrawDefaultRoutingDropdown(listing, "Vision Queries", settings.defaultRoutingVision, v => settings.defaultRoutingVision = v, LlmCapabilities.Vision);
+            DrawDefaultRoutingDropdown(listing, "Image Generation", settings.defaultRoutingImage, v => settings.defaultRoutingImage = v, LlmCapabilities.Image);
+            DrawDefaultRoutingDropdown(listing, "Audio Generation", settings.defaultRoutingAudio, v => settings.defaultRoutingAudio = v, LlmCapabilities.Audio);
+            
+            listing.Gap(24f);
+
+            // --- Specific Overrides ---
+            listing.Label("Specific Overrides", tooltip: "Override the default routing for specific queries from companion mods.");
+            listing.GapLine();
+
             if (Internal.ModRegistry.All.Count == 0)
             {
                 listing.Label("No companion mods are currently registered.");
@@ -50,7 +65,7 @@ namespace RimSynapse.UI
 
                     if (mod.RegisteredQueries.Count == 0)
                     {
-                        listing.Label("  (No specific query types registered. Defaults to Local Only.)", tooltip: "This mod does not support advanced routing yet.");
+                        listing.Label("  (No specific query types registered.)", tooltip: "This mod does not support advanced routing yet.");
                     }
                     else
                     {
@@ -61,9 +76,9 @@ namespace RimSynapse.UI
                             LlmCapabilities reqCaps = kvp.Value.requiredCaps;
                             string key = $"{mod.ModId}:{queryId}";
 
-                            if (!settings.queryRouting.TryGetValue(key, out var currentRouting))
+                            if (!settings.queryRoutingIds.TryGetValue(key, out var currentRouting))
                             {
-                                currentRouting = ProviderRouting.LocalOnly;
+                                currentRouting = "Default";
                             }
 
                             var rowRect = listing.GetRect(30f);
@@ -72,39 +87,24 @@ namespace RimSynapse.UI
 
                             Widgets.Label(labelRect, "  " + queryName);
 
-                            string btnLabel = currentRouting.ToString().Replace("_", " ");
+                            string btnLabel = GetRoutingName(currentRouting);
                             if (Widgets.ButtonText(btnRect, btnLabel))
                             {
                                 var list = new List<FloatMenuOption>();
-                                foreach (ProviderRouting route in System.Enum.GetValues(typeof(ProviderRouting)))
+                                list.Add(new FloatMenuOption("Default", () => { settings.queryRoutingIds.Remove(key); RimSynapseMod.Instance.WriteSettings(); }));
+                                
+                                foreach (var route in GetCapableRoutes(reqCaps, settings))
                                 {
-                                    if (route != ProviderRouting.FirstAvailable)
-                                    {
-                                        LlmCapabilities providerCaps = LlmCapabilities.None;
-                                        switch (route)
-                                        {
-                                            case ProviderRouting.LocalOnly: providerCaps = settings.capsLocal; break;
-                                            case ProviderRouting.Specific_OpenAI: providerCaps = settings.capsOpenAi; break;
-                                            case ProviderRouting.Specific_Gemini: providerCaps = settings.capsGemini; break;
-                                            case ProviderRouting.Specific_Claude: providerCaps = settings.capsClaude; break;
-                                            case ProviderRouting.Specific_Custom: providerCaps = settings.capsCustom; break;
-                                        }
-                                        if ((providerCaps & reqCaps) != reqCaps)
-                                        {
-                                            continue; // Skip provider if it lacks required capabilities
-                                        }
-                                    }
-
-                                    ProviderRouting localRoute = route; // capture
-                                    string label = localRoute.ToString().Replace("_", " ");
+                                    string localRoute = route.Key;
+                                    string label = route.Value;
                                     list.Add(new FloatMenuOption(label, () =>
                                     {
-                                        settings.queryRouting[key] = localRoute;
+                                        settings.queryRoutingIds[key] = localRoute;
                                         RimSynapseMod.Instance.WriteSettings();
                                     }));
                                 }
                                 
-                                if (list.Count == 0)
+                                if (list.Count == 1) // only "Default"
                                 {
                                     list.Add(new FloatMenuOption("No capable providers found", null));
                                 }
@@ -119,9 +119,76 @@ namespace RimSynapse.UI
             Widgets.EndScrollView();
         }
 
+        private void DrawDefaultRoutingDropdown(Listing_Standard listing, string labelText, string currentVal, System.Action<string> setter, LlmCapabilities reqCaps)
+        {
+            var rowRect = listing.GetRect(30f);
+            var labelRect = new Rect(rowRect.x, rowRect.y, rowRect.width * 0.5f, rowRect.height);
+            var btnRect = new Rect(rowRect.x + rowRect.width * 0.5f, rowRect.y, rowRect.width * 0.5f, rowRect.height);
+
+            Widgets.Label(labelRect, "  " + labelText);
+
+            string btnLabel = GetRoutingName(currentVal);
+            if (Widgets.ButtonText(btnRect, btnLabel))
+            {
+                var settings = RimSynapseMod.Instance.Settings;
+                var list = new List<FloatMenuOption>();
+                foreach (var route in GetCapableRoutes(reqCaps, settings))
+                {
+                    string localRoute = route.Key;
+                    string optionLabel = route.Value;
+                    list.Add(new FloatMenuOption(optionLabel, () =>
+                    {
+                        setter(localRoute);
+                        RimSynapseMod.Instance.WriteSettings();
+                    }));
+                }
+                
+                if (list.Count == 0)
+                {
+                    list.Add(new FloatMenuOption("No capable providers found", null));
+                }
+                Find.WindowStack.Add(new FloatMenu(list));
+            }
+        }
+
+        private string GetRoutingName(string id)
+        {
+            if (string.IsNullOrEmpty(id) || id == "Default") return "Default";
+            if (id == RoutingId.LocalOnly) return "Local LM Studio";
+            if (id == RoutingId.OpenAI) return "OpenAI";
+            if (id == RoutingId.Gemini) return "Google Gemini";
+            if (id == RoutingId.Claude) return "Anthropic Claude";
+            if (id.StartsWith(RoutingId.CustomPrefix))
+            {
+                string customId = id.Substring(RoutingId.CustomPrefix.Length);
+                var custom = RimSynapseMod.Instance.Settings.customProviders.Find(c => c.id == customId);
+                if (custom != null) return $"Custom: {custom.name}";
+                return "Custom (Unknown)";
+            }
+            return id;
+        }
+
+        private Dictionary<string, string> GetCapableRoutes(LlmCapabilities reqCaps, RimSynapseSettings settings)
+        {
+            var routes = new Dictionary<string, string>();
+            if ((settings.capsLocal & reqCaps) == reqCaps) routes[RoutingId.LocalOnly] = "Local LM Studio";
+            if ((settings.capsOpenAi & reqCaps) == reqCaps) routes[RoutingId.OpenAI] = "OpenAI";
+            if ((settings.capsGemini & reqCaps) == reqCaps) routes[RoutingId.Gemini] = "Google Gemini";
+            if ((settings.capsClaude & reqCaps) == reqCaps) routes[RoutingId.Claude] = "Anthropic Claude";
+            
+            foreach (var custom in settings.customProviders)
+            {
+                if ((custom.caps & reqCaps) == reqCaps)
+                {
+                    routes[RoutingId.CustomPrefix + custom.id] = $"Custom: {custom.name}";
+                }
+            }
+            return routes;
+        }
+
         private float CalculateViewHeight()
         {
-            float h = 0f;
+            float h = 200f; // Capability Defaults section
             foreach (var mod in Internal.ModRegistry.All)
             {
                 h += 12f + 30f + 12f; // Gap, Title, Line
