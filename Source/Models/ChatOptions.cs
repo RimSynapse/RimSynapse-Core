@@ -17,6 +17,9 @@ namespace RimSynapse
         /// <summary>Friendly name for the task type, used for UI display and tracking token averages. E.g., "Generating Childhood Memory"</summary>
         public string requestName;
 
+        /// <summary>Optional unique identifier for this query type to allow user routing preferences (e.g. "storyteller_event")</summary>
+        public string queryId;
+
         /// <summary>Friendly name for the target, used for UI display. E.g., "Pawn: John"</summary>
         public string targetName;
 

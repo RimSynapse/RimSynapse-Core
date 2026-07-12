@@ -57,6 +57,29 @@ namespace RimSynapse
         }
 
         public override string SettingsCategory() => "RimSynapse Core";
+        private void DrawCapabilitiesRow(Listing_Standard listing, ref LlmCapabilities caps)
+        {
+            Rect rect = listing.GetRect(24f);
+            rect.x += 10f; // indent slightly
+            rect.width -= 10f;
+            float width = rect.width / 4f;
+            
+            bool hasText = (caps & LlmCapabilities.Text) == LlmCapabilities.Text;
+            bool hasImage = (caps & LlmCapabilities.Image) == LlmCapabilities.Image;
+            bool hasVision = (caps & LlmCapabilities.Vision) == LlmCapabilities.Vision;
+            bool hasAudio = (caps & LlmCapabilities.Audio) == LlmCapabilities.Audio;
+
+            Widgets.CheckboxLabeled(new Rect(rect.x, rect.y, width - 10f, rect.height), "Text", ref hasText);
+            Widgets.CheckboxLabeled(new Rect(rect.x + width, rect.y, width - 10f, rect.height), "Image", ref hasImage);
+            Widgets.CheckboxLabeled(new Rect(rect.x + width * 2, rect.y, width - 10f, rect.height), "Vision", ref hasVision);
+            Widgets.CheckboxLabeled(new Rect(rect.x + width * 3, rect.y, width - 10f, rect.height), "Audio", ref hasAudio);
+
+            caps = LlmCapabilities.None;
+            if (hasText) caps |= LlmCapabilities.Text;
+            if (hasImage) caps |= LlmCapabilities.Image;
+            if (hasVision) caps |= LlmCapabilities.Vision;
+            if (hasAudio) caps |= LlmCapabilities.Audio;
+        }
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
@@ -67,31 +90,63 @@ namespace RimSynapse
             listing.Begin(viewRect);
 
             // ── Connection Settings ──────────────────────────────────
-            listing.Label("Connection Settings", tooltip: "Configure your LLM provider.");
+            listing.Label("Connection Settings", tooltip: "Configure your local and cloud LLM providers.");
             listing.GapLine();
 
-            // API Provider Dropdown
+            if (listing.ButtonText("Open Query Routing Window"))
+            {
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_QueryRouting());
+            }
+            listing.Gap(6f);
+
+            // Local
+            listing.Label("Local LM Studio");
+            Settings.lmStudioUrl = listing.TextEntryLabeled("  URL:  ", Settings.lmStudioUrl);
+            Settings.lmStudioApiKey = listing.TextEntryLabeled("  Key:  ", Settings.lmStudioApiKey);
+            DrawCapabilitiesRow(listing, ref Settings.capsLocal);
+            listing.Gap(4f);
+
+            // OpenAI
+            listing.Label("OpenAI");
+            Settings.openAiUrl = listing.TextEntryLabeled("  URL:  ", Settings.openAiUrl);
+            Settings.openAiApiKey = listing.TextEntryLabeled("  Key:  ", Settings.openAiApiKey);
+            DrawCapabilitiesRow(listing, ref Settings.capsOpenAi);
+            listing.Gap(4f);
+
+            // Gemini
+            listing.Label("Google Gemini");
+            Settings.geminiUrl = listing.TextEntryLabeled("  URL:  ", Settings.geminiUrl);
+            Settings.geminiApiKey = listing.TextEntryLabeled("  Key:  ", Settings.geminiApiKey);
+            DrawCapabilitiesRow(listing, ref Settings.capsGemini);
+            listing.Gap(4f);
+
+            // Claude
+            listing.Label("Anthropic Claude");
+            Settings.claudeUrl = listing.TextEntryLabeled("  URL:  ", Settings.claudeUrl);
+            Settings.claudeApiKey = listing.TextEntryLabeled("  Key:  ", Settings.claudeApiKey);
+            DrawCapabilitiesRow(listing, ref Settings.capsClaude);
+            listing.Gap(4f);
+
+            // Custom
+            listing.Label("Custom / Proxy");
+            Settings.customUrl = listing.TextEntryLabeled("  URL:  ", Settings.customUrl);
+            Settings.customApiKey = listing.TextEntryLabeled("  Key:  ", Settings.customApiKey);
+            DrawCapabilitiesRow(listing, ref Settings.capsCustom);
+            listing.Gap(6f);
+
+            // Default Provider for testing
             string currentProviderName = Settings.apiProvider.ToString().Replace("_", " ");
-            if (Settings.apiProvider != ApiProvider.Local_LMStudio) currentProviderName += " (Experimental)";
-            
-            if (listing.ButtonText($"Provider: {currentProviderName}"))
+            listing.Label($"Default Provider: {currentProviderName}", tooltip: "This provider is used as a fallback for unrouted queries and for testing below.");
+            if (listing.ButtonText("Change Default Provider"))
             {
                 var list = new System.Collections.Generic.List<FloatMenuOption>();
                 foreach (ApiProvider provider in System.Enum.GetValues(typeof(ApiProvider)))
                 {
                     ApiProvider localProvider = provider; // capture
                     string label = localProvider.ToString().Replace("_", " ");
-                    if (localProvider != ApiProvider.Local_LMStudio) label += " (Experimental)";
-                    
                     list.Add(new FloatMenuOption(label, () =>
                     {
                         Settings.apiProvider = localProvider;
-                        
-                        // Set default URLs based on selection
-                        if (localProvider == ApiProvider.Local_LMStudio) Settings.lmStudioUrl = "http://127.0.0.1:1234";
-                        else if (localProvider == ApiProvider.Google_Gemini) Settings.lmStudioUrl = "https://generativelanguage.googleapis.com";
-                        else if (localProvider == ApiProvider.OpenAI) Settings.lmStudioUrl = "https://api.openai.com";
-                        else if (localProvider == ApiProvider.Anthropic_Claude) Settings.lmStudioUrl = "https://api.anthropic.com";
                     }));
                 }
                 Find.WindowStack.Add(new FloatMenu(list));
@@ -99,30 +154,7 @@ namespace RimSynapse
 
             listing.Gap(6f);
 
-            if (Settings.apiProvider != ApiProvider.Local_LMStudio)
-            {
-                listing.Label("You have selected a Cloud API Provider.", tooltip: "Be aware of API usage costs. Auto-throttle will default to Conservative.");
-                Settings.lmStudioApiKey = listing.TextEntryLabeled("API Key:  ", Settings.lmStudioApiKey);
-                
-                if (Settings.apiProvider == ApiProvider.Custom)
-                {
-                    Settings.lmStudioUrl = listing.TextEntryLabeled("Custom API URL:  ", Settings.lmStudioUrl);
-                }
-                
-                if (listing.ButtonText("Open API Setup Guide (GitHub)"))
-                {
-                    UnityEngine.Application.OpenURL("https://github.com/RimSynapse/RimSynapse-Core/wiki/Cloud-API-Setup");
-                }
-            }
-            else
-            {
-                Settings.lmStudioUrl = listing.TextEntryLabeled("LM Studio URL:  ", Settings.lmStudioUrl);
-                Settings.lmStudioApiKey = listing.TextEntryLabeled("API Key (optional):  ", Settings.lmStudioApiKey);
-            }
-
-            listing.Gap(6f);
-
-            if (listing.ButtonText("Test Connection"))
+            if (listing.ButtonText("Test Connection (Default Provider)"))
             {
                 RunTestConnection();
             }

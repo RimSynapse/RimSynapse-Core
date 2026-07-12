@@ -59,9 +59,15 @@ namespace RimSynapse.UI
             Text.Font = GameFont.Small;
 
             // Global stats
-            Rect statsRect = new Rect(0, 40f, 550f, 25f);
+            Rect statsRect = new Rect(0, 40f, 650f, 20f);
             string stats = $"Depth: {RequestQueue.QueueDepth}  |  Throttle: {RequestQueue.ThrottleLevel:P0}  |  Avg: {RequestQueue.AverageResponseMs:F0}ms  |  TOPS: {RequestQueue.GlobalTops:F1}";
             Widgets.Label(statsRect, stats);
+
+            // Provider Token Stats
+            Rect pStatsRect = new Rect(0, 60f, inRect.width, 20f);
+            var set = RimSynapseMod.Instance.Settings;
+            string pStats = $"Tokens:  Local: {set.tokensPromptLocal}p/{set.tokensCompletionLocal}c  |  OpenAI: {set.tokensPromptOpenAi}p/{set.tokensCompletionOpenAi}c  |  Gemini: {set.tokensPromptGemini}p/{set.tokensCompletionGemini}c  |  Claude: {set.tokensPromptClaude}p/{set.tokensCompletionClaude}c";
+            Widgets.Label(pStatsRect, pStats);
 
             // Columns Menu
             Rect t1 = new Rect(550f, 40f, 150f, 25f);
@@ -99,15 +105,15 @@ namespace RimSynapse.UI
                 Find.WindowStack.Add(new FloatMenu(floatMenu));
             }
 
-            Widgets.DrawLineHorizontal(0, 70f, inRect.width);
+            Widgets.DrawLineHorizontal(0, 85f, inRect.width);
 
             // Table Header
-            Rect tableHeaderRect = new Rect(0, 80f, inRect.width - 16f, 25f);
+            Rect tableHeaderRect = new Rect(0, 95f, inRect.width - 16f, 25f);
             DrawMainHeader(tableHeaderRect);
 
             // Content Area — split between main queue and opportunistic
-            float mainQueueEndY = 110f;
-            float mainQueueHeight = (inRect.height - 110f) * 0.6f;
+            float mainQueueEndY = 125f;
+            float mainQueueHeight = (inRect.height - 125f) * 0.6f;
             Rect mainOutRect = new Rect(0, mainQueueEndY, inRect.width, mainQueueHeight);
             
             // Calculate main queue view height

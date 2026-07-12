@@ -430,7 +430,7 @@ namespace RimSynapse.Internal
 
                 // Synchronous HTTP call inside thread pool
                 var result = HttpEngine.PostChatCompletionSync(
-                    requestToProcess.Messages, requestToProcess.Options);
+                    requestToProcess.Mod, requestToProcess.Messages, requestToProcess.Options);
 
                 if (SessionId != currentSession)
                 {

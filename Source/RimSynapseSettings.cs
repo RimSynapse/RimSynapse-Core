@@ -11,18 +11,63 @@ namespace RimSynapse
         Custom = 4
     }
 
+    public enum ProviderRouting
+    {
+        LocalOnly = 0,
+        FirstAvailable = 1,
+        Specific_OpenAI = 2,
+        Specific_Gemini = 3,
+        Specific_Claude = 4,
+        Specific_Custom = 5
+    }
+
     /// <summary>
     /// Persistent mod settings stored in RimWorld's config directory.
-    /// Accessible in-game via Mod Settings → RimSynapse Core.
+    /// Accessible in-game via Mod Settings -> RimSynapse Core.
     /// </summary>
     public class RimSynapseSettings : ModSettings
     {
         // --- Connection ---
-        public ApiProvider apiProvider = ApiProvider.Local_LMStudio;
+        public ApiProvider apiProvider = ApiProvider.Local_LMStudio; // Default provider for backwards compatibility
         public string lmStudioUrl = "http://127.0.0.1:1234";
+        public string lmStudioApiKey = "";
+        
+        public string openAiUrl = "https://api.openai.com";
+        public string openAiApiKey = "";
+        
+        public string geminiUrl = "https://generativelanguage.googleapis.com";
+        public string geminiApiKey = "";
+        
+        public string claudeUrl = "https://api.anthropic.com";
+        public string claudeApiKey = "";
+        
+        public string customUrl = "";
+        public string customApiKey = "";
+
+        // --- Capabilities ---
+        public LlmCapabilities capsLocal = LlmCapabilities.Text;
+        public LlmCapabilities capsOpenAi = LlmCapabilities.Text | LlmCapabilities.Image | LlmCapabilities.Vision | LlmCapabilities.Audio;
+        public LlmCapabilities capsGemini = LlmCapabilities.Text | LlmCapabilities.Vision | LlmCapabilities.Audio;
+        public LlmCapabilities capsClaude = LlmCapabilities.Text | LlmCapabilities.Vision;
+        public LlmCapabilities capsCustom = LlmCapabilities.Text;
+
+        // --- Query Routing Ledger ---
+        public System.Collections.Generic.Dictionary<string, ProviderRouting> queryRouting = new System.Collections.Generic.Dictionary<string, ProviderRouting>();
+
+        // --- Token Tracking ---
+        public int tokensPromptLocal = 0;
+        public int tokensCompletionLocal = 0;
+        public int tokensPromptOpenAi = 0;
+        public int tokensCompletionOpenAi = 0;
+        public int tokensPromptGemini = 0;
+        public int tokensCompletionGemini = 0;
+        public int tokensPromptClaude = 0;
+        public int tokensCompletionClaude = 0;
+        public int tokensPromptCustom = 0;
+        public int tokensCompletionCustom = 0;
 
         /// <summary>
-        /// True if using a cloud provider, or if the Custom/LMStudio URL points to a remote host.
+        /// True if the default API provider is cloud-based.
         /// </summary>
         public bool IsRemoteUrl => apiProvider == ApiProvider.Google_Gemini || 
                                    apiProvider == ApiProvider.OpenAI || 
@@ -31,7 +76,6 @@ namespace RimSynapse
                                     !lmStudioUrl.Contains("localhost") && 
                                     !lmStudioUrl.Contains("127.0.0.1") && 
                                     !lmStudioUrl.Contains("::1"));
-        public string lmStudioApiKey = "";
 
         // --- Behavior ---
         public bool autoMapModel = true;
@@ -87,8 +131,37 @@ namespace RimSynapse
         {
             base.ExposeData();
             Scribe_Values.Look(ref apiProvider, "apiProvider", ApiProvider.Local_LMStudio);
+            
             Scribe_Values.Look(ref lmStudioUrl, "lmStudioUrl", "http://127.0.0.1:1234");
             Scribe_Values.Look(ref lmStudioApiKey, "lmStudioApiKey", "");
+            Scribe_Values.Look(ref openAiUrl, "openAiUrl", "https://api.openai.com");
+            Scribe_Values.Look(ref openAiApiKey, "openAiApiKey", "");
+            Scribe_Values.Look(ref geminiUrl, "geminiUrl", "https://generativelanguage.googleapis.com");
+            Scribe_Values.Look(ref geminiApiKey, "geminiApiKey", "");
+            Scribe_Values.Look(ref claudeUrl, "claudeUrl", "https://api.anthropic.com");
+            Scribe_Values.Look(ref claudeApiKey, "claudeApiKey", "");
+            Scribe_Values.Look(ref customUrl, "customUrl", "");
+            Scribe_Values.Look(ref customApiKey, "customApiKey", "");
+
+            Scribe_Collections.Look(ref queryRouting, "queryRouting", LookMode.Value, LookMode.Value);
+            if (queryRouting == null) queryRouting = new System.Collections.Generic.Dictionary<string, ProviderRouting>();
+
+            Scribe_Values.Look(ref capsLocal, "capsLocal", LlmCapabilities.Text);
+            Scribe_Values.Look(ref capsOpenAi, "capsOpenAi", LlmCapabilities.Text | LlmCapabilities.Image | LlmCapabilities.Vision | LlmCapabilities.Audio);
+            Scribe_Values.Look(ref capsGemini, "capsGemini", LlmCapabilities.Text | LlmCapabilities.Vision | LlmCapabilities.Audio);
+            Scribe_Values.Look(ref capsClaude, "capsClaude", LlmCapabilities.Text | LlmCapabilities.Vision);
+            Scribe_Values.Look(ref capsCustom, "capsCustom", LlmCapabilities.Text);
+
+            Scribe_Values.Look(ref tokensPromptLocal, "tokensPromptLocal", 0);
+            Scribe_Values.Look(ref tokensCompletionLocal, "tokensCompletionLocal", 0);
+            Scribe_Values.Look(ref tokensPromptOpenAi, "tokensPromptOpenAi", 0);
+            Scribe_Values.Look(ref tokensCompletionOpenAi, "tokensCompletionOpenAi", 0);
+            Scribe_Values.Look(ref tokensPromptGemini, "tokensPromptGemini", 0);
+            Scribe_Values.Look(ref tokensCompletionGemini, "tokensCompletionGemini", 0);
+            Scribe_Values.Look(ref tokensPromptClaude, "tokensPromptClaude", 0);
+            Scribe_Values.Look(ref tokensCompletionClaude, "tokensCompletionClaude", 0);
+            Scribe_Values.Look(ref tokensPromptCustom, "tokensPromptCustom", 0);
+            Scribe_Values.Look(ref tokensCompletionCustom, "tokensCompletionCustom", 0);
             Scribe_Values.Look(ref autoMapModel, "autoMapModel", true);
             Scribe_Values.Look(ref selectedModel, "selectedModel", "");
             Scribe_Values.Look(ref sanitizeResponse, "sanitizeResponse", true);

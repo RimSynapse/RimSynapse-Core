@@ -60,6 +60,7 @@ namespace RimSynapse.Internal
         /// Returns the result directly (never dispatches to main thread).
         /// </summary>
         internal static ChatResult PostChatCompletionSync(
+            SynapseModHandle mod,
             List<ChatMessage> messages,
             ChatOptions options)
         {
@@ -73,8 +74,49 @@ namespace RimSynapse.Internal
             long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             try
             {
-                string baseUrl = settings.lmStudioUrl.TrimEnd('/');
+                ProviderRouting routing = ProviderRouting.LocalOnly;
+                string queryKey = $"{mod?.ModId}:{options?.queryId}";
+                if (mod != null && !string.IsNullOrEmpty(options?.queryId) && settings.queryRouting.TryGetValue(queryKey, out var savedRouting))
+                {
+                    routing = savedRouting;
+                }
+
+                string baseUrl = settings.lmStudioUrl;
+                string apiKey = settings.lmStudioApiKey;
+                ApiProvider providerHit = ApiProvider.Local_LMStudio;
+
+                if (routing == ProviderRouting.Specific_OpenAI)
+                {
+                    baseUrl = settings.openAiUrl;
+                    apiKey = settings.openAiApiKey;
+                    providerHit = ApiProvider.OpenAI;
+                }
+                else if (routing == ProviderRouting.Specific_Gemini)
+                {
+                    baseUrl = settings.geminiUrl;
+                    apiKey = settings.geminiApiKey;
+                    providerHit = ApiProvider.Google_Gemini;
+                }
+                else if (routing == ProviderRouting.Specific_Claude)
+                {
+                    baseUrl = settings.claudeUrl;
+                    apiKey = settings.claudeApiKey;
+                    providerHit = ApiProvider.Anthropic_Claude;
+                }
+                else if (routing == ProviderRouting.Specific_Custom)
+                {
+                    baseUrl = settings.customUrl;
+                    apiKey = settings.customApiKey;
+                    providerHit = ApiProvider.Custom;
+                }
+
+                baseUrl = baseUrl.TrimEnd('/');
                 string url = $"{baseUrl}/v1/chat/completions";
+                
+                if (providerHit == ApiProvider.Google_Gemini && baseUrl.Contains("generativelanguage"))
+                {
+                    url = $"{baseUrl}/v1beta/openai/chat/completions";
+                }
 
                 // Build request body
                 var body = new JObject
@@ -136,11 +178,11 @@ namespace RimSynapse.Internal
                 };
 
                 // Auth header
-                if (!string.IsNullOrEmpty(settings.lmStudioApiKey))
+                if (!string.IsNullOrEmpty(apiKey))
                 {
                     request.Headers.Authorization =
                         new System.Net.Http.Headers.AuthenticationHeaderValue(
-                            "Bearer", settings.lmStudioApiKey);
+                            "Bearer", apiKey);
                 }
 
                 // Set timeout using CancellationToken because HttpClient.Timeout cannot be modified per-request
@@ -195,6 +237,13 @@ namespace RimSynapse.Internal
 
                 SynapseLogger.Message($"Completion received in {durationMs}ms — {promptTokens}p/{completionTokens}c tokens.");
 
+                // Record usage per provider
+                if (providerHit == ApiProvider.Local_LMStudio) { settings.tokensPromptLocal += promptTokens; settings.tokensCompletionLocal += completionTokens; }
+                else if (providerHit == ApiProvider.OpenAI) { settings.tokensPromptOpenAi += promptTokens; settings.tokensCompletionOpenAi += completionTokens; }
+                else if (providerHit == ApiProvider.Google_Gemini) { settings.tokensPromptGemini += promptTokens; settings.tokensCompletionGemini += completionTokens; }
+                else if (providerHit == ApiProvider.Anthropic_Claude) { settings.tokensPromptClaude += promptTokens; settings.tokensCompletionClaude += completionTokens; }
+                else if (providerHit == ApiProvider.Custom) { settings.tokensPromptCustom += promptTokens; settings.tokensCompletionCustom += completionTokens; }
+
                 return ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
             }
             catch (Exception ex)
@@ -221,16 +270,30 @@ namespace RimSynapse.Internal
 
             try
             {
-                string baseUrl = settings.lmStudioUrl.TrimEnd('/');
+                string baseUrl = settings.lmStudioUrl;
+                string apiKey = settings.lmStudioApiKey;
+
+                if (settings.apiProvider == ApiProvider.OpenAI) { baseUrl = settings.openAiUrl; apiKey = settings.openAiApiKey; }
+                else if (settings.apiProvider == ApiProvider.Google_Gemini) { baseUrl = settings.geminiUrl; apiKey = settings.geminiApiKey; }
+                else if (settings.apiProvider == ApiProvider.Anthropic_Claude) { baseUrl = settings.claudeUrl; apiKey = settings.claudeApiKey; }
+                else if (settings.apiProvider == ApiProvider.Custom) { baseUrl = settings.customUrl; apiKey = settings.customApiKey; }
+
+                baseUrl = baseUrl.TrimEnd('/');
+                string url = $"{baseUrl}/v1/models";
+                if (settings.apiProvider == ApiProvider.Google_Gemini && baseUrl.Contains("generativelanguage"))
+                {
+                    url = $"{baseUrl}/v1beta/openai/models";
+                }
+
                 var result = new ModelsResult();
 
                 // OpenAI-compatible endpoint
-                var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/v1/models");
-                if (!string.IsNullOrEmpty(settings.lmStudioApiKey))
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                if (!string.IsNullOrEmpty(apiKey))
                 {
                     request.Headers.Authorization =
                         new System.Net.Http.Headers.AuthenticationHeaderValue(
-                            "Bearer", settings.lmStudioApiKey);
+                            "Bearer", apiKey);
                 }
 
                 var response = _client.SendAsync(request).Result;

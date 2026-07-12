@@ -42,6 +42,23 @@ namespace RimSynapse
         /// <summary>Requests made within the current rate-limit window.</summary>
         internal int WindowRequestCount { get; set; }
 
+        /// <summary>
+        /// Registered query types for this mod. Key = queryId, Value = (displayName, requiredCaps)
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, (string displayName, LlmCapabilities requiredCaps)> RegisteredQueries { get; } = new System.Collections.Generic.Dictionary<string, (string displayName, LlmCapabilities requiredCaps)>();
+
+        /// <summary>
+        /// Registers a query type with the Core Engine, allowing users to route these specific
+        /// queries to different LLM providers in the RimSynapse Mod Settings.
+        /// </summary>
+        public void RegisterQueryType(string queryId, string displayName, LlmCapabilities requiredCaps = LlmCapabilities.Text)
+        {
+            if (!RegisteredQueries.ContainsKey(queryId))
+            {
+                RegisteredQueries.Add(queryId, (displayName, requiredCaps));
+            }
+        }
+
         public SynapseModHandle(string modId, string displayName)
         {
             ModId = modId;
