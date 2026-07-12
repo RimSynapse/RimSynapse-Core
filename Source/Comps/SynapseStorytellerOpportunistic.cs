@@ -40,10 +40,17 @@ You MUST respond strictly in valid JSON format:
 
 Analyze the situation and provide the PacingMultiplier.";
 
-            SynapseClient.PromptAsync(
+            var request = new LlmTextRequest
+            {
+                SystemPrompt = systemPrompt,
+                Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
+                EnforceJson = true
+            };
+
+            SynapseClient.SendTextAsync(
                 RimSynapseMod.ModHandle,
-                systemPrompt,
-                userMessage,
+                request,
+                new ChatOptions { queryId = "aura_pacing", priority = 1, requestName = "Aura Pacing", targetName = "Colony" },
                 result =>
                 {
                     if (result.success)
@@ -69,8 +76,7 @@ Analyze the situation and provide the PacingMultiplier.";
                             RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse pacing response: {ex.Message}");
                         }
                     }
-                },
-                new ChatOptions { queryId = "aura_pacing", priority = 1, requestName = "Aura Pacing", targetName = "Colony" }
+                }
             );
 
             return true;
@@ -117,10 +123,17 @@ Recent Events:
 
 Provide the incident def name.";
 
-            SynapseClient.PromptAsync(
+            var request = new LlmTextRequest
+            {
+                SystemPrompt = systemPrompt,
+                Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
+                EnforceJson = true
+            };
+
+            SynapseClient.SendTextAsync(
                 RimSynapseMod.ModHandle,
-                systemPrompt,
-                userMessage,
+                request,
+                new ChatOptions { queryId = "aura_event_selection", priority = 10, requestName = "Aura Event Selection", targetName = category.defName },
                 result =>
                 {
                     // Restore pacing immediately upon return so the game isn't permanently paused for events
@@ -156,8 +169,7 @@ Provide the incident def name.";
                             RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse event selection: {ex.Message}");
                         }
                     }
-                },
-                new ChatOptions { queryId = "aura_event_selection", priority = 10, requestName = "Aura Event Selection", targetName = category.defName }
+                }
             );
         }
     }

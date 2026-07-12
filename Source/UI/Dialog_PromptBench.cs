@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Verse;
@@ -108,7 +108,9 @@ namespace RimSynapse.UI
                     // We can temporarily set the test handle's routing in Settings.
                     RimSynapseMod.Instance.Settings.queryRoutingIds["rimsynapse.test:default"] = _selectedRoutingId;
                     
-                    var result = Internal.HttpEngine.PostChatCompletionSync(_testHandle, messages, options);
+                    var req = new LlmTextRequest { Messages = messages, SystemPrompt = "", EnforceJson = false };
+                    var resultObj = Internal.HttpEngine.RouteRequestSync(_testHandle, req, LlmCapabilities.Text, options);
+                    var result = resultObj as ChatResult;
 
                     if (result.success)
                     {

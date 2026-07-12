@@ -16,9 +16,18 @@ namespace RimSynapse.Internal
         public class QueuedRequest
         {
             public SynapseModHandle Mod;
-            public List<ChatMessage> Messages;
+            
+            /// <summary>LlmTextRequest, LlmImageRequest, etc.</summary>
+            public object Payload;
+            
+            /// <summary>The type of request.</summary>
+            public LlmCapabilities CapabilityType;
+            
+            /// <summary>Callback matching the payload type.</summary>
+            public Delegate Callback;
+            
+            // Legacy for old mod compatibility
             public ChatOptions Options;
-            public Action<ChatResult> Callback;
             public int Priority;
             public DateTime EnqueuedAt;
             public double CurrentScore;
@@ -160,15 +169,16 @@ namespace RimSynapse.Internal
         }
 
         /// <summary>
-        /// Enqueue a chat completion request. Budget-checked and priority-ordered.
+        /// Enqueue a generic LLM request. Budget-checked and priority-ordered.
         /// </summary>
-        internal static void Enqueue(SynapseModHandle mod, List<ChatMessage> messages,
-            ChatOptions options, Action<ChatResult> callback)
+        internal static void Enqueue(SynapseModHandle mod, object payload, LlmCapabilities capability, 
+            ChatOptions options, Delegate callback)
         {
             var request = new QueuedRequest
             {
                 Mod = mod,
-                Messages = messages,
+                Payload = payload,
+                CapabilityType = capability,
                 Options = options,
                 Callback = callback,
                 Priority = options?.priority ?? 0,
@@ -267,7 +277,7 @@ namespace RimSynapse.Internal
                             if (req.Mod != null) req.Mod.QueuedCount = Math.Max(0, req.Mod.QueuedCount - 1);
                             
                             var cb = req.Callback;
-                            SynapseGameComponent.Enqueue(() => cb?.Invoke(ChatResult.Failure("Request timed out in queue.")));
+                            SynapseGameComponent.Enqueue(() => cb?.DynamicInvoke(ChatResult.Failure("Request timed out in queue.")));
                             
                             _queue.RemoveAt(i);
                             continue;
@@ -275,9 +285,9 @@ namespace RimSynapse.Internal
 
                         // Calculate Token Penalty
                         int totalChars = 0;
-                        if (req.Messages != null)
+                        if (req.Payload is LlmTextRequest textReq && textReq.Messages != null)
                         {
-                            foreach (var msg in req.Messages)
+                            foreach (var msg in textReq.Messages)
                             {
                                 totalChars += msg.content?.Length ?? 0;
                             }
@@ -365,10 +375,33 @@ namespace RimSynapse.Internal
                     $"Processing request for {requestToProcess.Mod?.DisplayName ?? "unknown"}. Score: {requestToProcess.CurrentScore:F0}",
                     requestToProcess.Mod?.ModId);
 
-                string model = ModelManager.ResolveModel(requestToProcess.Options?.model);
-                if (!string.IsNullOrEmpty(model) && requestToProcess.Options != null)
+                string routingId = RoutingId.LocalOnly;
+                string queryKey = $"{requestToProcess.Mod?.ModId}:{requestToProcess.Options?.queryId}";
+                var settings = RimSynapseMod.Instance?.Settings;
+                if (settings != null && requestToProcess.Mod != null && !string.IsNullOrEmpty(requestToProcess.Options?.queryId) && settings.queryRoutingIds.TryGetValue(queryKey, out var savedRouting))
                 {
-                    requestToProcess.Options.model = model;
+                    routingId = savedRouting;
+                }
+                else if (settings != null)
+                {
+                    LlmCapabilities reqCaps = LlmCapabilities.Text;
+                    if (requestToProcess.Mod != null && !string.IsNullOrEmpty(requestToProcess.Options?.queryId) && requestToProcess.Mod.RegisteredQueries.TryGetValue(requestToProcess.Options.queryId, out var queryDef))
+                    {
+                        reqCaps = queryDef.requiredCaps;
+                    }
+                    if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) routingId = settings.defaultRoutingImage;
+                    else if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) routingId = settings.defaultRoutingVision;
+                    else if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) routingId = settings.defaultRoutingAudio;
+                    else routingId = settings.defaultRoutingText;
+                }
+
+                if (routingId == RoutingId.LocalOnly)
+                {
+                    string model = ModelManager.ResolveModel(requestToProcess.Options?.model);
+                    if (!string.IsNullOrEmpty(model) && requestToProcess.Options != null)
+                    {
+                        requestToProcess.Options.model = model;
+                    }
                 }
 
                 // Context injection
@@ -395,18 +428,21 @@ namespace RimSynapse.Internal
                                 ? contextText
                                 : $"{systemPrompt}\n---\n{contextText}";
 
-                            var sysMsg = requestToProcess.Messages.Find(m => m.role == "system");
-                            if (sysMsg != null)
+                            if (requestToProcess.Payload is LlmTextRequest txtReq)
                             {
-                                sysMsg.content = fullSystemMessage;
-                            }
-                            else
-                            {
-                                requestToProcess.Messages.Insert(0, new ChatMessage
+                                var sysMsg = txtReq.Messages.Find(m => m.role == "system");
+                                if (sysMsg != null)
                                 {
-                                    role = "system",
-                                    content = fullSystemMessage,
-                                });
+                                    sysMsg.content = fullSystemMessage;
+                                }
+                                else
+                                {
+                                    txtReq.Messages.Insert(0, new ChatMessage
+                                    {
+                                        role = "system",
+                                        content = fullSystemMessage,
+                                    });
+                                }
                             }
                         }
                     }
@@ -421,16 +457,32 @@ namespace RimSynapse.Internal
                 {
                     var promptLog = new System.Text.StringBuilder();
                     promptLog.AppendLine($"── PROMPT → {requestToProcess.Mod?.DisplayName ?? "unknown"} ──");
-                    foreach (var msg in requestToProcess.Messages)
+                    
+                    if (requestToProcess.Payload is LlmTextRequest txtReq)
                     {
-                        promptLog.AppendLine($"[{msg.role}]: {msg.content}");
+                        foreach (var msg in txtReq.Messages)
+                        {
+                            promptLog.AppendLine($"[{msg.role}]: {msg.content}");
+                        }
                     }
+                    else if (requestToProcess.Payload is LlmVisionRequest visReq)
+                    {
+                        foreach (var msg in visReq.Messages)
+                        {
+                            promptLog.AppendLine($"[{msg.role}]: {msg.content}");
+                        }
+                    }
+                    else
+                    {
+                        promptLog.AppendLine($"Payload: {requestToProcess.Payload.GetType().Name}");
+                    }
+                    
                     SynapseLogger.Message(promptLog.ToString(), requestToProcess.Mod?.ModId);
                 }
 
                 // Synchronous HTTP call inside thread pool
-                var result = HttpEngine.PostChatCompletionSync(
-                    requestToProcess.Mod, requestToProcess.Messages, requestToProcess.Options);
+                var resultObj = HttpEngine.RouteRequestSync(
+                    requestToProcess.Mod, requestToProcess.Payload, requestToProcess.CapabilityType, requestToProcess.Options);
 
                 if (SessionId != currentSession)
                 {
@@ -438,37 +490,69 @@ namespace RimSynapse.Internal
                     return;
                 }
 
-                result.wasThrottled = false; // Throttling removed
                 ModRegistry.RecordRequest(requestToProcess.Mod);
 
+                bool success = false;
+                long durationMs = 0;
+                string errorMsg = "";
+                string contentPreview = "";
+
+                if (resultObj is ChatResult chatResult)
+                {
+                    chatResult.wasThrottled = false;
+                    success = chatResult.success;
+                    durationMs = chatResult.durationMs;
+                    errorMsg = chatResult.error;
+                    contentPreview = chatResult.content;
+                    
+                    // Track for History TOPS
+                    requestToProcess.Result = chatResult;
+                }
+                else if (resultObj is ImageResult imgResult)
+                {
+                    success = imgResult.success;
+                    durationMs = imgResult.durationMs;
+                    errorMsg = imgResult.error;
+                    contentPreview = "[Image Base64]";
+                }
+                else if (resultObj is AudioResult audResult)
+                {
+                    success = audResult.success;
+                    durationMs = audResult.durationMs;
+                    errorMsg = audResult.error;
+                    contentPreview = "[Audio Base64]";
+                }
+
                 // ── Info: Concise completion and timing ──
-                SynapseLogger.Message($"Completed LLM request for {requestToProcess.Mod?.DisplayName ?? "unknown"} in {result.durationMs}ms. (Success: {result.success})", requestToProcess.Mod?.ModId);
+                SynapseLogger.Message($"Completed LLM {requestToProcess.CapabilityType} request for {requestToProcess.Mod?.DisplayName ?? "unknown"} in {durationMs}ms. (Success: {success})", requestToProcess.Mod?.ModId);
 
                 // ── Debug: Log full response ──
                 if (RimSynapseMod.Instance?.Settings?.traceDebugMode == true)
                 {
                     var respLog = new System.Text.StringBuilder();
-                    respLog.AppendLine($"── RESPONSE ← {requestToProcess.Mod?.DisplayName ?? "unknown"} ({result.durationMs}ms, success={result.success}) ──");
-                    if (result.success)
-                    {
-                        respLog.AppendLine(result.content);
-                    }
+                    respLog.AppendLine($"── RESPONSE ← {requestToProcess.Mod?.DisplayName ?? "unknown"} ({durationMs}ms, success={success}) ──");
+                    if (success)
+                        respLog.AppendLine(contentPreview);
                     else
-                    {
-                        respLog.AppendLine($"ERROR: {result.error}");
-                    }
+                        respLog.AppendLine($"ERROR: {errorMsg}");
                     SynapseLogger.Message(respLog.ToString(), requestToProcess.Mod?.ModId);
                 }
 
-                // ── Handle Model Swap Errors ──
-                if (!result.success && !string.IsNullOrEmpty(result.error))
+                // Invoke callback
+                var cb = requestToProcess.Callback;
+                if (cb != null)
                 {
-                    string errLower = result.error.ToLowerInvariant();
+                    SynapseGameComponent.Enqueue(() => cb.DynamicInvoke(resultObj));
+                }
+
+                // ── Handle Model Swap Errors ──
+                if (!success && !string.IsNullOrEmpty(errorMsg))
+                {
+                    string errLower = errorMsg.ToLowerInvariant();
                     if (errLower.Contains("model not found") || errLower.Contains("404") || (errLower.Contains("400") && errLower.Contains("model")))
                     {
                         ModelManager.RefreshCache();
                         
-                        var settings = RimSynapseMod.Instance?.Settings;
                         if (settings != null && !settings.autoMapModel)
                         {
                             if ((DateTime.UtcNow - _lastModelWarning).TotalSeconds > 10)
@@ -486,17 +570,17 @@ namespace RimSynapse.Internal
 
                 lock (_recentDurations)
                 {
-                    _recentDurations.Add(result.durationMs);
+                    _recentDurations.Add(durationMs);
                     if (_recentDurations.Count > 20)
                         _recentDurations.RemoveAt(0);
                 }
                 
                 // Track Tokens and EMA
-                if (result.success && result.completionTokens > 0)
+                if (success && resultObj is ChatResult chatRes && chatRes.completionTokens > 0)
                 {
                     lock (_topsLock)
                     {
-                        _recentResults.Enqueue(result);
+                        _recentResults.Enqueue(chatRes);
                         if (_recentResults.Count > 50) _recentResults.Dequeue();
                     }
 
@@ -505,24 +589,21 @@ namespace RimSynapse.Internal
                     {
                         if (!AvgTokensPerType.ContainsKey(rName))
                         {
-                            AvgTokensPerType[rName] = result.completionTokens;
+                            AvgTokensPerType[rName] = chatRes.completionTokens;
                         }
                         else
                         {
-                            AvgTokensPerType[rName] = (AvgTokensPerType[rName] * 0.8f) + (result.completionTokens * 0.2f);
+                            AvgTokensPerType[rName] = (AvgTokensPerType[rName] * 0.8f) + (chatRes.completionTokens * 0.2f);
                         }
                     }
                 }
 
-                requestToProcess.Result = result;
                 requestToProcess.CompletedAt = DateTime.UtcNow;
                 lock (_queueLock)
                 {
                     _history.Add(requestToProcess);
                 }
 
-                var cb = requestToProcess.Callback;
-                SynapseGameComponent.Enqueue(() => cb?.Invoke(result));
             }
             catch (Exception ex)
             {
@@ -531,7 +612,7 @@ namespace RimSynapse.Internal
                 {
                     var cb = requestToProcess.Callback;
                     SynapseGameComponent.Enqueue(() =>
-                        cb?.Invoke(ChatResult.Failure($"Queue error: {ex.Message}")));
+                        cb?.DynamicInvoke(ChatResult.Failure($"Queue error: {ex.Message}")));
                 }
             }
         }

@@ -8,6 +8,9 @@ namespace RimSynapse.UI
 {
     public static class ProviderUIHelper
     {
+        private static Dictionary<string, string> testStatus = new Dictionary<string, string>();
+        private static Dictionary<string, Color> testColor = new Dictionary<string, Color>();
+
         public static void DrawCapabilitiesRow(Listing_Standard listing, ref LlmCapabilities caps, float indent, bool isFrontierModel)
         {
             Rect rect = listing.GetRect(24f);
@@ -157,6 +160,7 @@ namespace RimSynapse.UI
                             else if (pName == "Google Gemini") settings.modelGemini = localM;
                             else if (pName == "Anthropic Claude") settings.modelClaude = localM;
                             else if (pName == "Local LM Studio") settings.modelLocal = localM;
+                            else if (pName == "Pollinations.ai") settings.modelPollinations = localM;
                             else if (pName == "Custom / Proxy" || pName == "Custom Provider") settings.modelCustom = localM;
                         }));
                     }
@@ -174,7 +178,7 @@ namespace RimSynapse.UI
                     }
                     else
                     {
-                        if (Widgets.ButtonText(fetchBtnRect, "?"))
+                        if (Widgets.ButtonText(fetchBtnRect, "..."))
                         {
                             if (hasFetched)
                             {
@@ -244,6 +248,41 @@ namespace RimSynapse.UI
             listing.Gap(4f);
             
             DrawCapabilitiesRow(listing, ref caps, indent, isFrontierModel);
+
+            if (providerEnum.HasValue)
+            {
+                listing.Gap(4f);
+                Rect testRect = listing.GetRect(24f);
+                testRect.xMin += indent;
+                
+                float btnWidth = 140f;
+                Rect btnRect = new Rect(testRect.x, testRect.y, btnWidth, testRect.height);
+                Rect statusRect = new Rect(btnRect.xMax + 10f, testRect.y, testRect.width - btnWidth - 10f, testRect.height);
+
+                string keyName = providerName;
+
+                if (Widgets.ButtonText(btnRect, "Test Connection"))
+                {
+                    testStatus[keyName] = "Testing...";
+                    testColor[keyName] = Color.yellow;
+                    
+                    RimSynapse.Internal.HttpEngine.TestConnectionAsync(providerEnum.Value, url, key, model, (ok, msg) =>
+                    {
+                        testStatus[keyName] = ok ? "Success!" : msg;
+                        testColor[keyName] = ok ? Color.green : Color.red;
+                    });
+                }
+                
+                if (testStatus.TryGetValue(keyName, out var status))
+                {
+                    Color oldColor = GUI.color;
+                    GUI.color = testColor.TryGetValue(keyName, out var col) ? col : Color.white;
+                    Text.Anchor = TextAnchor.MiddleLeft;
+                    Widgets.Label(statusRect, status);
+                    Text.Anchor = TextAnchor.UpperLeft;
+                    GUI.color = oldColor;
+                }
+            }
         }
     }
 }

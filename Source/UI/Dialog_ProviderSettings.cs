@@ -25,6 +25,12 @@ namespace RimSynapse.UI
             this.closeOnClickedOutside = false;
         }
 
+        public override void WindowUpdate()
+        {
+            base.WindowUpdate();
+            SynapseGameComponent.ProcessMainThreadQueue();
+        }
+
         public override void DoWindowContents(Rect inRect)
         {
             try
@@ -42,13 +48,13 @@ namespace RimSynapse.UI
             var settings = RimSynapseMod.Instance.Settings;
             float h = 0f;
             // 4 default standard providers (Local, OpenAI, Gemini, Claude)
-            h += 174f * 4;
-            // Pollinations (no model field)
+            h += 202f * 4;
+            // Pollinations (no model field, no test button)
             h += 146f;
             // Custom providers
             if (settings.customProviders != null)
             {
-                h += 174f * settings.customProviders.Count;
+                h += 202f * settings.customProviders.Count;
             }
             // Add Custom Provider button
             h += 30f;
@@ -105,9 +111,8 @@ namespace RimSynapse.UI
             
             string dummyUrl = "https://image.pollinations.ai/prompt";
             string dummyKey = "";
-            string dummyModel = "";
             LlmCapabilities dummyCaps = LlmCapabilities.Image;
-            ProviderUIHelper.DrawProviderSection(listing, ref nPolli, null, ref dummyUrl, ref dummyKey, ref dummyModel, ref dummyCaps, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            ProviderUIHelper.DrawProviderSection(listing, ref nPolli, ApiProvider.Pollinations, ref dummyUrl, ref dummyKey, ref settings.modelPollinations, ref dummyCaps, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);

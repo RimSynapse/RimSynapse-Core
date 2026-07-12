@@ -8,7 +8,8 @@ namespace RimSynapse
         Google_Gemini = 1,
         OpenAI = 2,
         Anthropic_Claude = 3,
-        Custom = 4
+        Custom = 4,
+        Pollinations = 5
     }
 
     // Deprecated, use string routing IDs instead.
@@ -54,6 +55,7 @@ namespace RimSynapse
         
         public string customUrl = "";
         public string customApiKey = "";
+        public string pollinationsUrl = "https://image.pollinations.ai/prompt";
 
         // --- Models ---
         public string modelLocal = "local-model";
@@ -61,6 +63,7 @@ namespace RimSynapse
         public string modelGemini = "gemini-flash-lite-latest";
         public string modelClaude = "claude-opus-4-6";
         public string modelCustom = "";
+        public string modelPollinations = "flux";
 
         // --- Capabilities ---
         public LlmCapabilities capsLocal = LlmCapabilities.Text;
@@ -74,6 +77,7 @@ namespace RimSynapse
         public System.Collections.Generic.Dictionary<string, ProviderRouting> queryRouting = new System.Collections.Generic.Dictionary<string, ProviderRouting>();
         
         public System.Collections.Generic.Dictionary<string, string> queryRoutingIds = new System.Collections.Generic.Dictionary<string, string>();
+        public System.Collections.Generic.Dictionary<string, string> queryRoutingModels = new System.Collections.Generic.Dictionary<string, string>();
 
         public string defaultRoutingText = RoutingId.LocalOnly;
         public string defaultRoutingImage = RoutingId.LocalOnly;
@@ -177,9 +181,13 @@ namespace RimSynapse
             Scribe_Values.Look(ref modelGemini, "modelGemini", "gemini-flash-lite-latest");
             Scribe_Values.Look(ref modelClaude, "modelClaude", "claude-opus-4-6");
             Scribe_Values.Look(ref modelCustom, "modelCustom", "");
+            Scribe_Values.Look(ref modelPollinations, "modelPollinations", "flux");
 
             Scribe_Collections.Look(ref queryRoutingIds, "queryRoutingIds", LookMode.Value, LookMode.Value);
             if (queryRoutingIds == null) queryRoutingIds = new System.Collections.Generic.Dictionary<string, string>();
+            
+            Scribe_Collections.Look(ref queryRoutingModels, "queryRoutingModels", LookMode.Value, LookMode.Value);
+            if (queryRoutingModels == null) queryRoutingModels = new System.Collections.Generic.Dictionary<string, string>();
             
             Scribe_Collections.Look(ref customProviders, "customProviders", LookMode.Deep);
             if (customProviders == null) customProviders = new System.Collections.Generic.List<CustomProviderSettings>();

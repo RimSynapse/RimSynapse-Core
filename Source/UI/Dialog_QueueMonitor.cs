@@ -421,7 +421,7 @@ namespace RimSynapse.UI
             if (s.qmShowPrompt)
             {
                 Rect r = new Rect(curX, rect.y, mainWidths[9] - 4f, rect.height);
-                string textDump = req.Messages != null ? string.Join("\n\n", req.Messages.Select(m => $"[{m.role.ToUpper()}]\n{m.content}")) : "";
+                string textDump = GetPayloadTextDump(req);
                 Widgets.Label(r, textDump);
                 Widgets.DrawLineVertical(curX + mainWidths[9], rect.y, rect.height);
                 curX += mainWidths[9];
@@ -436,6 +436,15 @@ namespace RimSynapse.UI
                 curX += mainWidths[10];
             }
             Widgets.DrawLineHorizontal(rect.x, rect.yMax, rect.width);
+        }
+
+        private string GetPayloadTextDump(RequestQueue.QueuedRequest req)
+        {
+            if (req.Payload is LlmTextRequest txt) return string.Join("\n\n", txt.Messages.Select(m => $"[{m.role.ToUpper()}]\n{m.content}"));
+            if (req.Payload is LlmVisionRequest vis) return string.Join("\n\n", vis.Messages.Select(m => $"[{m.role.ToUpper()}]\n{m.content}"));
+            if (req.Payload is LlmImageRequest img) return img.Prompt;
+            if (req.Payload is LlmAudioRequest aud) return aud.InputText;
+            return "Unknown Payload";
         }
 
         private void DrawOpportunisticRow(Rect rect, string status, string task, string prio,
@@ -457,9 +466,9 @@ namespace RimSynapse.UI
         {
             float height = 25f;
             var s = RimSynapseMod.Instance.Settings;
-            if (s.qmShowPrompt && req.Messages != null)
+            if (s.qmShowPrompt)
             {
-                string textDump = string.Join("\n\n", req.Messages.Select(m => $"[{m.role.ToUpper()}]\n{m.content}"));
+                string textDump = GetPayloadTextDump(req);
                 float promptH = Text.CalcHeight(textDump, mainWidths[9] - 4f);
                 if (promptH + 10f > height) height = promptH + 10f;
             }

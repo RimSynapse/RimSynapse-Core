@@ -59,9 +59,10 @@ namespace RimSynapse.Internal
         /// SYNCHRONOUS — intended to be called from the queue worker thread.
         /// Returns the result directly (never dispatches to main thread).
         /// </summary>
-        internal static ChatResult PostChatCompletionSync(
+        internal static object RouteRequestSync(
             SynapseModHandle mod,
-            List<ChatMessage> messages,
+            object payload,
+            LlmCapabilities capability,
             ChatOptions options)
         {
             EnsureInitialized();
@@ -82,39 +83,44 @@ namespace RimSynapse.Internal
                 }
                 else
                 {
-                    LlmCapabilities reqCaps = LlmCapabilities.Text;
-                    if (mod != null && !string.IsNullOrEmpty(options?.queryId) && mod.RegisteredQueries.TryGetValue(options.queryId, out var queryDef))
-                    {
-                        reqCaps = queryDef.requiredCaps;
-                    }
-                    
-                    if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) routingId = settings.defaultRoutingImage;
-                    else if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) routingId = settings.defaultRoutingVision;
-                    else if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) routingId = settings.defaultRoutingAudio;
+                    if ((capability & LlmCapabilities.Image) == LlmCapabilities.Image) routingId = settings.defaultRoutingImage;
+                    else if ((capability & LlmCapabilities.Vision) == LlmCapabilities.Vision) routingId = settings.defaultRoutingVision;
+                    else if ((capability & LlmCapabilities.Audio) == LlmCapabilities.Audio) routingId = settings.defaultRoutingAudio;
                     else routingId = settings.defaultRoutingText;
                 }
 
                 string baseUrl = settings.lmStudioUrl;
                 string apiKey = settings.lmStudioApiKey;
                 ApiProvider providerHit = ApiProvider.Local_LMStudio;
+                string defaultProviderModel = settings.modelLocal;
 
                 if (routingId == RoutingId.OpenAI)
                 {
                     baseUrl = settings.openAiUrl;
                     apiKey = settings.openAiApiKey;
                     providerHit = ApiProvider.OpenAI;
+                    defaultProviderModel = settings.modelOpenAi;
                 }
                 else if (routingId == RoutingId.Gemini)
                 {
                     baseUrl = settings.geminiUrl;
                     apiKey = settings.geminiApiKey;
                     providerHit = ApiProvider.Google_Gemini;
+                    defaultProviderModel = settings.modelGemini;
                 }
                 else if (routingId == RoutingId.Claude)
                 {
                     baseUrl = settings.claudeUrl;
                     apiKey = settings.claudeApiKey;
                     providerHit = ApiProvider.Anthropic_Claude;
+                    defaultProviderModel = settings.modelClaude;
+                }
+                else if (routingId == RoutingId.Pollinations)
+                {
+                    baseUrl = settings.pollinationsUrl;
+                    apiKey = "";
+                    providerHit = ApiProvider.Pollinations;
+                    defaultProviderModel = settings.modelPollinations;
                 }
                 else if (routingId != null && routingId.StartsWith(RoutingId.CustomPrefix))
                 {
@@ -125,205 +131,100 @@ namespace RimSynapse.Internal
                         baseUrl = custom.url;
                         apiKey = custom.apiKey;
                         providerHit = ApiProvider.Custom;
-                        if (string.IsNullOrEmpty(options?.model))
-                        {
-                            options = new ChatOptions {
-                                queryId = options?.queryId,
-                                maxTokens = options?.maxTokens,
-                                temperature = options?.temperature,
-                                model = custom.model, // inject the custom provider's model
-                                thinking = options?.thinking,
-                                sanitize = options?.sanitize ?? true,
-                                priority = options?.priority ?? 0,
-                                maxWaitMs = options?.maxWaitMs,
-                                eventType = options?.eventType,
-                                contextTiers = options?.contextTiers,
-                                weightOverrides = options?.weightOverrides,
-                                sourcePawn = options?.sourcePawn,
-                                targetPawn = options?.targetPawn
-                            };
-                        }
+                        defaultProviderModel = custom.model;
                     }
                 }
 
-                baseUrl = baseUrl.TrimEnd('/');
-                string url;
-                if (providerHit == ApiProvider.Anthropic_Claude)
-                {
-                    if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1/messages")) url = $"{baseUrl.Replace("/v1/messages", "/v1")}/messages";
-                    else url = $"{baseUrl}/v1/messages";
-                }
-                else
-                {
-                    if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages")) url = $"{baseUrl.Replace("/v1/messages", "/v1")}/chat/completions";
-                    else url = $"{baseUrl}/v1/chat/completions";
-                }
-
-                JObject body;
+                // Resolve model override hierarchy
                 string targetModel = options?.model;
-                if (providerHit == ApiProvider.Anthropic_Claude)
+                if (string.IsNullOrEmpty(targetModel))
                 {
-                    body = new JObject();
-                    if (!string.IsNullOrEmpty(targetModel)) body["model"] = targetModel;
-                    else body["model"] = "claude-opus-4-6"; // default fallback
-
-                    // max_tokens is required by Anthropic
-                    int tokens = options?.maxTokens ?? 8192;
-                    body["max_tokens"] = tokens;
-
-                    if (options?.temperature.HasValue == true)
-                        body["temperature"] = options.temperature.Value;
-
-                    string systemStr = "";
-                    var anthropicMessages = new JArray();
-                    foreach (var msg in messages)
+                    // 1. Specific query override
+                    if (mod != null && !string.IsNullOrEmpty(options?.queryId) && settings.queryRoutingModels.TryGetValue(queryKey, out var qModel) && !string.IsNullOrEmpty(qModel))
                     {
-                        if (msg.role == "system")
+                        targetModel = qModel;
+                    }
+                    // 2. Capability default override
+                    if (string.IsNullOrEmpty(targetModel))
+                    {
+                        string capKey = "default_text";
+                        if ((capability & LlmCapabilities.Image) == LlmCapabilities.Image) capKey = "default_image";
+                        else if ((capability & LlmCapabilities.Vision) == LlmCapabilities.Vision) capKey = "default_vision";
+                        else if ((capability & LlmCapabilities.Audio) == LlmCapabilities.Audio) capKey = "default_audio";
+                        
+                        if (settings.queryRoutingModels.TryGetValue(capKey, out var capModel) && !string.IsNullOrEmpty(capModel))
                         {
-                            if (systemStr.Length > 0) systemStr += "\n";
-                            systemStr += msg.content;
-                        }
-                        else
-                        {
-                            anthropicMessages.Add(new JObject { ["role"] = msg.role, ["content"] = msg.content });
+                            targetModel = capModel;
                         }
                     }
+                    // 3. Fallback to provider default / active model
+                    if (string.IsNullOrEmpty(targetModel))
+                    {
+                        if (providerHit == ApiProvider.Local_LMStudio) targetModel = ModelManager.ResolveModel(options?.model);
+                        else targetModel = defaultProviderModel;
+                    }
+                }
 
-                    if (!string.IsNullOrEmpty(systemStr))
-                        body["system"] = systemStr;
-                    body["messages"] = anthropicMessages;
+                // Instantiate specific provider
+                Providers.ILlmProvider provider;
+                if (providerHit == ApiProvider.Anthropic_Claude) provider = new Providers.AnthropicProvider(_client);
+                else if (providerHit == ApiProvider.Google_Gemini) provider = new Providers.GeminiProvider(_client);
+                else if (providerHit == ApiProvider.Pollinations) provider = new Providers.PollinationsProvider(_client);
+                else provider = new Providers.OpenAiProvider(_client);
+
+                // Route to the appropriate interface method based on Payload Type
+                if (payload is LlmTextRequest textReq)
+                {
+                    if (capability == LlmCapabilities.Vision)
+                    {
+                        // Some legacy compatibility fallback if they passed TextRequest but marked as Vision.
+                        return provider.SendTextRequestSync(textReq, baseUrl, apiKey, targetModel);
+                    }
+                    var chatResult = provider.SendTextRequestSync(textReq, baseUrl, apiKey, targetModel);
+                    
+                    // Sanitize if enabled
+                    if (chatResult.success && options?.sanitize != false && settings.sanitizeResponse)
+                    {
+                        chatResult.content = Sanitizer.Clean(chatResult.content);
+                    }
+                    
+                    // Record usage
+                    if (chatResult.success)
+                    {
+                        if (providerHit == ApiProvider.Local_LMStudio) { settings.tokensPromptLocal += chatResult.promptTokens; settings.tokensCompletionLocal += chatResult.completionTokens; }
+                        else if (providerHit == ApiProvider.OpenAI) { settings.tokensPromptOpenAi += chatResult.promptTokens; settings.tokensCompletionOpenAi += chatResult.completionTokens; }
+                        else if (providerHit == ApiProvider.Google_Gemini) { settings.tokensPromptGemini += chatResult.promptTokens; settings.tokensCompletionGemini += chatResult.completionTokens; }
+                        else if (providerHit == ApiProvider.Anthropic_Claude) { settings.tokensPromptClaude += chatResult.promptTokens; settings.tokensCompletionClaude += chatResult.completionTokens; }
+                        else if (providerHit == ApiProvider.Custom) { settings.tokensPromptCustom += chatResult.promptTokens; settings.tokensCompletionCustom += chatResult.completionTokens; }
+                    }
+                    
+                    return chatResult;
+                }
+                else if (payload is LlmVisionRequest visionReq)
+                {
+                    return provider.SendVisionRequestSync(visionReq, baseUrl, apiKey, targetModel);
+                }
+                else if (payload is LlmImageRequest imgReq)
+                {
+                    return provider.SendImageRequestSync(imgReq, baseUrl, apiKey, targetModel);
+                }
+                else if (payload is LlmAudioRequest audReq)
+                {
+                    return provider.SendAudioRequestSync(audReq, baseUrl, apiKey, targetModel);
                 }
                 else
                 {
-                    body = new JObject { ["messages"] = JArray.FromObject(messages) };
-                    if (!string.IsNullOrEmpty(targetModel)) body["model"] = targetModel;
-
-                    if (options?.maxTokens.HasValue == true)
-                    {
-                        int tokens = options.maxTokens.Value;
-                        if (tokens < 8192)
-                        {
-                            SynapseLogger.Message($"Bumping max_tokens from {tokens} to 8192 for reasoning model headroom.");
-                            tokens = 8192;
-                        }
-                        body["max_tokens"] = tokens;
-                    }
-
-                    if (options?.temperature.HasValue == true)
-                        body["temperature"] = options.temperature.Value;
-
-                    bool thinkingEnabled = options?.thinking ?? !settings.disableThinking;
-                    if (!thinkingEnabled)
-                    {
-                        body["thinking"] = new JObject { ["type"] = "disabled" };
-                        SynapseLogger.Message("Thinking disabled for this request.");
-                    }
-                    body.Remove("response_format");
+                    return ChatResult.Failure("Unknown payload type submitted to HttpEngine.");
                 }
-
-                string jsonBody = body.ToString(Formatting.None);
-                
-                SynapseLogger.TraceContext(jsonBody, url);
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url)
-                {
-                    Content = new StringContent(jsonBody, Encoding.UTF8, "application/json"),
-                };
-
-                // Auth header
-                if (!string.IsNullOrEmpty(apiKey))
-                {
-                    if (providerHit == ApiProvider.Anthropic_Claude)
-                    {
-                        request.Headers.Add("x-api-key", apiKey);
-                        request.Headers.Add("anthropic-version", "2023-06-01");
-                    }
-                    else
-                    {
-                        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-                    }
-                }
-
-                // Set timeout using CancellationToken because HttpClient.Timeout cannot be modified per-request
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.timeoutSeconds));
-                var response = _client.SendAsync(request, cts.Token).Result;
-                string responseBody = response.Content.ReadAsStringAsync().Result;
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-                    var error = $"LM Studio returned {(int)response.StatusCode}: {responseBody}";
-                    SynapseLogger.Error(error);
-                    return ChatResult.Failure(error, dur);
-                }
-
-                var result = JObject.Parse(responseBody);
-
-                string content = null;
-                int promptTokens = 0;
-                int completionTokens = 0;
-                string model = targetModel ?? "unknown";
-
-                if (providerHit == ApiProvider.Anthropic_Claude)
-                {
-                    var contentArr = result["content"] as JArray;
-                    if (contentArr != null && contentArr.Count > 0)
-                    {
-                        content = contentArr[0]?["text"]?.ToString();
-                    }
-                    var usage = result["usage"];
-                    promptTokens = usage?["input_tokens"]?.Value<int>() ?? 0;
-                    completionTokens = usage?["output_tokens"]?.Value<int>() ?? 0;
-                    model = result["model"]?.ToString() ?? model;
-                }
-                else
-                {
-                    var choices = result["choices"] as JArray;
-                    if (choices != null && choices.Count > 0)
-                    {
-                        var message = choices[0]?["message"];
-                        content = message?["content"]?.ToString();
-
-                        if (string.IsNullOrWhiteSpace(content))
-                        {
-                            string reasoningContent = message?["reasoning_content"]?.ToString();
-                            if (!string.IsNullOrWhiteSpace(reasoningContent))
-                            {
-                                SynapseLogger.Warning("Assistant content was empty but reasoning_content present. Using fallback.");
-                                content = reasoningContent;
-                            }
-                        }
-                    }
-                    var usage = result["usage"];
-                    promptTokens = usage?["prompt_tokens"]?.Value<int>() ?? 0;
-                    completionTokens = usage?["completion_tokens"]?.Value<int>() ?? 0;
-                    model = result["model"]?.ToString() ?? model;
-                }
-
-                // Sanitize if enabled
-                if (options?.sanitize != false && settings.sanitizeResponse)
-                {
-                    content = Sanitizer.Clean(content);
-                }
-
-                long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-
-                SynapseLogger.Message($"Completion received in {durationMs}ms — {promptTokens}p/{completionTokens}c tokens.");
-
-                // Record usage per provider
-                if (providerHit == ApiProvider.Local_LMStudio) { settings.tokensPromptLocal += promptTokens; settings.tokensCompletionLocal += completionTokens; }
-                else if (providerHit == ApiProvider.OpenAI) { settings.tokensPromptOpenAi += promptTokens; settings.tokensCompletionOpenAi += completionTokens; }
-                else if (providerHit == ApiProvider.Google_Gemini) { settings.tokensPromptGemini += promptTokens; settings.tokensCompletionGemini += completionTokens; }
-                else if (providerHit == ApiProvider.Anthropic_Claude) { settings.tokensPromptClaude += promptTokens; settings.tokensCompletionClaude += completionTokens; }
-                else if (providerHit == ApiProvider.Custom) { settings.tokensPromptCustom += promptTokens; settings.tokensCompletionCustom += completionTokens; }
-
-                return ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
             }
             catch (Exception ex)
             {
                 long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
                 string error = ex.InnerException?.Message ?? ex.Message;
-                SynapseLogger.Error($"Request failed: {error}");
+                SynapseLogger.Error($"RouteRequestSync Exception: {error}");
+                
+                if ((capability & LlmCapabilities.Image) == LlmCapabilities.Image) return ImageResult.Failure(error, dur);
+                if ((capability & LlmCapabilities.Audio) == LlmCapabilities.Audio) return AudioResult.Failure(error, dur);
                 return ChatResult.Failure(error, dur);
             }
         }
@@ -516,6 +417,13 @@ namespace RimSynapse.Internal
             {
                 try
                 {
+                    if (provider == ApiProvider.Pollinations)
+                    {
+                        var models = new System.Collections.Generic.List<string> { "flux", "flux-realism", "flux-anime", "flux-3d", "any-dark", "turbo" };
+                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, models, "Success"));
+                        return;
+                    }
+
                     baseUrl = baseUrl.TrimEnd('/');
                     string url;
                     if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages"))
@@ -608,6 +516,23 @@ namespace RimSynapse.Internal
                     apiKey = System.Text.RegularExpressions.Regex.Replace(apiKey ?? "", @"[^\u0020-\u007E]+", string.Empty);
 
                     string baseUrl = url.Trim().TrimEnd('/');
+                    
+                    if (provider == ApiProvider.Pollinations)
+                    {
+                        var polliReq = new HttpRequestMessage(HttpMethod.Get, "https://image.pollinations.ai/prompt/test");
+                        var polliCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                        var polliRes = _client.SendAsync(polliReq, polliCts.Token).Result;
+                        if (polliRes.IsSuccessStatusCode)
+                        {
+                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, "Success!"));
+                        }
+                        else
+                        {
+                            string err = $"{(int)polliRes.StatusCode} {polliRes.ReasonPhrase}";
+                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, err));
+                        }
+                        return;
+                    }
                     
                     // We'll use the models endpoint for the test if possible, as it's a cheap GET request
                     // that doesn't require a valid model name, except for Anthropic which doesn't have a standard /models endpoint in OpenAI compat mode.
