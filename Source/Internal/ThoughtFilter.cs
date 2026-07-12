@@ -87,8 +87,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Warn("context",
-                    $"Error filtering memory thoughts for {pawn.Name}: {ex.Message}");
+                SynapseLogger.Warning($"Error filtering memory thoughts for {pawn.Name}: {ex.Message}");
             }
 
             // ── Situational thoughts ──

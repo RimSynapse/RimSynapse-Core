@@ -42,6 +42,7 @@ namespace RimSynapse
 
         // --- Context Embedding ---
         public bool enableContextEmbedding = false;
+        public float shortTermMemoryHours = 48f;
 
         // --- Performance ---
         public int timeoutSeconds = 120;
@@ -54,13 +55,33 @@ namespace RimSynapse
         /// <summary>Max tasks to fire per idle check in Aggressive mode (1-5).</summary>
         public int opportunisticBurstSize = 3;
 
-        // --- Logging ---
-        public LogLevel logLevel = LogLevel.Info;
-        public bool enableSessionLogging = true;
+        // --- Logging & Troubleshooting ---
+        public bool traceDebugMode = false;
+        public bool testIdeologyActive = true;
+        public bool testRoyaltyActive = true;
+        public bool testBiotechActive = true;
+        public bool testAnomalyActive = true;
 
         // --- Notifications ---
         /// <summary>Show VRAM status on game load (default: true). Disable in settings.</summary>
         public bool showVramAdvisory = true;
+
+        /// <summary>Show Queue Monitor icon in the bottom-right toolbar (default: true).</summary>
+        public bool showQueueMonitorIcon = true;
+
+        // --- Queue Monitor Columns ---
+        public bool qmShowPrio = true;
+        public bool qmShowMod = true;
+        public bool qmShowTarget = true;
+        public bool qmShowTask = true;
+        public bool qmShowAge = true;
+        
+        public bool qmShowStatus = false;
+        public bool qmShowScore = false;
+        public bool qmShowTimeout = false;
+        public bool qmShowTokens = false;
+        public bool qmShowPrompt = false;
+        public bool qmShowResponse = false;
 
         public override void ExposeData()
         {
@@ -79,9 +100,27 @@ namespace RimSynapse
             Scribe_Values.Look(ref opportunisticThrottleMode, "opportunisticThrottleMode", -1);
             Scribe_Values.Look(ref opportunisticBurstSize, "opportunisticBurstSize", 3);
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
-            Scribe_Values.Look(ref logLevel, "logLevel", LogLevel.Info);
-            Scribe_Values.Look(ref enableSessionLogging, "enableSessionLogging", true);
+            Scribe_Values.Look(ref shortTermMemoryHours, "shortTermMemoryHours", 48f);
+            Scribe_Values.Look(ref traceDebugMode, "traceDebugMode", false);
+            Scribe_Values.Look(ref testIdeologyActive, "testIdeologyActive", true);
+            Scribe_Values.Look(ref testRoyaltyActive, "testRoyaltyActive", true);
+            Scribe_Values.Look(ref testBiotechActive, "testBiotechActive", true);
+            Scribe_Values.Look(ref testAnomalyActive, "testAnomalyActive", true);
             Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
+            Scribe_Values.Look(ref showQueueMonitorIcon, "showQueueMonitorIcon", true);
+
+            Scribe_Values.Look(ref qmShowPrio, "qmShowPrio", true);
+            Scribe_Values.Look(ref qmShowMod, "qmShowMod", true);
+            Scribe_Values.Look(ref qmShowTarget, "qmShowTarget", true);
+            Scribe_Values.Look(ref qmShowTask, "qmShowTask", true);
+            Scribe_Values.Look(ref qmShowAge, "qmShowAge", true);
+            
+            Scribe_Values.Look(ref qmShowStatus, "qmShowStatus", false);
+            Scribe_Values.Look(ref qmShowScore, "qmShowScore", false);
+            Scribe_Values.Look(ref qmShowTimeout, "qmShowTimeout", false);
+            Scribe_Values.Look(ref qmShowTokens, "qmShowTokens", false);
+            Scribe_Values.Look(ref qmShowPrompt, "qmShowPrompt", false);
+            Scribe_Values.Look(ref qmShowResponse, "qmShowResponse", false);
         }
     }
 }

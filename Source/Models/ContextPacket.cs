@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Verse;
+using RimSynapse.Models;
 
 namespace RimSynapse
 {
@@ -34,6 +35,9 @@ namespace RimSynapse
         /// <summary>Active narrative threads from Storyteller (Tier 5, null if absent).</summary>
         public List<NarrativeThreadEntry> narrativeThreads;
 
+        /// <summary>Short-Term History (Tier 6, recent 48-hour events).</summary>
+        public List<ShortTermEvent> recentEvents;
+
         /// <summary>Assembly metadata: which slots were filled, which were dropped.</summary>
         public List<string> slotsFilled;
         public List<string> slotsDropped;
@@ -50,6 +54,7 @@ namespace RimSynapse
             Scribe_Deep.Look(ref colony, "colony");
             Scribe_Deep.Look(ref world, "world");
             Scribe_Collections.Look(ref narrativeThreads, "narrativeThreads", LookMode.Deep);
+            Scribe_Collections.Look(ref recentEvents, "recentEvents", LookMode.Deep);
             Scribe_Collections.Look(ref slotsFilled, "slotsFilled", LookMode.Value);
             Scribe_Collections.Look(ref slotsDropped, "slotsDropped", LookMode.Value);
         }

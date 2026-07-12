@@ -49,8 +49,7 @@ namespace RimSynapse.Internal
             {
                 if (_mods.TryGetValue(modId, out var existing))
                 {
-                    SynapseLog.Debug("registry",
-                        $"Mod \"{displayName}\" ({modId}) already registered. Returning existing handle.");
+                    SynapseLogger.Message($"Mod \"{displayName}\" ({modId}) already registered. Returning existing handle.");
                     return existing;
                 }
 
@@ -60,8 +59,7 @@ namespace RimSynapse.Internal
                 // Auto-rebalance: equal split across all registered mods
                 RebalanceBudgets();
 
-                SynapseLog.Info("registry",
-                    $"Registered mod \"{displayName}\" ({modId}). " +
+                SynapseLogger.Message($"Registered mod \"{displayName}\" ({modId}). " +
                     $"Total mods: {_mods.Count}. Budget: {handle.QueryBudgetPercent:F0}%.");
 
                 return handle;

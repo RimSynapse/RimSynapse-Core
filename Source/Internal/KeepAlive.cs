@@ -23,7 +23,7 @@ namespace RimSynapse.Internal
             if (_timer != null) return;
 
             _timer = new Timer(OnTick, null, Interval, Interval);
-            SynapseLog.Debug("keepalive", "Keep-alive timer started (every 4 minutes).");
+            SynapseLogger.Message("Keep-alive timer started (every 4 minutes).");
         }
 
         /// <summary>

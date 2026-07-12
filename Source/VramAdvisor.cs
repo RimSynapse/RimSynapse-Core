@@ -24,9 +24,6 @@ namespace RimSynapse
         /// since our estimates are less precise than real NVML data).</summary>
         private const float MinFreeGb = 4.0f;
 
-        /// <summary>Only check once per game session.</summary>
-        private static bool _hasChecked;
-
         /// <summary>
         /// Called once during mod startup (StaticConstructorOnStartup).
         /// Uses Unity's SystemInfo to estimate VRAM headroom.
@@ -44,8 +41,6 @@ namespace RimSynapse
 
         internal static void Check()
         {
-            if (_hasChecked) return;
-            _hasChecked = true;
 
             // Track whether NVIDIA Tool handles the VRAM advisory —
             // but we ALWAYS check for LM Studio connectivity (no model = mod broken)
@@ -53,7 +48,7 @@ namespace RimSynapse
 
             if (_nvidiaToolHandlesVram)
             {
-                SynapseLog.Info("core",
+                SynapseLogger.Info("core",
                     "NVIDIA Tool mod detected — Core will defer VRAM breakdown " +
                     "but still check LM Studio connectivity.");
             }
@@ -89,8 +84,7 @@ namespace RimSynapse
                 var modelsResult = Internal.HttpEngine.GetModelsSync();
                 Internal.ModelManager.UpdateCache(modelsResult);
 
-                SynapseLog.Info("core",
-                    $"VRAM advisor (attempt {attempt + 1}): " +
+                SynapseLogger.Message($"VRAM advisor (attempt {attempt + 1}): " +
                     $"online={modelsResult.online}, " +
                     $"models={modelsResult.modelIds.Count}, " +
                     $"error={modelsResult.error ?? "none"}");
@@ -98,73 +92,44 @@ namespace RimSynapse
                 if (modelsResult.online && modelsResult.modelIds.Count > 0)
                 {
                     modelName = modelsResult.modelIds[0];
-                    SynapseLog.Info("core",
-                        $"VRAM advisor: live model from LM Studio: \"{modelName}\"");
+                    SynapseLogger.Message($"VRAM advisor: live model from LM Studio: \"{modelName}\"");
                 }
             }
             catch (Exception ex)
             {
-                SynapseLog.Warn("core",
-                    $"VRAM advisor: could not query LM Studio (attempt {attempt + 1}): {ex.Message}");
+                SynapseLogger.Warning($"VRAM advisor: could not query LM Studio (attempt {attempt + 1}): {ex.Message}");
             }
 
             // If no model found and retries remain, wait and try again
             if (string.IsNullOrEmpty(modelName) && attempt < MaxRetries)
             {
-                SynapseLog.Info("core",
-                    $"VRAM advisor: no model found, retrying in {RetryDelayMs}ms...");
+                SynapseLogger.Message($"VRAM advisor: no model found, retrying in {RetryDelayMs}ms...");
                 System.Threading.Thread.Sleep(RetryDelayMs);
                 RunCheck(attempt + 1);
                 return;
             }
 
-            // If no model found from the live API — always warn.
-            // Don't fall back to settings.selectedModel — that's stale data
-            // from a previous session and would mask the fact that LM Studio is offline.
+            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
+
             if (string.IsNullOrEmpty(modelName))
             {
                 bool isRemote = RimSynapseMod.Instance?.Settings?.IsRemoteUrl ?? false;
-                if (!isRemote)
+                SynapseLogger.Warning("VRAM Advisor (Logging): No LLM model detected. LM Studio may not be running or has no model loaded.");
+                
+                if (!isRemote && showNotify)
                 {
                     ShowNoModelWarning(totalGpuGb);
                 }
-                else
+                else if (isRemote)
                 {
-                    // If remote, suppress the local VRAM/GPU popup entirely as requested.
-                    // Just log it. The user will figure out their remote server is down
-                    // when chat doesn't work, but they shouldn't be bothered with local GPU popups.
-                    SynapseLog.Warn("core", "Remote LM Studio host is unreachable or has no model loaded. Popup suppressed.");
+                    SynapseLogger.Warning("Remote LM Studio host is unreachable or has no model loaded. Popup suppressed.");
                 }
                 return;
             }
             // ── Model found — LM Studio is alive ──
             // Now decide whether to show the VRAM breakdown.
             // If NVIDIA Tool handles VRAM, or user disabled notifications, skip it.
-            if (_nvidiaToolHandlesVram)
-            {
-                SynapseLog.Info("core",
-                    $"LM Studio model confirmed: \"{modelName}\". " +
-                    "NVIDIA Tool will handle VRAM breakdown.");
-                return;
-            }
-
-            bool showNotify = RimSynapseMod.Instance?.Settings?.showVramAdvisory ?? true;
-            if (!showNotify)
-            {
-                SynapseLog.Info("core",
-                    $"LM Studio model confirmed: \"{modelName}\". " +
-                    "VRAM advisory disabled in settings.");
-                return;
-            }
-
             bool isRemoteHost = RimSynapseMod.Instance?.Settings?.IsRemoteUrl ?? false;
-            if (isRemoteHost)
-            {
-                SynapseLog.Info("core",
-                    $"LM Studio model confirmed: \"{modelName}\". " +
-                    "Remote host detected, skipping local VRAM advisory popup.");
-                return;
-            }
 
             float lmEstimateGb = EstimateModelVramGb(modelName);
 
@@ -178,12 +143,17 @@ namespace RimSynapse
             float estimatedUsedGb = lmEstimateGb + rwEstimateGb + systemEstimateGb;
             float estimatedFreeGb = totalGpuGb - estimatedUsedGb;
 
-            SynapseLog.Info("core",
-                $"VRAM estimate: {totalGpuGb:F1} GB total, " +
+            SynapseLogger.Warning(
+                $"VRAM Advisor (Logging): {totalGpuGb:F1} GB total, " +
                 $"~{lmEstimateGb:F1} GB model ({modelName ?? "none"}), " +
                 $"~{rwEstimateGb:F1} GB RimWorld, " +
                 $"~{systemEstimateGb:F1} GB system. " +
                 $"Est. free: ~{estimatedFreeGb:F1} GB.");
+
+            if (!showNotify || _nvidiaToolHandlesVram || isRemoteHost)
+            {
+                return;
+            }
 
             ShowAdvisory(totalGpuGb, lmEstimateGb, estimatedFreeGb, modelName);
         }
@@ -210,11 +180,9 @@ namespace RimSynapse
                 "Quickstart guide:\n" +
                 "  https://lmstudio.ai/docs/basics/server\n\n" +
                 $"GPU: {gpuName}  •  VRAM: {totalGpuGb:F0} GB total\n\n" +
-                "This warning always appears when no model is detected.\n" +
-                "It cannot be disabled — RimSynapse requires LM Studio to function.";
+                "You can disable this popup in Mod Settings -> RimSynapse Core.";
 
-            SynapseLog.Warn("core",
-                "No LLM model detected. LM Studio may not be running or has no model loaded.");
+            SynapseLogger.Warning("No LLM model detected. LM Studio may not be running or has no model loaded.");
 
             LongEventHandler.QueueLongEvent(() =>
             {
@@ -310,7 +278,7 @@ namespace RimSynapse
 
             if (isCritical)
             {
-                SynapseLog.Warn("core",
+                SynapseLogger.Warn("core",
                     $"VRAM advisory: ~{estFreeGb:F1} GB estimated free " +
                     $"with {modelName ?? "unknown"} loaded on {totalGb:F0} GB GPU.");
             }

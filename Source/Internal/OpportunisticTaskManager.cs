@@ -128,7 +128,7 @@ namespace RimSynapse.Internal
                 };
 
                 _tasks.Add(entry);
-                SynapseLog.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
+                SynapseLogger.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
                     $"(P{entry.Priority}, W{entry.BaseWeight:F1}, CD{entry.CooldownTicks}t, Dynamic)");
             }
         }
@@ -165,7 +165,7 @@ namespace RimSynapse.Internal
                 };
 
                 _tasks.Add(entry);
-                SynapseLog.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
+                SynapseLogger.Info("core", $"Registered Opportunistic Task '{entry.Label}' for {mod.DisplayName} " +
                     $"(P{entry.Priority}, W{entry.BaseWeight:F1}, CD{entry.CooldownTicks}t)");
             }
         }
@@ -255,6 +255,18 @@ namespace RimSynapse.Internal
                         float recovery = (float)ticksSinceRun / Math.Max(1, cooldown);
                         task.EffectiveWeight = task.BaseWeight * recovery;
                     }
+
+                    // Apply token penalty
+                    float avgTokens = 0f;
+                    lock (RequestQueue.AvgTokensPerType)
+                    {
+                        if (RequestQueue.AvgTokensPerType.TryGetValue(task.Label, out float tokens))
+                        {
+                            avgTokens = tokens;
+                        }
+                    }
+                    float tokenPenalty = Math.Max(1f, avgTokens / 100f);
+                    task.EffectiveWeight /= tokenPenalty;
                 }
 
                 // Group eligible tasks by priority (highest first)
@@ -293,7 +305,7 @@ namespace RimSynapse.Internal
                     selected.EffectiveWeight = 0f; // Decay to zero immediately
                     selected.TimesRun++;
 
-                    SynapseLog.Debug("queue", $"Opportunistic [{mode}]: Firing '{selected.Label}' " +
+                    SynapseLogger.Debug("queue", $"Opportunistic [{mode}]: Firing '{selected.Label}' " +
                         $"(P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
 
                     var callback = selected.Callback;
@@ -330,7 +342,7 @@ namespace RimSynapse.Internal
                         }
                         catch (Exception ex)
                         {
-                            SynapseLog.Error("core", $"Error executing opportunistic task '{selected.TaskId}': {ex.Message}");
+                            SynapseLogger.Error($"Error executing opportunistic task '{selected.TaskId}': {ex.Message}");
                         }
                     });
 
@@ -405,14 +417,30 @@ namespace RimSynapse.Internal
                 int topPriority = eligible[0].Priority;
                 var topGroup = eligible.Where(t => t.Priority == topPriority).ToList();
 
-                float totalWeight = topGroup.Sum(t => Math.Max(0.01f, t.BaseWeight));
+                // Calculate effective weights with token penalty
+                var pauseWeights = new Dictionary<TaskEntry, float>();
+                foreach (var task in topGroup)
+                {
+                    float avgTokens = 0f;
+                    lock (RequestQueue.AvgTokensPerType)
+                    {
+                        if (RequestQueue.AvgTokensPerType.TryGetValue(task.Label, out float tokens))
+                        {
+                            avgTokens = tokens;
+                        }
+                    }
+                    float tokenPenalty = Math.Max(1f, avgTokens / 100f);
+                    pauseWeights[task] = task.BaseWeight / tokenPenalty;
+                }
+
+                float totalWeight = topGroup.Sum(t => Math.Max(0.01f, pauseWeights[t]));
                 float roll = Rand.Range(0f, totalWeight);
                 float cumulative = 0f;
                 TaskEntry selected = topGroup.Last();
 
                 foreach (var task in topGroup)
                 {
-                    cumulative += Math.Max(0.01f, task.BaseWeight);
+                    cumulative += Math.Max(0.01f, pauseWeights[task]);
                     if (roll <= cumulative)
                     {
                         selected = task;
@@ -423,7 +451,7 @@ namespace RimSynapse.Internal
                 _realTimeCooldowns[selected.TaskId] = now;
                 selected.TimesRun++;
 
-                SynapseLog.Debug("queue", $"Pause-opportunistic [{mode}]: Firing '{selected.Label}' " +
+                SynapseLogger.Debug("queue", $"Pause-opportunistic [{mode}]: Firing '{selected.Label}' " +
                     $"(P{selected.Priority}, W{selected.BaseWeight:F1}, #{selected.TimesRun})");
 
                 // During pause, we can execute directly on the main thread (we're in GameComponentUpdate)
@@ -448,7 +476,7 @@ namespace RimSynapse.Internal
                 }
                 catch (Exception ex)
                 {
-                    SynapseLog.Error("core", $"Error executing pause-opportunistic task '{selected.TaskId}': {ex.Message}");
+                    SynapseLogger.Error($"Error executing pause-opportunistic task '{selected.TaskId}': {ex.Message}");
                 }
             }
         }

@@ -81,16 +81,49 @@ namespace RimSynapse.Utils
         }
 
         /// <summary>
-        /// Formats an absolute tick as a RimWorld date string.
-        /// e.g., "3 of Aprimay, 5492"
+        /// Formats an absolute tick as a RimWorld date string, correctly handling negative ticks (pre-5500).
         /// </summary>
         public static string FormatAbsTick(long absTick, float longitude = 0f)
         {
-            int tickInt = (int)Math.Max(0, absTick); // GenDate expects int, clamp to 0 minimum
-            int day = GenDate.DayOfYear(tickInt, longitude);
-            Quadrum quadrum = GenDate.Quadrum(tickInt, longitude);
-            int year = GenDate.Year(tickInt, longitude);
-            return $"{day} of {quadrum.Label()}, {year}";
+            long ticks = absTick;
+
+            // Longitude adjustment: each 1 degree = 1/360th of a day (166.66 ticks).
+            // RimWorld shifts time based on longitude.
+            long tzOffset = (long)(longitude * ((float)TicksPerDay / 360f));
+            ticks += tzOffset;
+
+            long yearsFromAnchor = ticks / TicksPerYear;
+            long ticksRemainder = ticks % TicksPerYear;
+
+            // Handle negative remainders correctly
+            if (ticksRemainder < 0)
+            {
+                yearsFromAnchor -= 1;
+                ticksRemainder += TicksPerYear;
+            }
+
+            int year = 5500 + (int)yearsFromAnchor;
+            int daysTotal = (int)(ticksRemainder / TicksPerDay);
+            
+            int quadrumIndex = daysTotal / 15;
+            int dayOfQuadrum = (daysTotal % 15) + 1; // 1-indexed for display (1st to 15th)
+
+            string quadrumLabel = quadrumIndex switch
+            {
+                0 => "Aprimay",
+                1 => "Jugust",
+                2 => "Septober",
+                3 => "Decembary",
+                _ => "Unknown"
+            };
+
+            // Add suffix for the day
+            string daySuffix = "th";
+            if (dayOfQuadrum % 10 == 1 && dayOfQuadrum != 11) daySuffix = "st";
+            else if (dayOfQuadrum % 10 == 2 && dayOfQuadrum != 12) daySuffix = "nd";
+            else if (dayOfQuadrum % 10 == 3 && dayOfQuadrum != 13) daySuffix = "rd";
+
+            return $"{dayOfQuadrum}{daySuffix} of {quadrumLabel}, {year}";
         }
 
         /// <summary>

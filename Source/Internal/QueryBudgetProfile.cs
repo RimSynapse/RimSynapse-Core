@@ -105,7 +105,7 @@ namespace RimSynapse.Internal
 
             if (available <= 0)
             {
-                SynapseLog.Warn("context",
+                SynapseLogger.Warn("context",
                     $"No token budget remaining after reservations. " +
                     $"Window={contextWindow}, completion={reservedForCompletion}, " +
                     $"conversation={conversationTokens}, prompt={systemPromptTokens}");

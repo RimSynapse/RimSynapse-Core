@@ -53,8 +53,7 @@ namespace RimSynapse
         {
             if (mod == null)
             {
-                SynapseLog.Error("client",
-                    "ChatAsync called with null mod handle. Register first via SynapseCore.Register().");
+                SynapseLogger.Error("ChatAsync called with null mod handle. Register first via SynapseCore.Register().");
                 callback?.Invoke(ChatResult.Failure("Mod not registered. Call SynapseCore.Register() first."));
                 return;
             }
@@ -63,7 +62,7 @@ namespace RimSynapse
             string validationError = InputConverter.Validate(messages);
             if (validationError != null)
             {
-                SynapseLog.Warn("client", $"Input validation failed: {validationError}", mod.ModId);
+                SynapseLogger.Warning($"Input validation failed: {validationError}", mod.ModId);
                 callback?.Invoke(ChatResult.Failure(validationError));
                 return;
             }
@@ -104,7 +103,7 @@ namespace RimSynapse
             var messages = InputConverter.FromJson(json, out string error);
             if (messages == null)
             {
-                SynapseLog.Warn("client", $"JSON input conversion failed: {error}", mod?.ModId);
+                SynapseLogger.Warning($"JSON input conversion failed: {error}", mod?.ModId);
                 callback?.Invoke(ChatResult.Failure(error));
                 return;
             }
@@ -125,7 +124,7 @@ namespace RimSynapse
             var messages = InputConverter.FromXml(xml, out string error);
             if (messages == null)
             {
-                SynapseLog.Warn("client", $"XML input conversion failed: {error}", mod?.ModId);
+                SynapseLogger.Warning($"XML input conversion failed: {error}", mod?.ModId);
                 callback?.Invoke(ChatResult.Failure(error));
                 return;
             }

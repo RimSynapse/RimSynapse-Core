@@ -19,6 +19,11 @@ namespace RimSynapse.Internal
     internal static class ContextAssembler
     {
         /// <summary>
+        /// Fired when assembling a pawn packet so expansion integrations can inject data.
+        /// </summary>
+        public static event Action<Pawn, PawnPacket, List<ContextSlot>> OnAssemblePawnPacket;
+
+        /// <summary>
         /// Build a complete context packet for a request.
         /// </summary>
         /// <param name="eventType">Event type driving context assembly</param>
@@ -98,6 +103,12 @@ namespace RimSynapse.Internal
                 FillSyntheticData(packet, sourcePawn, slots);
             }
 
+            // ── Tier 6: Short-Term History ──
+            if ((tierMask & ContextTierMask.ShortTermHistory) != 0)
+            {
+                FillShortTermHistory(packet, sourcePawn, slots);
+            }
+
             // ── Event type framing ──
             slots.Insert(0, MakeSlot("eventType", $"Event: {eventType}"));
 
@@ -147,7 +158,7 @@ namespace RimSynapse.Internal
             packet.estimatedTokens = totalTokens;
 
             // Log assembly result
-            SynapseLog.Debug("context",
+            SynapseLogger.Debug("context",
                 $"Context assembled: {eventType} | " +
                 $"{packet.slotsFilled.Count} slots filled, " +
                 $"{packet.slotsDropped.Count} dropped | " +
@@ -155,8 +166,7 @@ namespace RimSynapse.Internal
 
             if (packet.slotsDropped.Count > 0)
             {
-                SynapseLog.Debug("context",
-                    $"Dropped slots: {string.Join(", ", packet.slotsDropped)}");
+                SynapseLogger.Message($"Dropped slots: {string.Join(", ", packet.slotsDropped)}");
             }
 
             return packet;
@@ -207,6 +217,15 @@ namespace RimSynapse.Internal
                 }
             }
 
+            if (packet.recentEvents?.Count > 0)
+            {
+                sb.AppendLine("[Recent History]");
+                foreach (var ev in packet.recentEvents)
+                {
+                    sb.AppendLine($"- [{ev.date.ToString()}] {ev.description}");
+                }
+            }
+
             sb.AppendLine("--- END CONTEXT ---");
             return sb.ToString();
         }
@@ -214,6 +233,39 @@ namespace RimSynapse.Internal
         // ────────────────────────────────────────────────────────
         //  Pawn data builders (read vanilla APIs)
         // ────────────────────────────────────────────────────────
+
+        private static void FillShortTermHistory(ContextPacket packet, Pawn sourcePawn, List<ContextSlot> slots)
+        {
+            var comp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+            if (comp == null || comp.shortTermEvents == null || comp.shortTermEvents.Count == 0) return;
+
+            // Filter for events involving this pawn, or global events if no source pawn
+            var relevantEvents = new List<Models.ShortTermEvent>();
+            foreach (var ev in comp.shortTermEvents)
+            {
+                if (sourcePawn == null)
+                {
+                    relevantEvents.Add(ev);
+                }
+                else if (ev.involvedPawnIds.Contains(sourcePawn.ThingID) || ev.eventType == Models.ShortTermEventType.GlobalEvent)
+                {
+                    relevantEvents.Add(ev);
+                }
+            }
+
+            if (relevantEvents.Count > 0)
+            {
+                packet.recentEvents = relevantEvents.OrderBy(e => e.gameTick).ToList();
+                
+                var sb = new StringBuilder();
+                foreach (var ev in packet.recentEvents)
+                {
+                    sb.AppendLine($"- [{ev.date.ToString()}] {ev.description}");
+                }
+                
+                slots.Add(MakeSlot("shortTermHistory", sb.ToString()));
+            }
+        }
 
         private static PawnPacket BuildPawnIdentity(Pawn pawn)
         {
@@ -331,33 +383,8 @@ namespace RimSynapse.Internal
                 slots.Add(MakeSlot("equipment", FormatEquipment(packet)));
             }
 
-            // Ideology (DLC safe)
-            try
-            {
-                if (ModsConfig.IdeologyActive && pawn.Ideo != null)
-                {
-                    packet.ideology = pawn.Ideo.name;
-                    packet.precepts = pawn.Ideo.PreceptsListForReading?
-                        .Select(p => p.Label).ToList();
-                    slots.Add(MakeSlot("ideology",
-                        $"[Ideology] {packet.ideology}"));
-                }
-            }
-            catch { /* DLC not loaded */ }
-
-            // Royalty title (DLC safe)
-            try
-            {
-                if (ModsConfig.RoyaltyActive && pawn.royalty != null)
-                {
-                    var title = pawn.royalty.MostSeniorTitle;
-                    if (title != null)
-                    {
-                        packet.royaltyTitle = title.def.label;
-                    }
-                }
-            }
-            catch { /* DLC not loaded */ }
+            // Let expansion integrations inject their data
+            OnAssemblePawnPacket?.Invoke(pawn, packet, slots);
 
             // Weather / Season / Biome (lightweight, attached to pawn state)
             if (pawn.Map != null)
@@ -455,7 +482,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Debug("context", $"Faction enumeration error: {ex.Message}");
+                SynapseLogger.Message($"Faction enumeration error: {ex.Message}");
             }
 
             // Active quests
@@ -544,8 +571,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Debug("context",
-                    $"Could not read Psychology comp data: {ex.Message}");
+                SynapseLogger.Message($"Could not read Psychology comp data: {ex.Message}");
             }
 
             // Storyteller narrative threads — read from WorldComponent
@@ -598,8 +624,7 @@ namespace RimSynapse.Internal
             }
             catch (Exception ex)
             {
-                SynapseLog.Debug("context",
-                    $"Could not read Storyteller world data: {ex.Message}");
+                SynapseLogger.Message($"Could not read Storyteller world data: {ex.Message}");
             }
         }
 
@@ -720,7 +745,7 @@ namespace RimSynapse.Internal
         //  Slot helper
         // ────────────────────────────────────────────────────────
 
-        private static ContextSlot MakeSlot(string name, string text)
+        public static ContextSlot MakeSlot(string name, string text)
         {
             // Read base weight from XML Def
             var weightDef = DefDatabase<SynapseWeightDef>.AllDefs
@@ -736,9 +761,9 @@ namespace RimSynapse.Internal
         }
 
         /// <summary>
-        /// Internal slot representation for budget trimming.
+        /// Slot representation for budget trimming.
         /// </summary>
-        private class ContextSlot
+        public class ContextSlot
         {
             public string Name;
             public string Text;

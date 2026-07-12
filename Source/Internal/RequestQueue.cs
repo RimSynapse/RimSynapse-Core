@@ -22,10 +22,17 @@ namespace RimSynapse.Internal
             public int Priority;
             public DateTime EnqueuedAt;
             public double CurrentScore;
+            
+            // History tracking
+            public ChatResult Result;
+            public DateTime? CompletedAt;
         }
 
         private static readonly List<QueuedRequest> _queue = new List<QueuedRequest>();
+        private static readonly List<QueuedRequest> _history = new List<QueuedRequest>();
         private static readonly object _queueLock = new object();
+        
+        public static float HistoryRetentionSeconds = 5f;
 
         private static readonly Thread _workerThread;
         private static readonly AutoResetEvent _signal = new AutoResetEvent(false);
@@ -37,6 +44,11 @@ namespace RimSynapse.Internal
         private static DateTime _windowStart = DateTime.UtcNow;
         private static readonly TimeSpan WindowDuration = TimeSpan.FromSeconds(60);
         private static DateTime _lastModelWarning = DateTime.MinValue;
+
+        // Token and TOPS tracking
+        public static Dictionary<string, float> AvgTokensPerType = new Dictionary<string, float>();
+        private static Queue<ChatResult> _recentResults = new Queue<ChatResult>();
+        private static object _topsLock = new object();
 
         // Public stats
         public static int QueueDepth
@@ -73,6 +85,29 @@ namespace RimSynapse.Internal
             }
         }
 
+        /// <summary>
+        /// Global Token Operations Per Second (TOPS) over the last 60 seconds.
+        /// </summary>
+        public static float GlobalTops
+        {
+            get
+            {
+                lock (_topsLock)
+                {
+                    if (_recentResults.Count == 0) return 0f;
+                    long totalTokens = 0;
+                    long totalMs = 0;
+                    foreach (var r in _recentResults)
+                    {
+                        totalTokens += r.completionTokens;
+                        totalMs += r.durationMs;
+                    }
+                    if (totalMs == 0) return 0f;
+                    return (totalTokens / (float)totalMs) * 1000f;
+                }
+            }
+        }
+
         static RequestQueue()
         {
             _workerThread = new Thread(WorkerLoop)
@@ -91,6 +126,14 @@ namespace RimSynapse.Internal
             lock (_queueLock)
             {
                 return _queue.ToList();
+            }
+        }
+
+        public static List<QueuedRequest> GetHistorySnapshot()
+        {
+            lock (_queueLock)
+            {
+                return _history.ToList();
             }
         }
 
@@ -113,7 +156,7 @@ namespace RimSynapse.Internal
                 }
                 _queue.Clear();
             }
-            SynapseLog.Debug("queue", "RequestQueue cleared.");
+            SynapseLogger.Message("RequestQueue cleared.");
         }
 
         /// <summary>
@@ -145,7 +188,7 @@ namespace RimSynapse.Internal
             
             _signal.Set(); // Wake the worker
 
-            SynapseLog.Debug("queue",
+            SynapseLogger.Debug("queue",
                 $"Request enqueued for {mod?.DisplayName ?? "unknown"}. Queue depth: {QueueDepth}.",
                 mod?.ModId);
         }
@@ -189,6 +232,16 @@ namespace RimSynapse.Internal
 
                 lock (_queueLock)
                 {
+                    // Prune history
+                    for (int i = _history.Count - 1; i >= 0; i--)
+                    {
+                        var req = _history[i];
+                        if (req.CompletedAt.HasValue && (now - req.CompletedAt.Value).TotalSeconds > HistoryRetentionSeconds)
+                        {
+                            _history.RemoveAt(i);
+                        }
+                    }
+
                     if (_queue.Count == 0)
                     {
                         // Queue is empty, attempt opportunistic background work
@@ -210,7 +263,7 @@ namespace RimSynapse.Internal
                         // TTL Check
                         if (req.Options?.maxWaitMs.HasValue == true && ageMs > req.Options.maxWaitMs.Value)
                         {
-                            SynapseLog.Warn("queue", $"Request for {req.Mod?.DisplayName} dropped (exceeded maxWaitMs of {req.Options.maxWaitMs.Value}).");
+                            SynapseLogger.Warning($"Request for {req.Mod?.DisplayName} dropped (exceeded maxWaitMs of {req.Options.maxWaitMs.Value}).");
                             if (req.Mod != null) req.Mod.QueuedCount = Math.Max(0, req.Mod.QueuedCount - 1);
                             
                             var cb = req.Callback;
@@ -260,7 +313,7 @@ namespace RimSynapse.Internal
                 // ── Prevent firing if game is not active ──
                 if (Verse.Current.ProgramState != Verse.ProgramState.Playing)
                 {
-                    SynapseLog.Debug("queue", $"Discarding request for {requestToProcess.Mod?.DisplayName} because the game is not playing.");
+                    SynapseLogger.Message($"Discarding request for {requestToProcess.Mod?.DisplayName} because the game is not playing.");
                     if (requestToProcess.Mod != null)
                     {
                         requestToProcess.Mod.QueuedCount = Math.Max(0, requestToProcess.Mod.QueuedCount - 1);
@@ -290,6 +343,8 @@ namespace RimSynapse.Internal
                     }
                     finally
                     {
+                        ActiveRequest = null;
+                        ActiveRequestStopwatch.Stop();
                         Interlocked.Decrement(ref _activeRequests);
                         _signal.Set();
                         
@@ -306,7 +361,7 @@ namespace RimSynapse.Internal
         {
             try
             {
-                SynapseLog.Info("queue",
+                SynapseLogger.Info("queue",
                     $"Processing request for {requestToProcess.Mod?.DisplayName ?? "unknown"}. Score: {requestToProcess.CurrentScore:F0}",
                     requestToProcess.Mod?.ModId);
 
@@ -357,12 +412,12 @@ namespace RimSynapse.Internal
                     }
                     catch (Exception ctxEx)
                     {
-                        SynapseLog.Warn("context", $"Context assembly failed: {ctxEx.Message}");
+                        SynapseLogger.Warning($"Context assembly failed: {ctxEx.Message}");
                     }
                 }
 
                 // ── Debug: Log full prompt ──
-                if (SynapseLog.Level <= LogLevel.Debug)
+                if (RimSynapseMod.Instance?.Settings?.traceDebugMode == true)
                 {
                     var promptLog = new System.Text.StringBuilder();
                     promptLog.AppendLine($"── PROMPT → {requestToProcess.Mod?.DisplayName ?? "unknown"} ──");
@@ -370,7 +425,7 @@ namespace RimSynapse.Internal
                     {
                         promptLog.AppendLine($"[{msg.role}]: {msg.content}");
                     }
-                    SynapseLog.Debug("prompt", promptLog.ToString(), requestToProcess.Mod?.ModId);
+                    SynapseLogger.Message(promptLog.ToString(), requestToProcess.Mod?.ModId);
                 }
 
                 // Synchronous HTTP call inside thread pool
@@ -379,7 +434,7 @@ namespace RimSynapse.Internal
 
                 if (SessionId != currentSession)
                 {
-                    SynapseLog.Debug("queue", $"Session changed during request. Discarding response for {requestToProcess.Mod?.DisplayName}.");
+                    SynapseLogger.Message($"Session changed during request. Discarding response for {requestToProcess.Mod?.DisplayName}.");
                     return;
                 }
 
@@ -387,10 +442,10 @@ namespace RimSynapse.Internal
                 ModRegistry.RecordRequest(requestToProcess.Mod);
 
                 // ── Info: Concise completion and timing ──
-                SynapseLog.Info("queue", $"Completed LLM request for {requestToProcess.Mod?.DisplayName ?? "unknown"} in {result.durationMs}ms. (Success: {result.success})", requestToProcess.Mod?.ModId);
+                SynapseLogger.Message($"Completed LLM request for {requestToProcess.Mod?.DisplayName ?? "unknown"} in {result.durationMs}ms. (Success: {result.success})", requestToProcess.Mod?.ModId);
 
                 // ── Debug: Log full response ──
-                if (SynapseLog.Level <= LogLevel.Debug)
+                if (RimSynapseMod.Instance?.Settings?.traceDebugMode == true)
                 {
                     var respLog = new System.Text.StringBuilder();
                     respLog.AppendLine($"── RESPONSE ← {requestToProcess.Mod?.DisplayName ?? "unknown"} ({result.durationMs}ms, success={result.success}) ──");
@@ -402,7 +457,7 @@ namespace RimSynapse.Internal
                     {
                         respLog.AppendLine($"ERROR: {result.error}");
                     }
-                    SynapseLog.Debug("response", respLog.ToString(), requestToProcess.Mod?.ModId);
+                    SynapseLogger.Message(respLog.ToString(), requestToProcess.Mod?.ModId);
                 }
 
                 // ── Handle Model Swap Errors ──
@@ -435,13 +490,43 @@ namespace RimSynapse.Internal
                     if (_recentDurations.Count > 20)
                         _recentDurations.RemoveAt(0);
                 }
+                
+                // Track Tokens and EMA
+                if (result.success && result.completionTokens > 0)
+                {
+                    lock (_topsLock)
+                    {
+                        _recentResults.Enqueue(result);
+                        if (_recentResults.Count > 50) _recentResults.Dequeue();
+                    }
+
+                    string rName = requestToProcess.Options?.requestName ?? "Unknown";
+                    lock (AvgTokensPerType)
+                    {
+                        if (!AvgTokensPerType.ContainsKey(rName))
+                        {
+                            AvgTokensPerType[rName] = result.completionTokens;
+                        }
+                        else
+                        {
+                            AvgTokensPerType[rName] = (AvgTokensPerType[rName] * 0.8f) + (result.completionTokens * 0.2f);
+                        }
+                    }
+                }
+
+                requestToProcess.Result = result;
+                requestToProcess.CompletedAt = DateTime.UtcNow;
+                lock (_queueLock)
+                {
+                    _history.Add(requestToProcess);
+                }
 
                 var cb = requestToProcess.Callback;
                 SynapseGameComponent.Enqueue(() => cb?.Invoke(result));
             }
             catch (Exception ex)
             {
-                SynapseLog.Error("queue", $"Queue worker error: {ex.Message}");
+                SynapseLogger.Error($"Queue worker error: {ex.Message}");
                 if (SessionId == currentSession)
                 {
                     var cb = requestToProcess.Callback;
