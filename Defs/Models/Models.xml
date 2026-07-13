@@ -1,4 +1,34 @@
-<Defs>
+﻿<Defs>
+  <RimSynapse.ModelDef>
+    <defName>Model_ElevenLabs_multilingual_v2</defName>
+    <label>Multilingual v2</label>
+    <provider>ElevenLabs</provider>
+    <modelId>eleven_multilingual_v2</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_ElevenLabs_turbo_v2_5</defName>
+    <label>Turbo v2.5</label>
+    <provider>ElevenLabs</provider>
+    <modelId>eleven_turbo_v2_5</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_ElevenLabs_v3</defName>
+    <label>Eleven v3</label>
+    <provider>ElevenLabs</provider>
+    <modelId>eleven_v3</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
   <RimSynapse.ModelDef>
     <defName>Model_OpenAI_whisper_1_0</defName>
     <label>whisper-1</label>
@@ -1116,3 +1146,5 @@
   </RimSynapse.ModelDef>
 
 </Defs>
+
+

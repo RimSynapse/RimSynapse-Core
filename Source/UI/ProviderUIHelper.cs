@@ -153,15 +153,25 @@ namespace RimSynapse.UI
                     foreach (var m in fetchedModels[providerName])
                     {
                         string localM = m;
+                        string label = m;
+                        string val = m;
+                        if (localM.Contains("|"))
+                        {
+                            var split = localM.Split('|');
+                            label = split[0];
+                            val = split[1];
+                        }
+                        
                         string pName = providerName;
-                        list.Add(new FloatMenuOption(localM, () => {
+                        list.Add(new FloatMenuOption(label, () => {
                             var settings = RimSynapseMod.Instance.Settings;
-                            if (pName == "OpenAI") settings.modelOpenAi = localM;
-                            else if (pName == "Google Gemini") settings.modelGemini = localM;
-                            else if (pName == "Anthropic Claude") settings.modelClaude = localM;
-                            else if (pName == "Local LM Studio") settings.modelLocal = localM;
-                            else if (pName == "Pollinations.ai") settings.modelPollinations = localM;
-                            else if (pName == "Custom / Proxy" || pName == "Custom Provider") settings.modelCustom = localM;
+                            if (pName == "OpenAI") settings.modelOpenAi = val;
+                            else if (pName == "Google Gemini") settings.modelGemini = val;
+                            else if (pName == "Anthropic Claude") settings.modelClaude = val;
+                            else if (pName == "Local LM Studio") settings.modelLocal = val;
+                            else if (pName == "Pollinations.ai") settings.modelPollinations = val;
+                            else if (pName == "ElevenLabs") settings.modelElevenLabs = val;
+                            else if (pName == "Custom / Proxy" || pName == "Custom Provider") settings.modelCustom = val;
                         }));
                     }
                     Find.WindowStack.Add(new FloatMenu(list));
@@ -222,6 +232,7 @@ namespace RimSynapse.UI
                     else if (providerName == "Google Gemini") model = "gemini-1.5-flash";
                     else if (providerName == "Anthropic Claude") model = "claude-3-5-haiku-latest";
                     else if (providerName == "Local LM Studio") model = RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model";
+                    else if (providerName == "ElevenLabs") model = "";
                     else if (isCustom) model = "";
                 }
                 

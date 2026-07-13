@@ -154,7 +154,7 @@ namespace RimSynapse.Internal.Providers
                 long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
                 
-                var response = _client.SendAsync(req, cts.Token).Result;
+                var response = _client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token).Result;
                 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -176,7 +176,14 @@ namespace RimSynapse.Internal.Providers
                     return AudioResult.Failure(error, dur);
                 }
 
-                byte[] audioBytes = response.Content.ReadAsByteArrayAsync().Result;
+                byte[] audioBytes;
+                using (var stream = response.Content.ReadAsStreamAsync().Result)
+                using (var ms = new System.IO.MemoryStream())
+                {
+                    stream.CopyTo(ms);
+                    audioBytes = ms.ToArray();
+                }
+                
                 string base64Audio = Convert.ToBase64String(audioBytes);
                 
                 long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;

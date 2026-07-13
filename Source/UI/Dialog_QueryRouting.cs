@@ -202,6 +202,7 @@ namespace RimSynapse.UI
                 else if (currentVal == RoutingId.Gemini) pEnum = ApiProvider.Google_Gemini;
                 else if (currentVal == RoutingId.Claude) pEnum = ApiProvider.Anthropic_Claude;
                 else if (currentVal == RoutingId.Pollinations) pEnum = ApiProvider.Pollinations;
+                else if (currentVal == RoutingId.ElevenLabs) pEnum = ApiProvider.ElevenLabs;
                 else if (currentVal != null && currentVal.StartsWith(RoutingId.CustomPrefix)) pEnum = ApiProvider.Custom;
                 
                 if (pEnum.HasValue)
@@ -222,6 +223,7 @@ namespace RimSynapse.UI
             if (routeId == RoutingId.Gemini) return settings.modelGemini;
             if (routeId == RoutingId.Claude) return settings.modelClaude;
             if (routeId == RoutingId.Pollinations) return settings.modelPollinations;
+            if (routeId == RoutingId.ElevenLabs) return settings.modelElevenLabs;
             if (routeId.StartsWith(RoutingId.CustomPrefix))
             {
                 string customId = routeId.Substring(RoutingId.CustomPrefix.Length);
@@ -238,6 +240,7 @@ namespace RimSynapse.UI
             if (id == RoutingId.OpenAI) return "OpenAI";
             if (id == RoutingId.Gemini) return "Google Gemini";
             if (id == RoutingId.Claude) return "Anthropic Claude";
+            if (id == RoutingId.ElevenLabs) return "ElevenLabs";
             if (id.StartsWith(RoutingId.CustomPrefix))
             {
                 string customId = id.Substring(RoutingId.CustomPrefix.Length);

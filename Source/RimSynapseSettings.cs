@@ -58,7 +58,8 @@ namespace RimSynapse
         public string customUrl = "";
         public string customApiKey = "";
         public string pollinationsUrl = "https://image.pollinations.ai/prompt";
-
+        public string elevenLabsUrl = "https://api.elevenlabs.io";
+        public string elevenLabsApiKey = "";
         // --- Models ---
         public string modelLocal = "local-model";
         public string modelOpenAi = "gpt-5-chat-latest";

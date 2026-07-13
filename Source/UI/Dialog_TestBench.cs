@@ -244,6 +244,7 @@ namespace RimSynapse.UI
                 var list = new List<FloatMenuOption>();
                 list.Add(new FloatMenuOption(RoutingId.LocalOnly, () => _selectedRoutingIdAudio = RoutingId.LocalOnly));
                 list.Add(new FloatMenuOption(RoutingId.OpenAI, () => _selectedRoutingIdAudio = RoutingId.OpenAI));
+                list.Add(new FloatMenuOption("ElevenLabs", () => _selectedRoutingIdAudio = RoutingId.ElevenLabs));
                 foreach(var custom in settings.customProviders)
                 {
                     string id = RoutingId.CustomPrefix + custom.id;
@@ -276,6 +277,7 @@ namespace RimSynapse.UI
                 else if (_selectedRoutingIdAudio == RoutingId.Gemini) pEnum = ApiProvider.Google_Gemini;
                 else if (_selectedRoutingIdAudio == RoutingId.Claude) pEnum = ApiProvider.Anthropic_Claude;
                 else if (_selectedRoutingIdAudio == RoutingId.Pollinations) pEnum = ApiProvider.Pollinations;
+                else if (_selectedRoutingIdAudio == RoutingId.ElevenLabs) pEnum = ApiProvider.ElevenLabs;
                 else if (_selectedRoutingIdAudio != null && _selectedRoutingIdAudio.StartsWith(RoutingId.CustomPrefix)) pEnum = ApiProvider.Custom;
                 
                 if (pEnum.HasValue)
@@ -290,13 +292,42 @@ namespace RimSynapse.UI
             
             if (listing.ButtonText($"Select Voice: {_selectedVoice}"))
             {
-                var list = new List<FloatMenuOption>();
-                foreach(var voice in StandardVoices)
+                if (_selectedRoutingIdAudio == RoutingId.ElevenLabs)
                 {
-                    string v = voice;
-                    list.Add(new FloatMenuOption(v, () => _selectedVoice = v));
+                    string apiKey = RimSynapseMod.Instance.Settings.elevenLabsApiKey;
+                    _testBusyAudio = true;
+                    Internal.HttpEngine.FetchProviderVoicesAsync(ApiProvider.ElevenLabs, apiKey, (success, voices, err) => {
+                        _testBusyAudio = false;
+                        if (success && voices != null)
+                        {
+                            var list = new List<FloatMenuOption>();
+                            foreach (var v in voices)
+                            {
+                                string label = v;
+                                string val = v;
+                                if (v.Contains("|"))
+                                {
+                                    var split = v.Split('|');
+                                    label = split[0];
+                                    val = split[1];
+                                }
+                                list.Add(new FloatMenuOption(label, () => _selectedVoice = val));
+                            }
+                            list.Add(new FloatMenuOption("custom...", () => _selectedVoice = "custom..."));
+                            Find.WindowStack.Add(new FloatMenu(list));
+                        }
+                    });
                 }
-                Find.WindowStack.Add(new FloatMenu(list));
+                else
+                {
+                    var list = new List<FloatMenuOption>();
+                    foreach(var voice in StandardVoices)
+                    {
+                        string v = voice;
+                        list.Add(new FloatMenuOption(v, () => _selectedVoice = v));
+                    }
+                    Find.WindowStack.Add(new FloatMenu(list));
+                }
             }
 
             if (_selectedVoice == "custom...")

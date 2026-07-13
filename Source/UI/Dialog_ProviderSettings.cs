@@ -47,8 +47,8 @@ namespace RimSynapse.UI
         {
             var settings = RimSynapseMod.Instance.Settings;
             float h = 0f;
-            // 4 default standard providers (Local, OpenAI, Gemini, Claude)
-            h += 202f * 4;
+            // 5 default standard providers (Local, OpenAI, Gemini, Claude, ElevenLabs)
+            h += 202f * 5;
             // Pollinations (no model field, no test button)
             h += 146f;
             // Custom providers
@@ -87,6 +87,7 @@ namespace RimSynapse.UI
             string nOpenAi = "OpenAI";
             string nGemini = "Google Gemini";
             string nClaude = "Anthropic Claude";
+            string nEleven = "ElevenLabs";
             string nPolli = "Pollinations.ai";
 
             ProviderUIHelper.DrawProviderSection(listing, ref nLocal, ApiProvider.Local_LMStudio, ref settings.lmStudioUrl, ref settings.lmStudioApiKey, ref settings.modelLocal, ref settings.capsLocal, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
@@ -105,6 +106,11 @@ namespace RimSynapse.UI
             listing.Gap(12f);
             
             ProviderUIHelper.DrawProviderSection(listing, ref nClaude, ApiProvider.Anthropic_Claude, ref settings.claudeUrl, ref settings.claudeApiKey, ref settings.modelClaude, ref settings.capsClaude, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
+            
+            ProviderUIHelper.DrawProviderSection(listing, ref nEleven, ApiProvider.ElevenLabs, ref settings.elevenLabsUrl, ref settings.elevenLabsApiKey, ref settings.modelElevenLabs, ref settings.capsElevenLabs, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);

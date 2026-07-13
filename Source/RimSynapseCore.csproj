@@ -66,6 +66,7 @@
             <!-- Not copied to output — many RimWorld mods ship their own; 
                  we'll include it in our Assemblies/ if no other mod provides it -->
         </PackageReference>
+        <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.3" />
     </ItemGroup>
 
 </Project>
