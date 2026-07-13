@@ -12,7 +12,8 @@ Originally the star of the deprecated StoryTeller module, Aura is now baked dire
 
 [h2]Features[/h2]
 [list]
-[*] [b]Universal Backend Support:[/b] Connects seamlessly to [url=https://lmstudio.ai]LM Studio[/url], Ollama, or any OpenAI-compatible local API. While RimSynapse's focus is on local models, with version 0.4.0, it is THE universal LLM connector!
+[*] [b]Universal AI Connectors:[/b] With version 0.4.0, RimSynapse is THE universal AI connector for RimWorld! It natively connects to top-tier cloud models including [b]Anthropic Claude[/b], [b]Google Gemini[/b], and [b]OpenAI[/b], alongside built-in free image generation via [b]Pollinations.ai[/b] and text-to-speech from [b]ElevenLabs[/b].
+[*] [b]Local Backend Support:[/b] Prefer to keep it local? RimSynapse still provides seamless integration with [url=https://lmstudio.ai]LM Studio[/url], Ollama, or any OpenAI-compatible local API for 100% free, offline AI generation.
 [*] [b]Background Threading:[/b] Never drops a frame. All LLM requests are queued, processed, and sanitized asynchronously on separate threads.
 [*] [b]Dynamic Priority Queue:[/b] Intelligently manages hundreds of requests with an advanced Linux-style top-monitor queue system, prioritizing critical events and starving obsolete prompts.
 [*] [b]Auto-Discovery:[/b] Automatically detects your active models and manages keep-alive pings to ensure your LLMs don't sleep when you need them.
@@ -30,7 +31,10 @@ AI is incredibly cool, and having a framework to utilize powerful, no-cost local
 
 [h2]Changelog[/h2]
 [b]v0.4.0[/b]
-- New Features! (Multi-provider LLM balancing, Image Generation Framework, and LLM Capabilities filtering)
+- The Connector Update! Huge expansion to AI backends.
+- Added native connectors for OpenAI, Google Gemini, Anthropic Claude, and ElevenLabs.
+- Integrated Pollinations.ai for 100% free, zero-setup image generation!
+- Multi-provider load balancing and fallback routing.
 [b]v0.3.0[/b]
 - Embedded Aura the storyteller into core
 - Ecosystem Expansion (Introduced Chat, Factions, and WorldNews companion modules)
@@ -66,7 +70,7 @@ RimSynapse is an open-source framework designed to be easily hooked into by othe
 [h2]Requirements[/h2]
 [list]
 [*] [b]Harmony[/b] is required.
-[*] You must be running a local LLM server (like [url=https://lmstudio.ai]LM Studio[/url] or Ollama). We recommend 8B+ parameter models for optimal reasoning.
+[*] [b]An AI Backend:[/b] You can use a local LLM server (like LM Studio or Ollama) for free, private generation, OR use your API keys for powerful cloud providers like OpenAI, Google Gemini, Anthropic Claude, and ElevenLabs!
 [/list]
 
 [h2]Support the Project[/h2]
