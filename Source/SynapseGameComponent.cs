@@ -57,13 +57,8 @@ namespace RimSynapse
             Internal.RequestQueue.Clear();
         }
 
-        /// <summary>
-        /// Called every Unity frame on the main thread — even while paused.
-        /// Processes queued callbacks and handles pause-time opportunistic task firing.
-        /// </summary>
-        public override void GameComponentUpdate()
+        public static void ProcessMainThreadQueue()
         {
-            // Process callbacks from the queue (LLM results, log dispatch, etc.)
             int processed = 0;
             while (processed < MaxCallbacksPerFrame && _mainThreadQueue.TryDequeue(out var action))
             {
@@ -77,6 +72,16 @@ namespace RimSynapse
                 }
                 processed++;
             }
+        }
+
+        /// <summary>
+        /// Called every Unity frame on the main thread — even while paused.
+        /// Processes queued callbacks and handles pause-time opportunistic task firing.
+        /// </summary>
+        public override void GameComponentUpdate()
+        {
+            // Process callbacks from the queue (LLM results, log dispatch, etc.)
+            ProcessMainThreadQueue();
 
             // ── Pause-time opportunistic task handling ──
             if (Find.TickManager == null) return;

@@ -58,9 +58,11 @@ namespace RimSynapse
             HttpEngine.EnsureInitialized();
             KeepAlive.Start();
 
-            // Initial model check on a background thread
+            // Initial model check and asset cleanup on a background thread
             System.Threading.Tasks.Task.Run(() =>
             {
+                try { SynapseImageClient.CleanupOrphanedAssets(); } catch (System.Exception ex) { SynapseLogger.Error($"Cleanup failed: {ex}"); }
+
                 var result = HttpEngine.GetModelsSync();
                 ModelManager.UpdateCache(result);
 

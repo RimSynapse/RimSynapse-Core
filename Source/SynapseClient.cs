@@ -67,7 +67,48 @@ namespace RimSynapse
                 return;
             }
 
-            RequestQueue.Enqueue(mod, messages, options ?? ChatOptions.Default, callback);
+            var req = new LlmTextRequest { Messages = messages, SystemPrompt = "", EnforceJson = false };
+            RequestQueue.Enqueue(mod, req, LlmCapabilities.Text, options ?? ChatOptions.Default, callback);
+        }
+
+        public static void SendTextAsync(
+            SynapseModHandle mod,
+            LlmTextRequest request,
+            ChatOptions options,
+            Action<ChatResult> callback)
+        {
+            if (mod == null) { callback?.Invoke(ChatResult.Failure("Mod not registered.")); return; }
+            RequestQueue.Enqueue(mod, request, LlmCapabilities.Text, options ?? ChatOptions.Default, callback);
+        }
+
+        public static void SendVisionAsync(
+            SynapseModHandle mod,
+            LlmVisionRequest request,
+            ChatOptions options,
+            Action<ChatResult> callback)
+        {
+            if (mod == null) { callback?.Invoke(ChatResult.Failure("Mod not registered.")); return; }
+            RequestQueue.Enqueue(mod, request, LlmCapabilities.Vision, options ?? ChatOptions.Default, callback);
+        }
+
+        public static void SendImageAsync(
+            SynapseModHandle mod,
+            LlmImageRequest request,
+            ChatOptions options,
+            Action<ImageResult> callback)
+        {
+            if (mod == null) { callback?.Invoke(ImageResult.Failure("Mod not registered.")); return; }
+            RequestQueue.Enqueue(mod, request, LlmCapabilities.Image, options ?? ChatOptions.Default, callback);
+        }
+
+        public static void SendAudioAsync(
+            SynapseModHandle mod,
+            LlmAudioRequest request,
+            ChatOptions options,
+            Action<AudioResult> callback)
+        {
+            if (mod == null) { callback?.Invoke(AudioResult.Failure("Mod not registered.")); return; }
+            RequestQueue.Enqueue(mod, request, LlmCapabilities.Audio, options ?? ChatOptions.Default, callback);
         }
 
         /// <summary>

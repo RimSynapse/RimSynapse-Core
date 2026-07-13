@@ -19,14 +19,10 @@ namespace RimSynapse
         private const string HarmonyId = "RimSynapse.Core";
 
         // Internal test state
-        private static SynapseModHandle _testHandle;
-        private static string _testStatus = "";
-        private static Color _testStatusColor = Color.white;
-        private static string _customPrompt = "What are three tips for surviving a RimWorld raid?";
-        private static bool _testBusy;
 
         // Scrollable content
         private static Vector2 _scrollPosition;
+        private static float _viewHeight = 1500f;
 
         public static SynapseModHandle ModHandle { get; private set; }
 
@@ -47,6 +43,9 @@ namespace RimSynapse
                     "rimsynapse.core",
                     "RimSynapse Core"
                 );
+                
+                ModHandle.RegisterQueryType("aura_pacing", "Storyteller Aura: Pacing", LlmCapabilities.Text);
+                ModHandle.RegisterQueryType("aura_event_selection", "Storyteller Aura: Event Selection", LlmCapabilities.Text);
             });
 
             // Start background services (keep-alive, model discovery, HttpClient, SessionLogger)
@@ -57,119 +56,54 @@ namespace RimSynapse
         }
 
         public override string SettingsCategory() => "RimSynapse Core";
+        private void DrawCapabilitiesRow(Listing_Standard listing, ref LlmCapabilities caps)
+        {
+            Rect rect = listing.GetRect(24f);
+            rect.x += 10f; // indent slightly
+            rect.width -= 10f;
+            float width = rect.width / 4f;
+            
+            bool hasText = (caps & LlmCapabilities.Text) == LlmCapabilities.Text;
+            bool hasImage = (caps & LlmCapabilities.Image) == LlmCapabilities.Image;
+            bool hasVision = (caps & LlmCapabilities.Vision) == LlmCapabilities.Vision;
+            bool hasAudio = (caps & LlmCapabilities.Audio) == LlmCapabilities.Audio;
+
+            Widgets.CheckboxLabeled(new Rect(rect.x, rect.y, width - 10f, rect.height), "Text", ref hasText);
+            Widgets.CheckboxLabeled(new Rect(rect.x + width, rect.y, width - 10f, rect.height), "Image", ref hasImage);
+            Widgets.CheckboxLabeled(new Rect(rect.x + width * 2, rect.y, width - 10f, rect.height), "Vision", ref hasVision);
+            Widgets.CheckboxLabeled(new Rect(rect.x + width * 3, rect.y, width - 10f, rect.height), "Audio", ref hasAudio);
+
+            caps = LlmCapabilities.None;
+            if (hasText) caps |= LlmCapabilities.Text;
+            if (hasImage) caps |= LlmCapabilities.Image;
+            if (hasVision) caps |= LlmCapabilities.Vision;
+            if (hasAudio) caps |= LlmCapabilities.Audio;
+        }
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
             // Scrollable container for all settings
-            var viewRect = new Rect(0, 0, inRect.width - 20f, 1200f);
+            var viewRect = new Rect(0, 0, inRect.width - 20f, _viewHeight);
             Widgets.BeginScrollView(inRect, ref _scrollPosition, viewRect);
             var listing = new Listing_Standard();
             listing.Begin(viewRect);
 
-            // ── Connection Settings ──────────────────────────────────
-            listing.Label("Connection Settings", tooltip: "Configure your LLM provider.");
-            listing.GapLine();
+            // ── Main UI Navigation ──────────────────────────────────
+            var prevColor = GUI.color;
+            GUI.color = new Color(0.9f, 0.45f, 0.15f); // Orange
 
-            // API Provider Dropdown
-            string currentProviderName = Settings.apiProvider.ToString().Replace("_", " ");
-            if (Settings.apiProvider != ApiProvider.Local_LMStudio) currentProviderName += " (Experimental)";
-            
-            if (listing.ButtonText($"Provider: {currentProviderName}"))
+            if (listing.ButtonText("Customize LLM Providers"))
             {
-                var list = new System.Collections.Generic.List<FloatMenuOption>();
-                foreach (ApiProvider provider in System.Enum.GetValues(typeof(ApiProvider)))
-                {
-                    ApiProvider localProvider = provider; // capture
-                    string label = localProvider.ToString().Replace("_", " ");
-                    if (localProvider != ApiProvider.Local_LMStudio) label += " (Experimental)";
-                    
-                    list.Add(new FloatMenuOption(label, () =>
-                    {
-                        Settings.apiProvider = localProvider;
-                        
-                        // Set default URLs based on selection
-                        if (localProvider == ApiProvider.Local_LMStudio) Settings.lmStudioUrl = "http://127.0.0.1:1234";
-                        else if (localProvider == ApiProvider.Google_Gemini) Settings.lmStudioUrl = "https://generativelanguage.googleapis.com";
-                        else if (localProvider == ApiProvider.OpenAI) Settings.lmStudioUrl = "https://api.openai.com";
-                        else if (localProvider == ApiProvider.Anthropic_Claude) Settings.lmStudioUrl = "https://api.anthropic.com";
-                    }));
-                }
-                Find.WindowStack.Add(new FloatMenu(list));
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_ProviderSettings());
             }
-
-            listing.Gap(6f);
-
-            if (Settings.apiProvider != ApiProvider.Local_LMStudio)
-            {
-                listing.Label("You have selected a Cloud API Provider.", tooltip: "Be aware of API usage costs. Auto-throttle will default to Conservative.");
-                Settings.lmStudioApiKey = listing.TextEntryLabeled("API Key:  ", Settings.lmStudioApiKey);
-                
-                if (Settings.apiProvider == ApiProvider.Custom)
-                {
-                    Settings.lmStudioUrl = listing.TextEntryLabeled("Custom API URL:  ", Settings.lmStudioUrl);
-                }
-                
-                if (listing.ButtonText("Open API Setup Guide (GitHub)"))
-                {
-                    UnityEngine.Application.OpenURL("https://github.com/RimSynapse/RimSynapse-Core/wiki/Cloud-API-Setup");
-                }
-            }
-            else
-            {
-                Settings.lmStudioUrl = listing.TextEntryLabeled("LM Studio URL:  ", Settings.lmStudioUrl);
-                Settings.lmStudioApiKey = listing.TextEntryLabeled("API Key (optional):  ", Settings.lmStudioApiKey);
-            }
-
-            listing.Gap(6f);
-
-            if (listing.ButtonText("Test Connection"))
-            {
-                RunTestConnection();
-            }
-
-            listing.Gap(6f);
-
-            // ── Prompt Bench ─────────────────────────────────────────
-            listing.Label("Prompt Bench",
-                tooltip: "Test prompts against LM Studio. Use to tune speed and compare thinking on/off.");
-            listing.GapLine();
-
-            // Quick test: tell me a joke
-            if (listing.ButtonText(_testBusy ? "Sending..." : "Quick Test: \"Tell me a joke\""))
-            {
-                if (!_testBusy)
-                {
-                    RunTestPrompt(
-                        "You are a witty comedian. Reply with one short joke.",
-                        "Tell me a joke.");
-                }
-            }
-
-            // Custom prompt
             listing.Gap(4f);
-            listing.Label("Custom Prompt:");
-            _customPrompt = listing.TextEntry(_customPrompt, 2);
-            listing.Gap(4f);
-
-            if (listing.ButtonText(_testBusy ? "Sending..." : "Send Custom Prompt"))
+            if (listing.ButtonText("Map Context to Models"))
             {
-                if (!_testBusy && !string.IsNullOrWhiteSpace(_customPrompt))
-                {
-                    RunTestPrompt(
-                        "You are a helpful assistant. Be concise.",
-                        _customPrompt);
-                }
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_QueryRouting());
             }
 
-            // Status display
-            if (!string.IsNullOrEmpty(_testStatus))
-            {
-                listing.Gap(6f);
-                var prevColor = GUI.color;
-                GUI.color = _testStatusColor;
-                listing.Label(_testStatus);
-                GUI.color = prevColor;
-            }
+            GUI.color = prevColor;
+            listing.Gap(12f);
 
 
             // ── Context Embedding ───────────────────────────────────
@@ -211,6 +145,11 @@ namespace RimSynapse
                 Find.WindowStack.Add(new RimSynapse.UI.Dialog_QueueMonitor());
             }
 
+            if (listing.ButtonText("Open Test Bench"))
+            {
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_TestBench());
+            }
+
             listing.Gap(6f);
 
             listing.CheckboxLabeled("Auto-map to active model",
@@ -229,8 +168,6 @@ namespace RimSynapse
                     if (modelIds.Count == 0)
                     {
                         // No cached models — trigger a refresh
-                        _testStatus = "Fetching model list...";
-                        _testStatusColor = Color.yellow;
                         System.Threading.Tasks.Task.Run(() =>
                         {
                             try
@@ -239,22 +176,16 @@ namespace RimSynapse
                                 var result = Internal.HttpEngine.GetModelsSync();
                                 if (result.online && result.modelIds.Count > 0)
                                 {
-                                    _testStatus = "Models loaded. Click the selector again.";
-                                    _testStatusColor = Color.green;
                                     // Force cache update
                                     Internal.ModelManager.RefreshCache();
                                     Internal.ModelManager.GetModels(_ => { });
                                 }
                                 else
                                 {
-                                    _testStatus = "No models loaded in LM Studio.";
-                                    _testStatusColor = Color.red;
                                 }
                             }
                             catch (Exception ex)
                             {
-                                _testStatus = $"Error: {ex.Message}";
-                                _testStatusColor = Color.red;
                             }
                         });
                     }
@@ -286,6 +217,13 @@ namespace RimSynapse
             listing.CheckboxLabeled("Disable thinking/reasoning",
                 ref Settings.disableThinking,
                 "Prevent reasoning models from using chain-of-thought. Saves tokens and reduces latency.");
+                
+            listing.Gap(6f);
+            
+            Settings.audioBoost = listing.SliderLabeled(
+                $"TTS Audio PCM Boost: {Settings.audioBoost:F1}x",
+                Settings.audioBoost, 1.0f, 4.0f,
+                tooltip: "Directly boosts the PCM waveform amplitude. Helpful for quiet AI-generated TTS voices.");
 
             listing.Gap(6f);
 
@@ -357,98 +295,16 @@ namespace RimSynapse
                 "Shows the AI queue monitor icon in the bottom right play settings toolbar.");
 
             listing.End();
+            _viewHeight = listing.CurHeight;
             Widgets.EndScrollView();
         }
 
-        // ── Helper Methods ───────────────────────────────────────────
-
-        private void RunTestConnection()
-        {
-            _testStatus = "Connecting to LM Studio...";
-            _testStatusColor = Color.yellow;
-
-            System.Threading.Tasks.Task.Run(() =>
-            {
-                try
-                {
-                    Internal.HttpEngine.EnsureInitialized();
-                    var result = Internal.HttpEngine.GetModelsSync();
-
-                    if (result.online)
-                    {
-                        string models = string.Join(", ", result.modelIds);
-                        _testStatus = $"Online! Models: [{models}]";
-                        if (result.contextLength.HasValue)
-                            _testStatus += $" | Context: {result.contextLength.Value} tokens";
-                        _testStatusColor = Color.green;
-                    }
-                    else
-                    {
-                        _testStatus = $"Offline: {result.error ?? "Could not reach LM Studio."}";
-                        _testStatusColor = Color.red;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _testStatus = $"Error: {ex.Message}";
-                    _testStatusColor = Color.red;
-                }
-            });
-        }
-
-        private void RunTestPrompt(string systemPrompt, string userMessage)
-        {
-            _testBusy = true;
-            string thinkingLabel = Settings.disableThinking ? "OFF" : "ON";
-            _testStatus = $"Sending prompt (thinking: {thinkingLabel})...";
-            _testStatusColor = Color.yellow;
-
-            if (_testHandle == null)
-                _testHandle = SynapseCore.Register("rimsynapse.test", "RimSynapse Test");
-
-            System.Threading.Tasks.Task.Run(() =>
-            {
-                try
-                {
-                    Internal.HttpEngine.EnsureInitialized();
-                    var messages = new List<ChatMessage>
-                    {
-                        ChatMessage.System(systemPrompt),
-                        ChatMessage.User(userMessage),
-                    };
-
-                    var result = Internal.HttpEngine.PostChatCompletionSync(
-                        messages, ChatOptions.Default);
-
-                    if (result.success)
-                    {
-                        string preview = result.content;
-                        if (preview != null && preview.Length > 200)
-                            preview = preview.Substring(0, 200) + "...";
-
-                        _testStatus = $"[{result.durationMs}ms | {result.model} | " +
-                            $"{result.promptTokens}p/{result.completionTokens}c tokens | " +
-                            $"thinking: {thinkingLabel}]\n{preview}";
-                        _testStatusColor = Color.green;
-                        RimSynapse.SynapseLogger.Message($"[RimSynapse] Test: {result.content}");
-                    }
-                    else
-                    {
-                        _testStatus = $"Error: {result.error}";
-                        _testStatusColor = Color.red;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _testStatus = $"Error: {ex.Message}";
-                    _testStatusColor = Color.red;
-                }
-                finally
-                {
-                    _testBusy = false;
-                }
-            });
-        }
     }
 }
+
+
+
+
+
+
 

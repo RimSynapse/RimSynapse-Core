@@ -1,0 +1,1150 @@
+﻿<Defs>
+  <RimSynapse.ModelDef>
+    <defName>Model_ElevenLabs_multilingual_v2</defName>
+    <label>Multilingual v2</label>
+    <provider>ElevenLabs</provider>
+    <modelId>eleven_multilingual_v2</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_ElevenLabs_turbo_v2_5</defName>
+    <label>Turbo v2.5</label>
+    <provider>ElevenLabs</provider>
+    <modelId>eleven_turbo_v2_5</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_ElevenLabs_v3</defName>
+    <label>Eleven v3</label>
+    <provider>ElevenLabs</provider>
+    <modelId>eleven_v3</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_whisper_1_0</defName>
+    <label>whisper-1</label>
+    <provider>OpenAI</provider>
+    <modelId>whisper-1</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_3_5_turbo_1</defName>
+    <label>gpt-3.5-turbo</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-3.5-turbo</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_tts_1_2</defName>
+    <label>tts-1</label>
+    <provider>OpenAI</provider>
+    <modelId>tts-1</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_3_5_turbo_16k_3</defName>
+    <label>gpt-3.5-turbo-16k</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-3.5-turbo-16k</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_0613_4</defName>
+    <label>gpt-4-0613</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4-0613</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_5</defName>
+    <label>gpt-4</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_3_5_turbo_instruct_6</defName>
+    <label>gpt-3.5-turbo-instruct</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-3.5-turbo-instruct</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_3_5_turbo_instruct_0914_7</defName>
+    <label>gpt-3.5-turbo-instruct-0914</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-3.5-turbo-instruct-0914</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_3_5_turbo_1106_8</defName>
+    <label>gpt-3.5-turbo-1106</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-3.5-turbo-1106</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_tts_1_hd_9</defName>
+    <label>tts-1-hd</label>
+    <provider>OpenAI</provider>
+    <modelId>tts-1-hd</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_tts_1_1106_10</defName>
+    <label>tts-1-1106</label>
+    <provider>OpenAI</provider>
+    <modelId>tts-1-1106</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_tts_1_hd_1106_11</defName>
+    <label>tts-1-hd-1106</label>
+    <provider>OpenAI</provider>
+    <modelId>tts-1-hd-1106</modelId>
+    <capabilities>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_3_5_turbo_0125_12</defName>
+    <label>gpt-3.5-turbo-0125</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-3.5-turbo-0125</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_turbo_13</defName>
+    <label>gpt-4-turbo</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4-turbo</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_turbo_2024_04_09_14</defName>
+    <label>gpt-4-turbo-2024-04-09</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4-turbo-2024-04-09</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_15</defName>
+    <label>gpt-4o</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_2024_05_13_16</defName>
+    <label>gpt-4o-2024-05-13</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-2024-05-13</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_2024_07_18_17</defName>
+    <label>gpt-4o-mini-2024-07-18</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-2024-07-18</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_18</defName>
+    <label>gpt-4o-mini</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_2024_08_06_19</defName>
+    <label>gpt-4o-2024-08-06</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-2024-08-06</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_o1_2024_12_17_20</defName>
+    <label>o1-2024-12-17</label>
+    <provider>OpenAI</provider>
+    <modelId>o1-2024-12-17</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_o1_21</defName>
+    <label>o1</label>
+    <provider>OpenAI</provider>
+    <modelId>o1</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_2024_11_20_22</defName>
+    <label>gpt-4o-2024-11-20</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-2024-11-20</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_search_preview_2025_03_11_23</defName>
+    <label>gpt-4o-mini-search-preview-2025-03-11</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-search-preview-2025-03-11</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_search_preview_24</defName>
+    <label>gpt-4o-mini-search-preview</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-search-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_transcribe_25</defName>
+    <label>gpt-4o-transcribe</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-transcribe</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_transcribe_26</defName>
+    <label>gpt-4o-mini-transcribe</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-transcribe</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_o1_pro_2025_03_19_27</defName>
+    <label>o1-pro-2025-03-19</label>
+    <provider>OpenAI</provider>
+    <modelId>o1-pro-2025-03-19</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_o1_pro_28</defName>
+    <label>o1-pro</label>
+    <provider>OpenAI</provider>
+    <modelId>o1-pro</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_tts_29</defName>
+    <label>gpt-4o-mini-tts</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-tts</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_1_2025_04_14_30</defName>
+    <label>gpt-4.1-2025-04-14</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4.1-2025-04-14</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_1_31</defName>
+    <label>gpt-4.1</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4.1</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_1_mini_2025_04_14_32</defName>
+    <label>gpt-4.1-mini-2025-04-14</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4.1-mini-2025-04-14</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_1_mini_33</defName>
+    <label>gpt-4.1-mini</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4.1-mini</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_1_nano_2025_04_14_34</defName>
+    <label>gpt-4.1-nano-2025-04-14</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4.1-nano-2025-04-14</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4_1_nano_35</defName>
+    <label>gpt-4.1-nano</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4.1-nano</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_transcribe_diarize_36</defName>
+    <label>gpt-4o-transcribe-diarize</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-transcribe-diarize</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_transcribe_2025_12_15_37</defName>
+    <label>gpt-4o-mini-transcribe-2025-12-15</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-transcribe-2025-12-15</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_transcribe_2025_03_20_38</defName>
+    <label>gpt-4o-mini-transcribe-2025-03-20</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-transcribe-2025-03-20</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_tts_2025_03_20_39</defName>
+    <label>gpt-4o-mini-tts-2025-03-20</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-tts-2025-03-20</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_mini_tts_2025_12_15_40</defName>
+    <label>gpt-4o-mini-tts-2025-12-15</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-mini-tts-2025-12-15</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_search_preview_41</defName>
+    <label>gpt-4o-search-preview</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-search-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_OpenAI_gpt_4o_search_preview_2025_03_11_42</defName>
+    <label>gpt-4o-search-preview-2025-03-11</label>
+    <provider>OpenAI</provider>
+    <modelId>gpt-4o-search-preview-2025-03-11</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+      <li>Audio</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_flash_43</defName>
+    <label>gemini-2.5-flash</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-flash</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_pro_44</defName>
+    <label>gemini-2.5-pro</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-pro</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_0_flash_45</defName>
+    <label>gemini-2.0-flash</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.0-flash</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_0_flash_001_46</defName>
+    <label>gemini-2.0-flash-001</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.0-flash-001</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_0_flash_lite_001_47</defName>
+    <label>gemini-2.0-flash-lite-001</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.0-flash-lite-001</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_0_flash_lite_48</defName>
+    <label>gemini-2.0-flash-lite</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.0-flash-lite</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_flash_preview_tts_49</defName>
+    <label>gemini-2.5-flash-preview-tts</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-flash-preview-tts</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_pro_preview_tts_50</defName>
+    <label>gemini-2.5-pro-preview-tts</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-pro-preview-tts</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemma_4_26b_a4b_it_51</defName>
+    <label>gemma-4-26b-a4b-it</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemma-4-26b-a4b-it</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemma_4_31b_it_52</defName>
+    <label>gemma-4-31b-it</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemma-4-31b-it</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_flash_latest_53</defName>
+    <label>gemini-flash-latest</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-flash-latest</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_flash_lite_latest_54</defName>
+    <label>gemini-flash-lite-latest</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-flash-lite-latest</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_pro_latest_55</defName>
+    <label>gemini-pro-latest</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-pro-latest</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_flash_lite_56</defName>
+    <label>gemini-2.5-flash-lite</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-flash-lite</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_flash_image_57</defName>
+    <label>gemini-2.5-flash-image</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-flash-image</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_pro_preview_58</defName>
+    <label>gemini-3-pro-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3-pro-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_flash_preview_59</defName>
+    <label>gemini-3-flash-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3-flash-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_pro_preview_60</defName>
+    <label>gemini-3.1-pro-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-pro-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_pro_preview_customtools_61</defName>
+    <label>gemini-3.1-pro-preview-customtools</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-pro-preview-customtools</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_flash_lite_preview_62</defName>
+    <label>gemini-3.1-flash-lite-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-flash-lite-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_flash_lite_63</defName>
+    <label>gemini-3.1-flash-lite</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-flash-lite</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_pro_image_preview_64</defName>
+    <label>gemini-3-pro-image-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3-pro-image-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_pro_image_65</defName>
+    <label>gemini-3-pro-image</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3-pro-image</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_nano_banana_pro_preview_66</defName>
+    <label>nano-banana-pro-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>nano-banana-pro-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_flash_image_preview_67</defName>
+    <label>gemini-3.1-flash-image-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-flash-image-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_flash_image_68</defName>
+    <label>gemini-3.1-flash-image</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-flash-image</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_flash_lite_image_69</defName>
+    <label>gemini-3.1-flash-lite-image</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-flash-lite-image</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_5_flash_70</defName>
+    <label>gemini-3.5-flash</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.5-flash</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_omni_flash_preview_71</defName>
+    <label>gemini-omni-flash-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-omni-flash-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_lyria_3_clip_preview_72</defName>
+    <label>lyria-3-clip-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>lyria-3-clip-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_lyria_3_pro_preview_73</defName>
+    <label>lyria-3-pro-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>lyria-3-pro-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_3_1_flash_tts_preview_74</defName>
+    <label>gemini-3.1-flash-tts-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-3.1-flash-tts-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_robotics_er_1_5_preview_75</defName>
+    <label>gemini-robotics-er-1.5-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-robotics-er-1.5-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_robotics_er_1_6_preview_76</defName>
+    <label>gemini-robotics-er-1.6-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-robotics-er-1.6-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_computer_use_preview_10_2025_77</defName>
+    <label>gemini-2.5-computer-use-preview-10-2025</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-computer-use-preview-10-2025</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_antigravity_preview_05_2026_78</defName>
+    <label>antigravity-preview-05-2026</label>
+    <provider>Google_Gemini</provider>
+    <modelId>antigravity-preview-05-2026</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_deep_research_max_preview_04_2026_79</defName>
+    <label>deep-research-max-preview-04-2026</label>
+    <provider>Google_Gemini</provider>
+    <modelId>deep-research-max-preview-04-2026</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_deep_research_preview_04_2026_80</defName>
+    <label>deep-research-preview-04-2026</label>
+    <provider>Google_Gemini</provider>
+    <modelId>deep-research-preview-04-2026</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_deep_research_pro_preview_12_2025_81</defName>
+    <label>deep-research-pro-preview-12-2025</label>
+    <provider>Google_Gemini</provider>
+    <modelId>deep-research-pro-preview-12-2025</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_embedding_001_82</defName>
+    <label>gemini-embedding-001</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-embedding-001</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_embedding_2_preview_83</defName>
+    <label>gemini-embedding-2-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-embedding-2-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_embedding_2_84</defName>
+    <label>gemini-embedding-2</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-embedding-2</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_aqa_85</defName>
+    <label>aqa</label>
+    <provider>Google_Gemini</provider>
+    <modelId>aqa</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_imagen_4_0_generate_001_86</defName>
+    <label>imagen-4.0-generate-001</label>
+    <provider>Google_Gemini</provider>
+    <modelId>imagen-4.0-generate-001</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_imagen_4_0_ultra_generate_001_87</defName>
+    <label>imagen-4.0-ultra-generate-001</label>
+    <provider>Google_Gemini</provider>
+    <modelId>imagen-4.0-ultra-generate-001</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_imagen_4_0_fast_generate_001_88</defName>
+    <label>imagen-4.0-fast-generate-001</label>
+    <provider>Google_Gemini</provider>
+    <modelId>imagen-4.0-fast-generate-001</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_veo_3_1_generate_preview_89</defName>
+    <label>veo-3.1-generate-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>veo-3.1-generate-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_veo_3_1_fast_generate_preview_90</defName>
+    <label>veo-3.1-fast-generate-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>veo-3.1-fast-generate-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_veo_3_1_lite_generate_preview_91</defName>
+    <label>veo-3.1-lite-generate-preview</label>
+    <provider>Google_Gemini</provider>
+    <modelId>veo-3.1-lite-generate-preview</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Google_Gemini_gemini_2_5_flash_native_audio_latest_92</defName>
+    <label>gemini-2.5-flash-native-audio-latest</label>
+    <provider>Google_Gemini</provider>
+    <modelId>gemini-2.5-flash-native-audio-latest</modelId>
+    <capabilities>
+      <li>Text</li>
+      <li>Vision</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_sonnet_5_93</defName>
+    <label>claude-sonnet-5</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-sonnet-5</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_fable_5_94</defName>
+    <label>claude-fable-5</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-fable-5</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_opus_4_8_95</defName>
+    <label>claude-opus-4-8</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-opus-4-8</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_opus_4_7_96</defName>
+    <label>claude-opus-4-7</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-opus-4-7</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_sonnet_4_6_97</defName>
+    <label>claude-sonnet-4-6</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-sonnet-4-6</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_opus_4_6_98</defName>
+    <label>claude-opus-4-6</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-opus-4-6</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_opus_4_5_20251101_99</defName>
+    <label>claude-opus-4-5-20251101</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-opus-4-5-20251101</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_haiku_4_5_20251001_100</defName>
+    <label>claude-haiku-4-5-20251001</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-haiku-4-5-20251001</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Anthropic_Claude_claude_sonnet_4_5_20250929_101</defName>
+    <label>claude-sonnet-4-5-20250929</label>
+    <provider>Anthropic_Claude</provider>
+    <modelId>claude-sonnet-4-5-20250929</modelId>
+    <capabilities>
+      <li>Text</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Pollinations_flux_102</defName>
+    <label>Flux (Text-to-Image)</label>
+    <provider>Pollinations</provider>
+    <modelId>flux</modelId>
+    <capabilities>
+      <li>Image</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Pollinations_turbo_103</defName>
+    <label>Turbo (Fast Generation)</label>
+    <provider>Pollinations</provider>
+    <modelId>turbo</modelId>
+    <capabilities>
+      <li>Image</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Pollinations_any_dark_104</defName>
+    <label>Any Dark</label>
+    <provider>Pollinations</provider>
+    <modelId>any-dark</modelId>
+    <capabilities>
+      <li>Image</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+  <RimSynapse.ModelDef>
+    <defName>Model_Pollinations_flux_realism_105</defName>
+    <label>Flux Realism</label>
+    <provider>Pollinations</provider>
+    <modelId>flux-realism</modelId>
+    <capabilities>
+      <li>Image</li>
+    </capabilities>
+  </RimSynapse.ModelDef>
+
+</Defs>
+
+
