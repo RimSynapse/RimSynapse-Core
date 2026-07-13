@@ -12,7 +12,7 @@ namespace RimSynapse.UI
         private Vector2 scrollPosition = Vector2.zero;
         // Toggles moved to RimSynapseSettings
 
-        private enum SortColumn { Score, Status, Mod, Prio, Age, Timeout, Task, Target, Tokens }
+        private enum SortColumn { Score, Status, Mod, Prio, Age, Timeout, Task, Target, Tokens, Provider, Model }
         private SortColumn mainSortColumn = SortColumn.Score;
         private bool mainSortAscending = false;
 
@@ -21,8 +21,8 @@ namespace RimSynapse.UI
         private bool oppSortAscending = false;
 
         // Resizable column state
-        // main: Prio, Mod, Target, Task, Age, Status, Score, Timeout, Tokens, Prompt, Response
-        private float[] mainWidths = { 40f, 120f, 150f, 150f, 60f, 130f, 60f, 60f, 80f, 300f, 300f };
+        // main: Prio, Mod, Target, Task, Age, Status, Score, Timeout, Tokens, Provider, Model, Prompt, Response
+        private float[] mainWidths = { 40f, 120f, 150f, 150f, 60f, 130f, 60f, 60f, 80f, 100f, 150f, 300f, 300f };
         private int draggingMainCol = -1;
         private float dragStartX = 0f;
         private float dragStartWidth = 0f;
@@ -85,6 +85,8 @@ namespace RimSynapse.UI
                     new FloatMenuOption($"Score ({(s.qmShowScore ? "ON" : "OFF")})", () => s.qmShowScore = !s.qmShowScore),
                     new FloatMenuOption($"Timeout ({(s.qmShowTimeout ? "ON" : "OFF")})", () => s.qmShowTimeout = !s.qmShowTimeout),
                     new FloatMenuOption($"Tokens ({(s.qmShowTokens ? "ON" : "OFF")})", () => s.qmShowTokens = !s.qmShowTokens),
+                    new FloatMenuOption($"Provider ({(s.qmShowProvider ? "ON" : "OFF")})", () => s.qmShowProvider = !s.qmShowProvider),
+                    new FloatMenuOption($"Model ({(s.qmShowModel ? "ON" : "OFF")})", () => s.qmShowModel = !s.qmShowModel),
                     new FloatMenuOption($"Prompt ({(s.qmShowPrompt ? "ON" : "OFF")})", () => s.qmShowPrompt = !s.qmShowPrompt),
                     new FloatMenuOption($"Response ({(s.qmShowResponse ? "ON" : "OFF")})", () => s.qmShowResponse = !s.qmShowResponse)
                 };
@@ -150,6 +152,8 @@ namespace RimSynapse.UI
                 case SortColumn.Task: sortedMain = mainSortAscending ? sortedMain.OrderBy(r => r.Options?.requestName) : sortedMain.OrderByDescending(r => r.Options?.requestName); break;
                 case SortColumn.Target: sortedMain = mainSortAscending ? sortedMain.OrderBy(r => r.Options?.targetName) : sortedMain.OrderByDescending(r => r.Options?.targetName); break;
                 case SortColumn.Tokens: sortedMain = mainSortAscending ? sortedMain.OrderBy(r => r.Result?.completionTokens ?? 0) : sortedMain.OrderByDescending(r => r.Result?.completionTokens ?? 0); break;
+                case SortColumn.Provider: sortedMain = mainSortAscending ? sortedMain.OrderBy(r => GetProviderForRequest(r)) : sortedMain.OrderByDescending(r => GetProviderForRequest(r)); break;
+                case SortColumn.Model: sortedMain = mainSortAscending ? sortedMain.OrderBy(r => GetModelForRequest(r)) : sortedMain.OrderByDescending(r => GetModelForRequest(r)); break;
                 case SortColumn.Score: 
                 default: sortedMain = mainSortAscending ? sortedMain.OrderBy(r => r.CurrentScore) : sortedMain.OrderByDescending(r => r.CurrentScore); break;
             }
@@ -264,9 +268,9 @@ namespace RimSynapse.UI
         private float GetTotalMainWidth()
         {
             var s = RimSynapseMod.Instance.Settings;
-            bool[] colsVisible = { s.qmShowPrio, s.qmShowMod, s.qmShowTarget, s.qmShowTask, s.qmShowAge, s.qmShowStatus, s.qmShowScore, s.qmShowTimeout, s.qmShowTokens, s.qmShowPrompt, s.qmShowResponse };
+            bool[] colsVisible = { s.qmShowPrio, s.qmShowMod, s.qmShowTarget, s.qmShowTask, s.qmShowAge, s.qmShowStatus, s.qmShowScore, s.qmShowTimeout, s.qmShowTokens, s.qmShowProvider, s.qmShowModel, s.qmShowPrompt, s.qmShowResponse };
             float w = 0;
-            for (int i = 0; i < 11; i++) 
+            for (int i = 0; i < 13; i++) 
             {
                 if (colsVisible[i]) w += mainWidths[i];
             }
@@ -275,17 +279,17 @@ namespace RimSynapse.UI
 
         private void DrawMainHeader(Rect rect)
         {
-            SortColumn[] cols = { SortColumn.Prio, SortColumn.Mod, SortColumn.Target, SortColumn.Task, SortColumn.Age, SortColumn.Status, SortColumn.Score, SortColumn.Timeout, SortColumn.Tokens };
-            string[] labels = { "PRIO", "MOD", "TARGET", "TASK", "AGE(ms)", "STATUS", "SCORE", "TIMEOUT", "TOKENS" };
+            SortColumn[] cols = { SortColumn.Prio, SortColumn.Mod, SortColumn.Target, SortColumn.Task, SortColumn.Age, SortColumn.Status, SortColumn.Score, SortColumn.Timeout, SortColumn.Tokens, SortColumn.Provider, SortColumn.Model };
+            string[] labels = { "PRIO", "MOD", "TARGET", "TASK", "AGE(ms)", "STATUS", "SCORE", "TIMEOUT", "TOKENS", "PROVIDER", "MODEL" };
             
             float curX = rect.x - scrollPosition.x;
             GUI.color = Color.gray;
 
             var s = RimSynapseMod.Instance.Settings;
-            bool[] colsVisible = { s.qmShowPrio, s.qmShowMod, s.qmShowTarget, s.qmShowTask, s.qmShowAge, s.qmShowStatus, s.qmShowScore, s.qmShowTimeout, s.qmShowTokens };
+            bool[] colsVisible = { s.qmShowPrio, s.qmShowMod, s.qmShowTarget, s.qmShowTask, s.qmShowAge, s.qmShowStatus, s.qmShowScore, s.qmShowTimeout, s.qmShowTokens, s.qmShowProvider, s.qmShowModel };
 
-            // Draw standard 9 columns
-            for (int i = 0; i < 9; i++)
+            // Draw standard 11 columns
+            for (int i = 0; i < 11; i++)
             {
                 if (!colsVisible[i]) continue;
                 Rect cellRect = new Rect(curX, rect.y, mainWidths[i], 25f);
@@ -318,39 +322,39 @@ namespace RimSynapse.UI
             // Optional Prompt column
             if (s.qmShowPrompt)
             {
-                Rect cellRect = new Rect(curX, rect.y, mainWidths[9], 25f);
+                Rect cellRect = new Rect(curX, rect.y, mainWidths[11], 25f);
                 Widgets.Label(cellRect, "PROMPT");
-                Rect splitter = new Rect(curX + mainWidths[9] - 2f, rect.y, 4f, 25f);
-                Widgets.DrawLineVertical(curX + mainWidths[9], rect.y, rect.height);
+                Rect splitter = new Rect(curX + mainWidths[11] - 2f, rect.y, 4f, 25f);
+                Widgets.DrawLineVertical(curX + mainWidths[11], rect.y, rect.height);
                 Widgets.DrawHighlightIfMouseover(splitter);
                 TooltipHandler.TipRegion(splitter, "Drag to resize");
                 if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && splitter.Contains(Event.current.mousePosition))
                 {
-                    draggingMainCol = 9;
+                    draggingMainCol = 11;
                     dragStartX = Event.current.mousePosition.x;
-                    dragStartWidth = mainWidths[9];
+                    dragStartWidth = mainWidths[11];
                     Event.current.Use();
                 }
-                curX += mainWidths[9];
+                curX += mainWidths[11];
             }
 
             // Optional Response column
             if (s.qmShowResponse)
             {
-                Rect cellRect = new Rect(curX, rect.y, mainWidths[10], 25f);
+                Rect cellRect = new Rect(curX, rect.y, mainWidths[12], 25f);
                 Widgets.Label(cellRect, "RESPONSE");
-                Rect splitter = new Rect(curX + mainWidths[10] - 2f, rect.y, 4f, 25f);
-                Widgets.DrawLineVertical(curX + mainWidths[10], rect.y, rect.height);
+                Rect splitter = new Rect(curX + mainWidths[12] - 2f, rect.y, 4f, 25f);
+                Widgets.DrawLineVertical(curX + mainWidths[12], rect.y, rect.height);
                 Widgets.DrawHighlightIfMouseover(splitter);
                 TooltipHandler.TipRegion(splitter, "Drag to resize");
                 if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && splitter.Contains(Event.current.mousePosition))
                 {
-                    draggingMainCol = 10;
+                    draggingMainCol = 12;
                     dragStartX = Event.current.mousePosition.x;
-                    dragStartWidth = mainWidths[10];
+                    dragStartWidth = mainWidths[12];
                     Event.current.Use();
                 }
-                curX += mainWidths[10];
+                curX += mainWidths[12];
             }
 
             GUI.color = Color.white;
@@ -404,12 +408,14 @@ namespace RimSynapse.UI
             string taskName = req.Options?.requestName ?? "—";
             string targetName = req.Options?.targetName ?? "—";
             string tokens = req.Result != null ? $"{req.Result.promptTokens} / {req.Result.completionTokens}" : "—";
+            string provider = GetProviderForRequest(req);
+            string model = GetModelForRequest(req);
 
             var s = RimSynapseMod.Instance.Settings;
-            bool[] colsVisible = { s.qmShowPrio, s.qmShowMod, s.qmShowTarget, s.qmShowTask, s.qmShowAge, s.qmShowStatus, s.qmShowScore, s.qmShowTimeout, s.qmShowTokens };
+            bool[] colsVisible = { s.qmShowPrio, s.qmShowMod, s.qmShowTarget, s.qmShowTask, s.qmShowAge, s.qmShowStatus, s.qmShowScore, s.qmShowTimeout, s.qmShowTokens, s.qmShowProvider, s.qmShowModel };
 
-            string[] vals = { prio, modName, targetName, taskName, ageMs, status, score, timeout, tokens };
-            for (int i = 0; i < 9; i++)
+            string[] vals = { prio, modName, targetName, taskName, ageMs, status, score, timeout, tokens, provider, model };
+            for (int i = 0; i < 11; i++)
             {
                 if (!colsVisible[i]) continue;
                 Rect r = new Rect(curX, rect.y, mainWidths[i] - 4f, rect.height);
@@ -420,20 +426,20 @@ namespace RimSynapse.UI
 
             if (s.qmShowPrompt)
             {
-                Rect r = new Rect(curX, rect.y, mainWidths[9] - 4f, rect.height);
+                Rect r = new Rect(curX, rect.y, mainWidths[11] - 4f, rect.height);
                 string textDump = GetPayloadTextDump(req);
                 Widgets.Label(r, textDump);
-                Widgets.DrawLineVertical(curX + mainWidths[9], rect.y, rect.height);
-                curX += mainWidths[9];
+                Widgets.DrawLineVertical(curX + mainWidths[11], rect.y, rect.height);
+                curX += mainWidths[11];
             }
 
             if (s.qmShowResponse)
             {
-                Rect r = new Rect(curX, rect.y, mainWidths[10] - 4f, rect.height);
+                Rect r = new Rect(curX, rect.y, mainWidths[12] - 4f, rect.height);
                 string resultStr = req.Result != null ? (req.Result.success ? req.Result.content : req.Result.error) : "Pending...";
                 Widgets.Label(r, resultStr);
-                Widgets.DrawLineVertical(curX + mainWidths[10], rect.y, rect.height);
-                curX += mainWidths[10];
+                Widgets.DrawLineVertical(curX + mainWidths[12], rect.y, rect.height);
+                curX += mainWidths[12];
             }
             Widgets.DrawLineHorizontal(rect.x, rect.yMax, rect.width);
         }
@@ -469,13 +475,13 @@ namespace RimSynapse.UI
             if (s.qmShowPrompt)
             {
                 string textDump = GetPayloadTextDump(req);
-                float promptH = Text.CalcHeight(textDump, mainWidths[9] - 4f);
+                float promptH = Text.CalcHeight(textDump, mainWidths[11] - 4f);
                 if (promptH + 10f > height) height = promptH + 10f;
             }
             if (s.qmShowResponse && req.Result != null)
             {
                 string resultStr = req.Result.success ? req.Result.content : req.Result.error;
-                float resH = Text.CalcHeight(resultStr, mainWidths[10] - 4f);
+                float resH = Text.CalcHeight(resultStr, mainWidths[12] - 4f);
                 if (resH + 10f > height) height = resH + 10f;
             }
             return height;
@@ -494,6 +500,110 @@ namespace RimSynapse.UI
                     bool isRemote = settings?.IsRemoteUrl ?? false;
                     return isRemote ? "Auto → Conservative" : "Auto → Aggressive";
             }
+        }
+
+        private string GetProviderForRequest(RequestQueue.QueuedRequest req)
+        {
+            var settings = RimSynapseMod.Instance?.Settings;
+            string routingId = RoutingId.LocalOnly;
+            string queryKey = $"{req.Mod?.ModId}:{req.Options?.queryId}";
+
+            if (settings != null && req.Mod != null && !string.IsNullOrEmpty(req.Options?.queryId) && settings.queryRoutingIds.TryGetValue(queryKey, out var savedRouting))
+            {
+                routingId = savedRouting;
+            }
+            else if (settings != null)
+            {
+                LlmCapabilities reqCaps = LlmCapabilities.Text;
+                if (req.Mod != null && !string.IsNullOrEmpty(req.Options?.queryId) && req.Mod.RegisteredQueries.TryGetValue(req.Options.queryId, out var queryDef))
+                {
+                    reqCaps = queryDef.requiredCaps;
+                }
+                if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) routingId = settings.defaultRoutingImage;
+                else if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) routingId = settings.defaultRoutingVision;
+                else if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) routingId = settings.defaultRoutingAudio;
+                else routingId = settings.defaultRoutingText;
+            }
+
+            if (routingId == RoutingId.LocalOnly) return "Local";
+            if (routingId == RoutingId.OpenAI) return "OpenAI";
+            if (routingId == RoutingId.Gemini) return "Gemini";
+            if (routingId == RoutingId.Claude) return "Claude";
+            if (routingId == RoutingId.Pollinations) return "Pollinations.ai";
+            if (routingId.StartsWith(RoutingId.CustomPrefix))
+            {
+                string customId = routingId.Substring(RoutingId.CustomPrefix.Length);
+                var custom = settings?.customProviders.Find(c => c.id == customId);
+                if (custom != null) return $"Custom: {custom.name}";
+                return "Custom";
+            }
+            return routingId;
+        }
+
+        private string GetModelForRequest(RequestQueue.QueuedRequest req)
+        {
+            if (req.Result != null && !string.IsNullOrEmpty(req.Result.model))
+                return req.Result.model;
+                
+            var settings = RimSynapseMod.Instance?.Settings;
+            string routingId = RoutingId.LocalOnly;
+            string queryKey = $"{req.Mod?.ModId}:{req.Options?.queryId}";
+
+            if (settings != null && req.Mod != null && !string.IsNullOrEmpty(req.Options?.queryId) && settings.queryRoutingIds.TryGetValue(queryKey, out var savedRouting))
+            {
+                routingId = savedRouting;
+            }
+            else if (settings != null)
+            {
+                LlmCapabilities reqCaps = LlmCapabilities.Text;
+                if (req.Mod != null && !string.IsNullOrEmpty(req.Options?.queryId) && req.Mod.RegisteredQueries.TryGetValue(req.Options.queryId, out var queryDef))
+                {
+                    reqCaps = queryDef.requiredCaps;
+                }
+                if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) routingId = settings.defaultRoutingImage;
+                else if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) routingId = settings.defaultRoutingVision;
+                else if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) routingId = settings.defaultRoutingAudio;
+                else routingId = settings.defaultRoutingText;
+            }
+
+            if (routingId == RoutingId.LocalOnly)
+            {
+                if (!string.IsNullOrEmpty(req.Options?.model)) return req.Options.model;
+                return settings?.modelLocal ?? "Unknown";
+            }
+            
+            string capKey = "default_text";
+            LlmCapabilities cap = LlmCapabilities.Text;
+            if (req.Mod != null && !string.IsNullOrEmpty(req.Options?.queryId) && req.Mod.RegisteredQueries.TryGetValue(req.Options.queryId, out var qDef2))
+            {
+                cap = qDef2.requiredCaps;
+            }
+            if ((cap & LlmCapabilities.Image) == LlmCapabilities.Image) capKey = "default_image";
+            else if ((cap & LlmCapabilities.Vision) == LlmCapabilities.Vision) capKey = "default_vision";
+            else if ((cap & LlmCapabilities.Audio) == LlmCapabilities.Audio) capKey = "default_audio";
+
+            if (settings != null)
+            {
+                if (settings.queryRoutingModels.TryGetValue(queryKey, out var mod1) && !string.IsNullOrEmpty(mod1))
+                    return mod1;
+                
+                if (settings.queryRoutingModels.TryGetValue(capKey, out var capModel) && !string.IsNullOrEmpty(capModel))
+                    return capModel;
+                
+                if (routingId == RoutingId.OpenAI) return settings.modelOpenAi;
+                if (routingId == RoutingId.Gemini) return settings.modelGemini;
+                if (routingId == RoutingId.Claude) return settings.modelClaude;
+                if (routingId == RoutingId.Pollinations) return settings.modelPollinations;
+                
+                if (routingId.StartsWith(RoutingId.CustomPrefix))
+                {
+                    string customId = routingId.Substring(RoutingId.CustomPrefix.Length);
+                    var custom = settings?.customProviders.Find(c => c.id == customId);
+                    if (custom != null) return custom.model;
+                }
+            }
+
+            return "Unknown";
         }
     }
 }

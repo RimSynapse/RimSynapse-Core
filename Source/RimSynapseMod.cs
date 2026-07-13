@@ -145,6 +145,11 @@ namespace RimSynapse
                 Find.WindowStack.Add(new RimSynapse.UI.Dialog_QueueMonitor());
             }
 
+            if (listing.ButtonText("Open Test Bench"))
+            {
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_TestBench());
+            }
+
             listing.Gap(6f);
 
             listing.CheckboxLabeled("Auto-map to active model",
@@ -212,6 +217,13 @@ namespace RimSynapse
             listing.CheckboxLabeled("Disable thinking/reasoning",
                 ref Settings.disableThinking,
                 "Prevent reasoning models from using chain-of-thought. Saves tokens and reduces latency.");
+                
+            listing.Gap(6f);
+            
+            Settings.audioBoost = listing.SliderLabeled(
+                $"TTS Audio PCM Boost: {Settings.audioBoost:F1}x",
+                Settings.audioBoost, 1.0f, 4.0f,
+                tooltip: "Directly boosts the PCM waveform amplitude. Helpful for quiet AI-generated TTS voices.");
 
             listing.Gap(6f);
 

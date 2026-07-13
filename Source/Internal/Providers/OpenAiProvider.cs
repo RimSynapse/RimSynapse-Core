@@ -121,7 +121,73 @@ namespace RimSynapse.Internal.Providers
 
         public AudioResult SendAudioRequestSync(LlmAudioRequest request, string baseUrl, string apiKey, string model)
         {
-            return AudioResult.Failure("Audio generation not fully implemented in OpenAiProvider yet.");
+            try
+            {
+                baseUrl = baseUrl.TrimEnd('/');
+                string url;
+                if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages"))
+                    url = $"{baseUrl.Replace("/v1/messages", "/v1")}/audio/speech";
+                else
+                    url = $"{baseUrl}/v1/audio/speech";
+
+                var body = new JObject
+                {
+                    ["model"] = model,
+                    ["input"] = request.InputText,
+                    ["voice"] = string.IsNullOrEmpty(request.Voice) ? "alloy" : request.Voice,
+                    ["response_format"] = string.IsNullOrEmpty(request.ResponseFormat) ? "pcm" : request.ResponseFormat
+                };
+
+                string jsonBody = body.ToString(Formatting.None);
+                SynapseLogger.TraceContext(jsonBody, url);
+
+                var req = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Content = new StringContent(jsonBody, Encoding.UTF8, "application/json"),
+                };
+
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                }
+
+                long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+                
+                var response = _client.SendAsync(req, cts.Token).Result;
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
+                    string responseBody = response.Content.ReadAsStringAsync().Result;
+                    var error = $"OpenAI-compatible audio endpoint returned {(int)response.StatusCode}: {responseBody}";
+                    SynapseLogger.Error(error);
+                    return AudioResult.Failure(error, dur);
+                }
+
+                // Many local backends erroneously return 200 OK with a JSON error when the endpoint isn't supported.
+                string mediaType = response.Content.Headers.ContentType?.MediaType;
+                if (mediaType != null && (mediaType.Contains("json") || mediaType.Contains("text")))
+                {
+                    long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
+                    string responseBody = response.Content.ReadAsStringAsync().Result;
+                    var error = $"Endpoint returned JSON/Text instead of audio bytes: {responseBody}";
+                    SynapseLogger.Error(error);
+                    return AudioResult.Failure(error, dur);
+                }
+
+                byte[] audioBytes = response.Content.ReadAsByteArrayAsync().Result;
+                string base64Audio = Convert.ToBase64String(audioBytes);
+                
+                long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
+                return AudioResult.Success(base64Audio, model, durationMs);
+            }
+            catch (Exception ex)
+            {
+                string error = ex.InnerException?.Message ?? ex.Message;
+                SynapseLogger.Error($"OpenAI Audio Request failed: {error}");
+                return AudioResult.Failure(error);
+            }
         }
     }
 }

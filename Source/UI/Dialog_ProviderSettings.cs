@@ -12,11 +12,6 @@ namespace RimSynapse.UI
 
         private Vector2 scrollPosition = Vector2.zero;
         private float viewHeight = 1200f;
-        
-        private Dictionary<string, bool> isFetchingModels = new Dictionary<string, bool>();
-        private Dictionary<string, List<string>> fetchedModels = new Dictionary<string, List<string>>();
-        private Dictionary<string, bool> autoOpenMenu = new Dictionary<string, bool>();
-
         public Dialog_ProviderSettings()
         {
             this.doCloseButton = true;
@@ -43,25 +38,7 @@ namespace RimSynapse.UI
             }
         }
 
-        private float CalculateViewHeight(Rect outRect)
-        {
-            var settings = RimSynapseMod.Instance.Settings;
-            float h = 0f;
-            // 4 default standard providers (Local, OpenAI, Gemini, Claude)
-            h += 202f * 4;
-            // Pollinations (no model field, no test button)
-            h += 146f;
-            // Custom providers
-            if (settings.customProviders != null)
-            {
-                h += 202f * settings.customProviders.Count;
-            }
-            // Add Custom Provider button
-            h += 30f;
-            // Extra padding
-            h += 40f;
-            return UnityEngine.Mathf.Max(h, outRect.height);
-        }
+
 
         private void DoWindowContentsInner(Rect inRect)
         {
@@ -75,7 +52,7 @@ namespace RimSynapse.UI
             Widgets.Label(helpRect, "Configure endpoints, API keys, and models for text generation.");
             
             var outRect = new Rect(0, 70f, inRect.width, inRect.height - 120f);
-            viewHeight = CalculateViewHeight(outRect);
+            // viewHeight is updated dynamically at the end of drawing
             var viewRect = new Rect(0, 0, inRect.width - 16f, viewHeight);
 
             Widgets.BeginScrollView(outRect, ref scrollPosition, viewRect);
@@ -87,24 +64,30 @@ namespace RimSynapse.UI
             string nOpenAi = "OpenAI";
             string nGemini = "Google Gemini";
             string nClaude = "Anthropic Claude";
+            string nEleven = "ElevenLabs";
             string nPolli = "Pollinations.ai";
 
-            ProviderUIHelper.DrawProviderSection(listing, ref nLocal, ApiProvider.Local_LMStudio, ref settings.lmStudioUrl, ref settings.lmStudioApiKey, ref settings.modelLocal, ref settings.capsLocal, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            ProviderUIHelper.DrawProviderSection(listing, ref nLocal, ApiProvider.Local_LMStudio, ref settings.lmStudioUrl, ref settings.lmStudioApiKey, ref settings.modelLocal, ref settings.capsLocal, null);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);
             
-            ProviderUIHelper.DrawProviderSection(listing, ref nOpenAi, ApiProvider.OpenAI, ref settings.openAiUrl, ref settings.openAiApiKey, ref settings.modelOpenAi, ref settings.capsOpenAi, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            ProviderUIHelper.DrawProviderSection(listing, ref nOpenAi, ApiProvider.OpenAI, ref settings.openAiUrl, ref settings.openAiApiKey, ref settings.modelOpenAi, ref settings.capsOpenAi, null);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);
             
-            ProviderUIHelper.DrawProviderSection(listing, ref nGemini, ApiProvider.Google_Gemini, ref settings.geminiUrl, ref settings.geminiApiKey, ref settings.modelGemini, ref settings.capsGemini, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            ProviderUIHelper.DrawProviderSection(listing, ref nGemini, ApiProvider.Google_Gemini, ref settings.geminiUrl, ref settings.geminiApiKey, ref settings.modelGemini, ref settings.capsGemini, null);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);
             
-            ProviderUIHelper.DrawProviderSection(listing, ref nClaude, ApiProvider.Anthropic_Claude, ref settings.claudeUrl, ref settings.claudeApiKey, ref settings.modelClaude, ref settings.capsClaude, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            ProviderUIHelper.DrawProviderSection(listing, ref nClaude, ApiProvider.Anthropic_Claude, ref settings.claudeUrl, ref settings.claudeApiKey, ref settings.modelClaude, ref settings.capsClaude, null);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
+
+            ProviderUIHelper.DrawProviderSection(listing, ref nEleven, ApiProvider.ElevenLabs, ref settings.elevenLabsUrl, ref settings.elevenLabsApiKey, ref settings.modelElevenLabs, ref settings.capsElevenLabs, null);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);
@@ -112,7 +95,7 @@ namespace RimSynapse.UI
             string dummyUrl = "https://image.pollinations.ai/prompt";
             string dummyKey = "";
             LlmCapabilities dummyCaps = LlmCapabilities.Image;
-            ProviderUIHelper.DrawProviderSection(listing, ref nPolli, ApiProvider.Pollinations, ref dummyUrl, ref dummyKey, ref settings.modelPollinations, ref dummyCaps, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            ProviderUIHelper.DrawProviderSection(listing, ref nPolli, ApiProvider.Pollinations, ref dummyUrl, ref dummyKey, ref settings.modelPollinations, ref dummyCaps, null);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);
@@ -126,9 +109,9 @@ namespace RimSynapse.UI
                     var custom = settings.customProviders[i];
                     if (custom == null) continue; // Safety check against malformed XML
 
-                    ProviderUIHelper.DrawProviderSection(listing, ref custom.name, ApiProvider.Custom, ref custom.url, ref custom.apiKey, ref custom.model, ref custom.caps, false, () => {
+                    ProviderUIHelper.DrawProviderSection(listing, ref custom.name, ApiProvider.Custom, ref custom.url, ref custom.apiKey, ref custom.model, ref custom.caps, () => {
                         toDelete = custom;
-                    }, isFetchingModels, fetchedModels, autoOpenMenu);
+                    });
                     
                     listing.Gap(12f);
                     listing.GapLine();
@@ -151,6 +134,7 @@ namespace RimSynapse.UI
             GUI.color = oldColor2;
 
             listing.End();
+            viewHeight = listing.CurHeight + 20f;
             Widgets.EndScrollView();
         }
     }

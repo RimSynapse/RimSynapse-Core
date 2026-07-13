@@ -10,8 +10,9 @@ namespace RimSynapse.UI
     {
         private static Dictionary<string, string> testStatus = new Dictionary<string, string>();
         private static Dictionary<string, Color> testColor = new Dictionary<string, Color>();
+        private static Dictionary<string, string> pendingModelSelections = new Dictionary<string, string>();
 
-        public static void DrawCapabilitiesRow(Listing_Standard listing, ref LlmCapabilities caps, float indent, bool isFrontierModel)
+        public static void DrawCapabilitiesRow(Listing_Standard listing, ref LlmCapabilities caps, float indent)
         {
             Rect rect = listing.GetRect(24f);
             rect.xMin += indent;
@@ -23,12 +24,6 @@ namespace RimSynapse.UI
             bool hasImage = (caps & LlmCapabilities.Image) != 0;
             bool hasVision = (caps & LlmCapabilities.Vision) != 0;
             bool hasAudio = (caps & LlmCapabilities.Audio) != 0;
-
-            bool previousEnabled = GUI.enabled;
-            if (isFrontierModel)
-            {
-                GUI.enabled = false;
-            }
             
             Vector2 textSz = Text.CalcSize("Text");
             Widgets.Label(new Rect(curX, rect.y, textSz.x, rect.height), "Text");
@@ -48,25 +43,16 @@ namespace RimSynapse.UI
             Vector2 audSz = Text.CalcSize("Audio");
             Widgets.Label(new Rect(curX, rect.y, audSz.x, rect.height), "Audio");
             Widgets.Checkbox(new Vector2(curX + audSz.x + 4f, rect.y), ref hasAudio);
-            
-            GUI.enabled = previousEnabled;
 
-            if (!isFrontierModel)
-            {
-                caps = LlmCapabilities.None;
-                if (hasText) caps |= LlmCapabilities.Text;
-                if (hasImage) caps |= LlmCapabilities.Image;
-                if (hasVision) caps |= LlmCapabilities.Vision;
-                if (hasAudio) caps |= LlmCapabilities.Audio;
-            }
+            caps = LlmCapabilities.None;
+            if (hasText) caps |= LlmCapabilities.Text;
+            if (hasImage) caps |= LlmCapabilities.Image;
+            if (hasVision) caps |= LlmCapabilities.Vision;
+            if (hasAudio) caps |= LlmCapabilities.Audio;
         }
 
-        public static void DrawProviderSection(Listing_Standard listing, ref string providerName, ApiProvider? providerEnum, ref string url, ref string key, ref string model, ref LlmCapabilities caps, bool isFrontierModel, System.Action onDelete = null, Dictionary<string, bool> isFetchingModels = null, Dictionary<string, List<string>> fetchedModels = null, Dictionary<string, bool> autoOpenMenu = null)
+        public static void DrawProviderSection(Listing_Standard listing, ref string providerName, ApiProvider? providerEnum, ref string url, ref string key, ref string model, ref LlmCapabilities caps, System.Action onDelete = null)
         {
-            if (isFetchingModels == null) isFetchingModels = new Dictionary<string, bool>();
-            if (fetchedModels == null) fetchedModels = new Dictionary<string, List<string>>();
-            if (autoOpenMenu == null) autoOpenMenu = new Dictionary<string, bool>();
-
             if (providerName == null) providerName = "Custom Provider";
             Text.Font = GameFont.Medium;
             Rect headerRect = listing.GetRect(30f);
@@ -123,10 +109,8 @@ namespace RimSynapse.UI
             urlRect.xMin += indent;
             Widgets.Label(new Rect(urlRect.x, urlRect.y, labelWidth, urlRect.height), "Endpoint:");
             
-            if (isFrontierModel) GUI.enabled = false;
             if (url == null) url = "";
             url = Widgets.TextField(new Rect(urlRect.x + labelWidth, urlRect.y, urlRect.width - labelWidth, urlRect.height), url);
-            GUI.enabled = previousEnabled;
             
             listing.Gap(4f);
             
@@ -136,98 +120,34 @@ namespace RimSynapse.UI
                 modelRect.xMin += indent;
                 Widgets.Label(new Rect(modelRect.x, modelRect.y, labelWidth, modelRect.height), "Model:");
                 
-                float revertBtnWidth = 60f;
+                float selectBtnWidth = 80f;
                 bool isCustom = providerEnum == ApiProvider.Custom;
-                float fetchBtnWidth = isCustom ? 0f : 24f;
-                Rect fetchBtnRect = new Rect(modelRect.x + labelWidth, modelRect.y, fetchBtnWidth, modelRect.height);
-                Rect modelFieldRect = new Rect(fetchBtnRect.xMax + (isCustom ? 0f : 4f), modelRect.y, modelRect.width - labelWidth - fetchBtnWidth - revertBtnWidth - (isCustom ? 4f : 8f), modelRect.height);
-                Rect revertBtnRect = new Rect(modelRect.xMax - revertBtnWidth, modelRect.y, revertBtnWidth, modelRect.height);
+                Rect modelFieldRect = new Rect(modelRect.x + labelWidth, modelRect.y, modelRect.width - labelWidth - selectBtnWidth - 8f, modelRect.height);
+                Rect selectBtnRect = new Rect(modelRect.xMax - selectBtnWidth, modelRect.y, selectBtnWidth, modelRect.height);
                 
-                bool isFetching = isFetchingModels.ContainsKey(providerName) && isFetchingModels[providerName];
-                bool hasFetched = fetchedModels.ContainsKey(providerName) && fetchedModels[providerName] != null;
-
-                if (autoOpenMenu.ContainsKey(providerName) && autoOpenMenu[providerName] && hasFetched)
+                if (pendingModelSelections.TryGetValue(providerName, out string newM))
                 {
-                    autoOpenMenu[providerName] = false;
-                    var list = new List<FloatMenuOption>();
-                    foreach (var m in fetchedModels[providerName])
-                    {
-                        string localM = m;
-                        string pName = providerName;
-                        list.Add(new FloatMenuOption(localM, () => {
-                            var settings = RimSynapseMod.Instance.Settings;
-                            if (pName == "OpenAI") settings.modelOpenAi = localM;
-                            else if (pName == "Google Gemini") settings.modelGemini = localM;
-                            else if (pName == "Anthropic Claude") settings.modelClaude = localM;
-                            else if (pName == "Local LM Studio") settings.modelLocal = localM;
-                            else if (pName == "Pollinations.ai") settings.modelPollinations = localM;
-                            else if (pName == "Custom / Proxy" || pName == "Custom Provider") settings.modelCustom = localM;
-                        }));
-                    }
-                    Find.WindowStack.Add(new FloatMenu(list));
+                    model = newM;
+                    pendingModelSelections.Remove(providerName);
                 }
 
-                if (!isCustom)
-                {
-                    if (isFetching)
-                    {
-                        bool previousEnabledFetch = GUI.enabled;
-                        GUI.enabled = false;
-                        Widgets.ButtonText(fetchBtnRect, "...");
-                        GUI.enabled = previousEnabledFetch;
-                    }
-                    else
-                    {
-                        if (Widgets.ButtonText(fetchBtnRect, "..."))
-                        {
-                            if (hasFetched)
-                            {
-                                autoOpenMenu[providerName] = true;
-                            }
-                            else
-                            {
-                                isFetchingModels[providerName] = true;
-                                string fetchUrl = url;
-                                string fetchKey = key;
-                                string pName = providerName;
-                                if (providerEnum.HasValue)
-                                {
-                                    RimSynapse.Internal.HttpEngine.FetchProviderModelsAsync(providerEnum.Value, fetchUrl, fetchKey, (ok, modelsList, msg) =>
-                                    {
-                                        RimSynapse.SynapseGameComponent.Enqueue(() => {
-                                            isFetchingModels[pName] = false;
-                                            if (ok)
-                                            {
-                                                fetchedModels[pName] = modelsList;
-                                                autoOpenMenu[pName] = true;
-                                            }
-                                            else
-                                            {
-                                                Verse.Log.Error($"[RimSynapse] Failed to fetch models for {pName}: {msg}");
-                                            }
-                                        });
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-                
                 if (model == null) model = "";
                 model = Widgets.TextField(modelFieldRect, model);
                 
-                if (Widgets.ButtonText(revertBtnRect, "Revert"))
+                if (Widgets.ButtonText(selectBtnRect, "Select..."))
                 {
-                    if (providerName == "OpenAI") model = "gpt-4o-mini";
-                    else if (providerName == "Google Gemini") model = "gemini-1.5-flash";
-                    else if (providerName == "Anthropic Claude") model = "claude-3-5-haiku-latest";
-                    else if (providerName == "Local LM Studio") model = RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model";
-                    else if (isCustom) model = "";
+                    if (providerEnum.HasValue)
+                    {
+                        string pName = providerName;
+                        RimSynapse.Internal.ModelDefUtility.ShowModelSelector(providerEnum.Value, LlmCapabilities.None, (selectedModel) => {
+                            pendingModelSelections[pName] = selectedModel;
+                        });
+                    }
                 }
                 
                 listing.Gap(4f);
             }
-            
+
             Rect keyRect = listing.GetRect(24f);
             keyRect.xMin += indent;
             Widgets.Label(new Rect(keyRect.x, keyRect.y, labelWidth, keyRect.height), "Key:");
@@ -247,7 +167,10 @@ namespace RimSynapse.UI
             
             listing.Gap(4f);
             
-            DrawCapabilitiesRow(listing, ref caps, indent, isFrontierModel);
+            if (providerEnum == ApiProvider.Custom)
+            {
+                DrawCapabilitiesRow(listing, ref caps, indent);
+            }
 
             if (providerEnum.HasValue)
             {

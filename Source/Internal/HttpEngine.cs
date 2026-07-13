@@ -77,9 +77,10 @@ namespace RimSynapse.Internal
             {
                 string routingId = RoutingId.LocalOnly;
                 string queryKey = $"{mod?.ModId}:{options?.queryId}";
-                if (mod != null && !string.IsNullOrEmpty(options?.queryId) && settings.queryRoutingIds.TryGetValue(queryKey, out var savedRouting))
+                
+                if (!string.IsNullOrEmpty(options?.providerOverride))
                 {
-                    routingId = savedRouting;
+                    routingId = options.providerOverride;
                 }
                 else
                 {
@@ -139,12 +140,7 @@ namespace RimSynapse.Internal
                 string targetModel = options?.model;
                 if (string.IsNullOrEmpty(targetModel))
                 {
-                    // 1. Specific query override
-                    if (mod != null && !string.IsNullOrEmpty(options?.queryId) && settings.queryRoutingModels.TryGetValue(queryKey, out var qModel) && !string.IsNullOrEmpty(qModel))
-                    {
-                        targetModel = qModel;
-                    }
-                    // 2. Capability default override
+                    // 1. Capability default override
                     if (string.IsNullOrEmpty(targetModel))
                     {
                         string capKey = "default_text";
@@ -157,7 +153,7 @@ namespace RimSynapse.Internal
                             targetModel = capModel;
                         }
                     }
-                    // 3. Fallback to provider default / active model
+                    // 2. Fallback to provider default / active model
                     if (string.IsNullOrEmpty(targetModel))
                     {
                         if (providerHit == ApiProvider.Local_LMStudio) targetModel = ModelManager.ResolveModel(options?.model);
@@ -247,11 +243,6 @@ namespace RimSynapse.Internal
                 string baseUrl = settings.lmStudioUrl;
                 string apiKey = settings.lmStudioApiKey;
 
-                if (settings.apiProvider == ApiProvider.OpenAI) { baseUrl = settings.openAiUrl; apiKey = settings.openAiApiKey; }
-                else if (settings.apiProvider == ApiProvider.Google_Gemini) { baseUrl = settings.geminiUrl; apiKey = settings.geminiApiKey; }
-                else if (settings.apiProvider == ApiProvider.Anthropic_Claude) { baseUrl = settings.claudeUrl; apiKey = settings.claudeApiKey; }
-                else if (settings.apiProvider == ApiProvider.Custom) { baseUrl = settings.customUrl; apiKey = settings.customApiKey; }
-
                 baseUrl = baseUrl.TrimEnd('/');
                 string url;
                 if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages"))
@@ -297,49 +288,7 @@ namespace RimSynapse.Internal
                     }
                 }
 
-                // ── Active Model Discovery ──
-                // The /v1/models endpoint returns ALL downloaded models, which is useless for
-                // knowing what's actually in VRAM. The native /api/v1/models endpoint is often
-                // disabled or hanging in newer LM Studio versions.
-                // The most reliable way to find the loaded model is to send a tiny dummy request.
-                // LM Studio will process it with the active model and return its ID in the response.
-                try
-                {
-                    var dummyReq = new HttpRequestMessage(
-                        HttpMethod.Post, $"{baseUrl}/v1/chat/completions");
-                    if (!string.IsNullOrEmpty(settings.lmStudioApiKey))
-                    {
-                        dummyReq.Headers.Authorization =
-                            new System.Net.Http.Headers.AuthenticationHeaderValue(
-                                "Bearer", settings.lmStudioApiKey);
-                    }
-
-                    // A minimal request that takes almost 0 compute
-                    string dummyPayload = "{\"model\":\"local-model\",\"messages\":[{\"role\":\"system\",\"content\":\"ping\"}],\"max_tokens\":1}";
-                    dummyReq.Content = new StringContent(
-                        dummyPayload,
-                        System.Text.Encoding.UTF8,
-                        "application/json");
-
-                    var dummyRes = _client.SendAsync(dummyReq).Result;
-                    if (dummyRes.IsSuccessStatusCode)
-                    {
-                        string dummyBody = dummyRes.Content.ReadAsStringAsync().Result;
-                        var dummyJson = JObject.Parse(dummyBody);
-                        string activeModelId = dummyJson["model"]?.ToString();
-                        
-                        if (!string.IsNullOrEmpty(activeModelId))
-                        {
-                            // Overwrite the full list with just the active model
-                            result.modelIds = new List<string> { activeModelId };
-                            SynapseLogger.Message($"Active model discovered via dummy request: {activeModelId}");
-                        }
-                    }
-                }
-                catch
-                {
-                    // Ignore failures and fall back to the full list from /v1/models
-                }
+                // Dummy request removed: /v1/models now correctly returns all loaded models in LM Studio.
 
                 return result;
             }

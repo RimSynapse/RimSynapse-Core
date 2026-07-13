@@ -9,10 +9,6 @@ namespace RimSynapse.UI
     {
         private Vector2 scrollPosition;
 
-        private Dictionary<string, bool> isFetchingModels = new Dictionary<string, bool>();
-        private Dictionary<string, List<string>> fetchedModels = new Dictionary<string, List<string>>();
-        private Dictionary<string, bool> autoOpenMenu = new Dictionary<string, bool>();
-
         public Dialog_QueryRouting()
         {
             this.forcePause = true;
@@ -59,8 +55,8 @@ namespace RimSynapse.UI
             
             listing.Gap(24f);
 
-            // --- Specific Overrides ---
-            listing.Label("Specific Overrides", tooltip: "Override the default routing for specific queries from companion mods.");
+            // --- Registered Queries ---
+            listing.Label("Registered Queries", tooltip: "List of all queries registered by companion mods and their required capabilities.");
             listing.GapLine();
 
             if (Internal.ModRegistry.All.Count == 0)
@@ -88,47 +84,23 @@ namespace RimSynapse.UI
                             string queryId = kvp.Key;
                             string queryName = kvp.Value.displayName;
                             LlmCapabilities reqCaps = kvp.Value.requiredCaps;
-                            string key = $"{mod.ModId}:{queryId}";
-
-                            if (!settings.queryRoutingIds.TryGetValue(key, out var currentRouting))
-                            {
-                                currentRouting = "Default";
-                            }
-
                             var rowRect = listing.GetRect(30f);
-                            var labelRect = new Rect(rowRect.x, rowRect.y, rowRect.width * 0.35f, rowRect.height);
-                            var btnRect = new Rect(rowRect.x + rowRect.width * 0.35f + 4f, rowRect.y, rowRect.width * 0.30f - 8f, rowRect.height);
-                            var modelRect = new Rect(rowRect.x + rowRect.width * 0.65f, rowRect.y, rowRect.width * 0.35f, rowRect.height);
+                            var labelRect = new Rect(rowRect.x, rowRect.y, rowRect.width * 0.5f, rowRect.height);
+                            var typeRect = new Rect(rowRect.x + rowRect.width * 0.5f, rowRect.y, rowRect.width * 0.5f, rowRect.height);
 
                             Widgets.Label(labelRect, "  " + queryName);
 
-                            string btnLabel = GetRoutingName(currentRouting);
-                            if (Widgets.ButtonText(btnRect, btnLabel))
-                            {
-                                var list = new List<FloatMenuOption>();
-                                list.Add(new FloatMenuOption("Default", () => { settings.queryRoutingIds.Remove(key); RimSynapseMod.Instance.WriteSettings(); }));
-                                
-                                foreach (var route in GetCapableRoutes(reqCaps, settings))
-                                {
-                                    string localRoute = route.Key;
-                                    string label = route.Value;
-                                    list.Add(new FloatMenuOption(label, () =>
-                                    {
-                                        settings.queryRoutingIds[key] = localRoute;
-                                        RimSynapseMod.Instance.WriteSettings();
-                                    }));
-                                }
-                                
-                                if (list.Count == 1) // only "Default"
-                                {
-                                    list.Add(new FloatMenuOption("No capable providers found", null));
-                                }
-                                Find.WindowStack.Add(new FloatMenu(list));
-                            }
+                            string capType = "Text Model";
+                            if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) capType = "Image Model";
+                            else if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) capType = "Vision Model";
+                            else if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) capType = "Audio Model";
+                            
+                            Color oldColor = GUI.color;
+                            GUI.color = Color.grey;
+                            Widgets.Label(typeRect, "Uses: " + capType);
+                            GUI.color = oldColor;
 
-                            DrawModelFieldWithLookup(modelRect, currentRouting, key, currentRouting == "Default");
-
-                            listing.Gap(6f);
+                            listing.Gap(2f);
                         }
                     }
                 }
@@ -170,16 +142,16 @@ namespace RimSynapse.UI
                 Find.WindowStack.Add(new FloatMenu(list));
             }
 
-            DrawModelFieldWithLookup(modelRect, currentVal, modelKey, false);
+            DrawModelFieldWithLookup(modelRect, currentVal, modelKey, false, reqCaps);
         }
 
-        private void DrawModelFieldWithLookup(Rect modelRect, string currentVal, string modelKey, bool isDefaultRoute)
+        private static Dictionary<string, string> pendingModelSelections = new Dictionary<string, string>();
+
+        private void DrawModelFieldWithLookup(Rect modelRect, string currentVal, string modelKey, bool isDefaultRoute, LlmCapabilities reqCaps = LlmCapabilities.None)
         {
             var settings = RimSynapseMod.Instance.Settings;
 
-            string placeholder = GetActiveModelForKey(modelKey, currentVal);
-            if (string.IsNullOrEmpty(placeholder)) placeholder = "default model";
-            else placeholder = $"({placeholder})";
+            string placeholder = "default model";
 
             if (isDefaultRoute)
             {
@@ -192,97 +164,22 @@ namespace RimSynapse.UI
                 GUI.enabled = true;
                 return;
             }
-
-            // Determine provider details
-            string pName = null;
-            ApiProvider? pEnum = null;
-            string pUrl = null;
-            string pKey = null;
-
-            if (currentVal == RoutingId.LocalOnly) { pName = "Local LM Studio"; pEnum = ApiProvider.Local_LMStudio; pUrl = settings.lmStudioUrl; pKey = settings.lmStudioApiKey; }
-            else if (currentVal == RoutingId.OpenAI) { pName = "OpenAI"; pEnum = ApiProvider.OpenAI; pUrl = settings.openAiUrl; pKey = settings.openAiApiKey; }
-            else if (currentVal == RoutingId.Gemini) { pName = "Google Gemini"; pEnum = ApiProvider.Google_Gemini; pUrl = settings.geminiUrl; pKey = settings.geminiApiKey; }
-            else if (currentVal == RoutingId.Claude) { pName = "Anthropic Claude"; pEnum = ApiProvider.Anthropic_Claude; pUrl = settings.claudeUrl; pKey = settings.claudeApiKey; }
-            else if (currentVal == RoutingId.Pollinations) { pName = "Pollinations.ai"; pEnum = ApiProvider.Pollinations; pUrl = "https://image.pollinations.ai/prompt"; pKey = ""; }
-            else if (currentVal != null && currentVal.StartsWith(RoutingId.CustomPrefix))
+            
+            float selectBtnWidth = 80f;
+            Rect modelFieldRect = new Rect(modelRect.x, modelRect.y, modelRect.width - selectBtnWidth - 4f, modelRect.height);
+            Rect selectBtnRect = new Rect(modelRect.xMax - selectBtnWidth, modelRect.y, selectBtnWidth, modelRect.height);
+            
+            if (pendingModelSelections.TryGetValue(modelKey, out string newM))
             {
-                string customId = currentVal.Substring(RoutingId.CustomPrefix.Length);
-                var custom = settings.customProviders.Find(c => c.id == customId);
-                if (custom != null) { pName = custom.name; pEnum = ApiProvider.Custom; pUrl = custom.url; pKey = custom.apiKey; }
-            }
-
-            bool showFetch = pEnum.HasValue;
-            float fetchWidth = showFetch ? 24f : 0f;
-            Rect btnFetchRect = new Rect(modelRect.x, modelRect.y, fetchWidth, modelRect.height);
-            Rect textRect = new Rect(modelRect.x + fetchWidth + (showFetch ? 4f : 0f), modelRect.y, modelRect.width - fetchWidth - (showFetch ? 4f : 0f), modelRect.height);
-
-            if (showFetch && pName != null)
-            {
-                bool isFetching = isFetchingModels.ContainsKey(pName) && isFetchingModels[pName];
-                bool hasFetched = fetchedModels.ContainsKey(pName) && fetchedModels[pName] != null;
-
-                if (autoOpenMenu.ContainsKey(pName) && autoOpenMenu[pName] && hasFetched)
-                {
-                    autoOpenMenu[pName] = false;
-                    var list = new List<FloatMenuOption>();
-                    foreach (var m in fetchedModels[pName])
-                    {
-                        string localM = m;
-                        string keyToSet = modelKey;
-                        list.Add(new FloatMenuOption(localM, () => {
-                            settings.queryRoutingModels[keyToSet] = localM;
-                            RimSynapseMod.Instance.WriteSettings();
-                        }));
-                    }
-                    Find.WindowStack.Add(new FloatMenu(list));
-                }
-
-                if (isFetching)
-                {
-                    bool previousEnabledFetch = GUI.enabled;
-                    GUI.enabled = false;
-                    Widgets.ButtonText(btnFetchRect, "...");
-                    GUI.enabled = previousEnabledFetch;
-                }
-                else
-                {
-                    if (Widgets.ButtonText(btnFetchRect, "..."))
-                    {
-                        if (hasFetched)
-                        {
-                            autoOpenMenu[pName] = true;
-                        }
-                        else
-                        {
-                            isFetchingModels[pName] = true;
-                            string fetchUrl = pUrl;
-                            string fetchKey = pKey;
-                            string fetchPName = pName;
-                            ApiProvider fetchPEnum = pEnum.Value;
-                            RimSynapse.Internal.HttpEngine.FetchProviderModelsAsync(fetchPEnum, fetchUrl, fetchKey, (ok, modelsList, msg) =>
-                            {
-                                RimSynapse.SynapseGameComponent.Enqueue(() => {
-                                    isFetchingModels[fetchPName] = false;
-                                    if (ok)
-                                    {
-                                        fetchedModels[fetchPName] = modelsList;
-                                        autoOpenMenu[fetchPName] = true;
-                                    }
-                                    else
-                                    {
-                                        Verse.Log.Error($"[RimSynapse] Failed to fetch models for {fetchPName}: {msg}");
-                                    }
-                                });
-                            });
-                        }
-                    }
-                }
+                settings.queryRoutingModels[modelKey] = newM;
+                RimSynapseMod.Instance.WriteSettings();
+                pendingModelSelections.Remove(modelKey);
             }
 
             string modelVal = "";
             if (settings.queryRoutingModels.TryGetValue(modelKey, out var mv)) modelVal = mv;
             
-            string newModelVal = Widgets.TextField(textRect, modelVal);
+            string newModelVal = Widgets.TextField(modelFieldRect, modelVal);
             if (newModelVal != modelVal)
             {
                 settings.queryRoutingModels[modelKey] = newModelVal;
@@ -293,8 +190,26 @@ namespace RimSynapse.UI
             {
                 Color oldColor = GUI.color;
                 GUI.color = Color.grey;
-                Widgets.Label(new Rect(textRect.x + 4f, textRect.y + 2f, textRect.width, textRect.height), placeholder);
+                Widgets.Label(new Rect(modelFieldRect.x + 4f, modelFieldRect.y + 2f, modelFieldRect.width, modelFieldRect.height), placeholder);
                 GUI.color = oldColor;
+            }
+            
+            if (Widgets.ButtonText(selectBtnRect, "Select..."))
+            {
+                ApiProvider? pEnum = null;
+                if (currentVal == RoutingId.LocalOnly) pEnum = ApiProvider.Local_LMStudio;
+                else if (currentVal == RoutingId.OpenAI) pEnum = ApiProvider.OpenAI;
+                else if (currentVal == RoutingId.Gemini) pEnum = ApiProvider.Google_Gemini;
+                else if (currentVal == RoutingId.Claude) pEnum = ApiProvider.Anthropic_Claude;
+                else if (currentVal == RoutingId.Pollinations) pEnum = ApiProvider.Pollinations;
+                else if (currentVal != null && currentVal.StartsWith(RoutingId.CustomPrefix)) pEnum = ApiProvider.Custom;
+                
+                if (pEnum.HasValue)
+                {
+                    RimSynapse.Internal.ModelDefUtility.ShowModelSelector(pEnum.Value, reqCaps, (selectedModel) => {
+                        pendingModelSelections[modelKey] = selectedModel;
+                    });
+                }
             }
         }
 
@@ -314,64 +229,6 @@ namespace RimSynapse.UI
                 if (custom != null) return custom.model;
             }
             return "";
-        }
-
-        private string GetInheritedRoute(string modelKey)
-        {
-            var settings = RimSynapseMod.Instance.Settings;
-            if (modelKey.Contains(":"))
-            {
-                string[] parts = modelKey.Split(':');
-                if (parts.Length == 2)
-                {
-                    string modId = parts[0];
-                    string queryId = parts[1];
-                    var mod = Internal.ModRegistry.All.FirstOrDefault(m => m.ModId == modId);
-                    if (mod != null && mod.RegisteredQueries.TryGetValue(queryId, out var queryDef))
-                    {
-                        var reqCaps = queryDef.requiredCaps;
-                        if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) return settings.defaultRoutingImage;
-                        if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) return settings.defaultRoutingVision;
-                        if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) return settings.defaultRoutingAudio;
-                        return settings.defaultRoutingText;
-                    }
-                }
-            }
-            return RoutingId.LocalOnly;
-        }
-
-        private string GetActiveModelForKey(string modelKey, string currentRoute)
-        {
-            var settings = RimSynapseMod.Instance.Settings;
-            
-            if (currentRoute == "Default")
-            {
-                string inheritedRoute = GetInheritedRoute(modelKey);
-                string capKey = "default_text";
-                if (modelKey.Contains(":"))
-                {
-                    string[] parts = modelKey.Split(':');
-                    if (parts.Length == 2)
-                    {
-                        var mod = Internal.ModRegistry.All.FirstOrDefault(m => m.ModId == parts[0]);
-                        if (mod != null && mod.RegisteredQueries.TryGetValue(parts[1], out var qDef))
-                        {
-                            var reqCaps = qDef.requiredCaps;
-                            if ((reqCaps & LlmCapabilities.Image) == LlmCapabilities.Image) capKey = "default_image";
-                            else if ((reqCaps & LlmCapabilities.Vision) == LlmCapabilities.Vision) capKey = "default_vision";
-                            else if ((reqCaps & LlmCapabilities.Audio) == LlmCapabilities.Audio) capKey = "default_audio";
-                        }
-                    }
-                }
-                
-                if (settings.queryRoutingModels.TryGetValue(capKey, out var capModel) && !string.IsNullOrEmpty(capModel))
-                {
-                    return capModel;
-                }
-                return GetDefaultModelForRoute(inheritedRoute);
-            }
-            
-            return GetDefaultModelForRoute(currentRoute);
         }
 
         private string GetRoutingName(string id)
@@ -417,7 +274,7 @@ namespace RimSynapse.UI
             {
                 h += 12f + 30f + 12f; // Gap, Title, Line
                 if (mod.RegisteredQueries.Count == 0) h += 36f;
-                else h += (mod.RegisteredQueries.Count * 36f); // 30f row + 6f gap
+                else h += (mod.RegisteredQueries.Count * 32f); // 30f row + 2f gap
             }
             return Mathf.Max(h, 500f);
         }

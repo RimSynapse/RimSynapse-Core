@@ -9,7 +9,8 @@ namespace RimSynapse
         OpenAI = 2,
         Anthropic_Claude = 3,
         Custom = 4,
-        Pollinations = 5
+        Pollinations = 5,
+        ElevenLabs = 6
     }
 
     // Deprecated, use string routing IDs instead.
@@ -31,6 +32,7 @@ namespace RimSynapse
         public const string Claude = "Specific_Claude";
         public const string CustomPrefix = "Custom_";
         public const string Pollinations = "Pollinations.ai";
+        public const string ElevenLabs = "Specific_ElevenLabs";
     }
 
     /// <summary>
@@ -64,6 +66,7 @@ namespace RimSynapse
         public string modelClaude = "claude-opus-4-6";
         public string modelCustom = "";
         public string modelPollinations = "flux";
+        public string modelElevenLabs = "";
 
         // --- Capabilities ---
         public LlmCapabilities capsLocal = LlmCapabilities.Text;
@@ -71,6 +74,7 @@ namespace RimSynapse
         public LlmCapabilities capsGemini = LlmCapabilities.Text | LlmCapabilities.Vision | LlmCapabilities.Audio;
         public LlmCapabilities capsClaude = LlmCapabilities.Text | LlmCapabilities.Vision;
         public LlmCapabilities capsCustom = LlmCapabilities.Text;
+        public LlmCapabilities capsElevenLabs = LlmCapabilities.Audio;
 
         // --- Query Routing Ledger ---
         [System.Obsolete("Use queryRoutingIds instead.")]
@@ -116,6 +120,7 @@ namespace RimSynapse
         public bool sanitizeResponse = true;
         public bool enableKeepAlive = true;
         public bool disableThinking = true;
+        public float audioBoost = 2.5f;
 
         // --- Context Embedding ---
         public bool enableContextEmbedding = false;
@@ -159,6 +164,8 @@ namespace RimSynapse
         public bool qmShowTokens = false;
         public bool qmShowPrompt = false;
         public bool qmShowResponse = false;
+        public bool qmShowProvider = true;
+        public bool qmShowModel = true;
 
         public override void ExposeData()
         {
@@ -175,6 +182,8 @@ namespace RimSynapse
             Scribe_Values.Look(ref claudeApiKey, "claudeApiKey", "");
             Scribe_Values.Look(ref customUrl, "customUrl", "");
             Scribe_Values.Look(ref customApiKey, "customApiKey", "");
+            Scribe_Values.Look(ref elevenLabsUrl, "elevenLabsUrl", "https://api.elevenlabs.io");
+            Scribe_Values.Look(ref elevenLabsApiKey, "elevenLabsApiKey", "");
 
             Scribe_Values.Look(ref modelLocal, "modelLocal", "local-model");
             Scribe_Values.Look(ref modelOpenAi, "modelOpenAi", "gpt-5-chat-latest");
@@ -218,6 +227,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref sanitizeResponse, "sanitizeResponse", true);
             Scribe_Values.Look(ref enableKeepAlive, "enableKeepAlive", true);
             Scribe_Values.Look(ref disableThinking, "disableThinking", true);
+            Scribe_Values.Look(ref audioBoost, "audioBoost", 2.5f);
             Scribe_Values.Look(ref timeoutSeconds, "timeoutSeconds", 120);
             Scribe_Values.Look(ref maxRequestsPerMinute, "maxRequestsPerMinute", 30);
             Scribe_Values.Look(ref maxConcurrentRequests, "maxConcurrentRequests", 2);
@@ -283,6 +293,8 @@ namespace RimSynapse
             Scribe_Values.Look(ref qmShowTokens, "qmShowTokens", false);
             Scribe_Values.Look(ref qmShowPrompt, "qmShowPrompt", false);
             Scribe_Values.Look(ref qmShowResponse, "qmShowResponse", false);
+            Scribe_Values.Look(ref qmShowProvider, "qmShowProvider", true);
+            Scribe_Values.Look(ref qmShowModel, "qmShowModel", true);
         }
     }
 }
