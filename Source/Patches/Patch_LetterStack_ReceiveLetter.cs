@@ -46,9 +46,30 @@ namespace RimSynapse.Patches
                     .FirstOrDefault(p => p != null && p.Faction != Faction.OfPlayer && !p.Dead);
             }
 
-            // Extract the fully resolved text
+             // Extract the fully resolved text
             string originalTitle = let.Label.Resolve();
             string originalText = choiceLet.Text.Resolve(); 
+
+            if (isThreat)
+            {
+                var coreComp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+                if (coreComp != null)
+                {
+                    string raidId = "Raid_" + Find.TickManager.TicksGame;
+                    coreComp.activeRaidEventId = raidId;
+
+                    float curWealth = Find.CurrentMap?.wealthWatcher?.WealthTotal ?? 0f;
+                    int curColonists = Find.CurrentMap?.mapPawns?.FreeColonistsCount ?? 0;
+                    coreComp.activeRaidTracker = new RimSynapse.Models.RaidTracker(raidId, curWealth, curColonists);
+
+                    coreComp.EnqueuePastEvent(new RimSynapse.Models.PastEvent
+                    {
+                        eventId = raidId,
+                        category = "Threat",
+                        eventDescription = $"Threat: {originalTitle}"
+                    });
+                }
+            }
 
             // Add to processed so we don't infinitely loop when we manually inject it later
             _processedLetters.Add(let);
@@ -113,6 +134,18 @@ You MUST respond strictly in valid JSON:
                                     {
                                         choiceLet.quest.name = parsed["Title"];
                                         choiceLet.quest.description = parsed["Description"];
+
+                                        // Log the Quest Offer in the past events queue
+                                        var coreComp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+                                        if (coreComp != null)
+                                        {
+                                            coreComp.EnqueuePastEvent(new RimSynapse.Models.PastEvent
+                                            {
+                                                eventId = choiceLet.quest.GetUniqueLoadID(),
+                                                category = "Quest",
+                                                eventDescription = $"Quest offered: {parsed["Title"]}"
+                                            });
+                                        }
                                     }
                                 }
                             }

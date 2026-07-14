@@ -383,6 +383,41 @@ namespace RimSynapse.Internal
                 slots.Add(MakeSlot("equipment", FormatEquipment(packet)));
             }
 
+            // Calculate productivity metrics
+            if (pawn.RaceProps.Humanlike)
+            {
+                float lifeStageHunger = pawn.ageTracker?.CurLifeStage?.hungerRateFactor ?? 1f;
+                float baseHunger = pawn.def?.race?.baseHungerRate ?? 1f;
+                float hungerMult = 1f;
+                var hungerStat = DefDatabase<StatDef>.GetNamed("HungerRateMultiplier", false);
+                if (hungerStat != null)
+                {
+                    hungerMult = pawn.GetStatValue(hungerStat);
+                }
+                packet.hungerRatePerDay = lifeStageHunger * baseHunger * hungerMult;
+
+                float prod = 0f;
+                if (!pawn.WorkTagIsDisabled(WorkTags.Violent))
+                {
+                    float meleeSpeed = pawn.GetStatValue(StatDefOf.MeleeDodgeChance) * 5f;
+                    float shootAccuracy = pawn.GetStatValue(StatDefOf.ShootingAccuracyPawn);
+                    prod += 1f + meleeSpeed + (shootAccuracy * 2f);
+                }
+
+                prod += pawn.GetStatValue(StatDefOf.ConstructionSpeed);
+                prod += pawn.GetStatValue(StatDefOf.MiningSpeed) * pawn.GetStatValue(StatDefOf.MiningYield);
+                prod += pawn.GetStatValue(StatDefOf.PlantWorkSpeed) * pawn.GetStatValue(StatDefOf.PlantHarvestYield);
+                prod += pawn.GetStatValue(StatDefOf.GeneralLaborSpeed);
+                prod += pawn.GetStatValue(StatDefOf.ResearchSpeed);
+                prod += pawn.GetStatValue(StatDefOf.TradePriceImprovement) * 5f;
+
+                packet.productivityScore = prod;
+                packet.netEconomicValue = packet.hungerRatePerDay > 0.01f ? (packet.productivityScore / packet.hungerRatePerDay) : packet.productivityScore;
+
+                string productivityText = $"[Productivity] Daily Hunger: {packet.hungerRatePerDay:F2}, Work Capability: {packet.productivityScore:F2}, Net Economic Value: {packet.netEconomicValue:F2}";
+                slots.Add(MakeSlot("productivity", productivityText));
+            }
+
             // Let expansion integrations inject their data
             OnAssemblePawnPacket?.Invoke(pawn, packet, slots);
 
