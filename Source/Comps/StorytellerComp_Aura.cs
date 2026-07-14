@@ -47,7 +47,11 @@ namespace RimSynapse.Comps
                 if (highlyMotivatedFaction != null)
                 {
                     // Scale motivated raid chance down if population density is high
-                    int pop = target.Tile >= 0 ? RimSynapse.Utilities.PopulationDensityUtility.GetPopulationAtTile(target.Tile) : 0;
+                    int pop = 0;
+                    if (target.Tile >= 0 && SynapseCoreWorldComponent.GetPopulationDensityDelegate != null)
+                    {
+                        pop = SynapseCoreWorldComponent.GetPopulationDensityDelegate(target.Tile);
+                    }
                     float raidMult = 1f / (1f + 0.005f * pop);
 
                     if (Rand.Chance(raidMult))

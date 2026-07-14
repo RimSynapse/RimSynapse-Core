@@ -310,7 +310,10 @@ namespace RimSynapse.Comps
             int popDensity = 0;
             if (map != null && map.Tile >= 0)
             {
-                popDensity = RimSynapse.Utilities.PopulationDensityUtility.GetPopulationAtTile(map.Tile);
+                if (SynapseCoreWorldComponent.GetPopulationDensityDelegate != null)
+                {
+                    popDensity = SynapseCoreWorldComponent.GetPopulationDensityDelegate(map.Tile);
+                }
             }
 
             var auraComp = Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Aura>().FirstOrDefault();

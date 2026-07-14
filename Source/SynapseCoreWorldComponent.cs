@@ -24,6 +24,7 @@ namespace RimSynapse
         public Dictionary<string, string> pawnToRaidId = new Dictionary<string, string>();
         public Dictionary<string, List<string>> raidRecruitedPawns = new Dictionary<string, List<string>>();
         public Dictionary<string, int> visitorEntryTicks = new Dictionary<string, int>();
+        public static System.Func<int, int> GetPopulationDensityDelegate = null;
 
         public List<int> GetHistoryForMap(int mapId)
         {
