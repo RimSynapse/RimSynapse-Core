@@ -102,6 +102,13 @@ namespace RimSynapse.Internal
                     providerHit = ApiProvider.OpenAI;
                     defaultProviderModel = settings.modelOpenAi;
                 }
+                else if (routingId == RoutingId.Jan)
+                {
+                    baseUrl = settings.janUrl;
+                    apiKey = settings.janApiKey;
+                    providerHit = ApiProvider.Local_Jan;
+                    defaultProviderModel = settings.modelJan;
+                }
                 else if (routingId == RoutingId.Gemini)
                 {
                     baseUrl = settings.geminiUrl;
@@ -129,6 +136,13 @@ namespace RimSynapse.Internal
                     apiKey = settings.elevenLabsApiKey;
                     providerHit = ApiProvider.ElevenLabs;
                     defaultProviderModel = settings.modelElevenLabs;
+                }
+                else if (routingId == RoutingId.Voicebox)
+                {
+                    baseUrl = settings.voiceboxUrl;
+                    apiKey = settings.voiceboxApiKey;
+                    providerHit = ApiProvider.Voicebox;
+                    defaultProviderModel = settings.modelVoicebox;
                 }
                 else if (routingId != null && routingId.StartsWith(RoutingId.CustomPrefix))
                 {
@@ -164,6 +178,7 @@ namespace RimSynapse.Internal
                     if (string.IsNullOrEmpty(targetModel))
                     {
                         if (providerHit == ApiProvider.Local_LMStudio) targetModel = ModelManager.ResolveModel(options?.model);
+                        else if (providerHit == ApiProvider.Local_Jan) targetModel = string.IsNullOrEmpty(options?.model) ? settings.modelJan : options.model;
                         else targetModel = defaultProviderModel;
                     }
                 }
@@ -174,6 +189,7 @@ namespace RimSynapse.Internal
                 else if (providerHit == ApiProvider.Google_Gemini) provider = new Providers.GeminiProvider(_client);
                 else if (providerHit == ApiProvider.Pollinations) provider = new Providers.PollinationsProvider(_client);
                 else if (providerHit == ApiProvider.ElevenLabs) provider = new Providers.ElevenLabsProvider(_client);
+                else if (providerHit == ApiProvider.Voicebox) provider = new Providers.VoiceboxProvider(_client);
                 else provider = new Providers.OpenAiProvider(_client);
 
                 // Route to the appropriate interface method based on Payload Type
@@ -196,6 +212,7 @@ namespace RimSynapse.Internal
                     if (chatResult.success)
                     {
                         if (providerHit == ApiProvider.Local_LMStudio) { settings.tokensPromptLocal += chatResult.promptTokens; settings.tokensCompletionLocal += chatResult.completionTokens; }
+                        else if (providerHit == ApiProvider.Local_Jan) { settings.tokensPromptJan += chatResult.promptTokens; settings.tokensCompletionJan += chatResult.completionTokens; }
                         else if (providerHit == ApiProvider.OpenAI) { settings.tokensPromptOpenAi += chatResult.promptTokens; settings.tokensCompletionOpenAi += chatResult.completionTokens; }
                         else if (providerHit == ApiProvider.Google_Gemini) { settings.tokensPromptGemini += chatResult.promptTokens; settings.tokensCompletionGemini += chatResult.completionTokens; }
                         else if (providerHit == ApiProvider.Anthropic_Claude) { settings.tokensPromptClaude += chatResult.promptTokens; settings.tokensCompletionClaude += chatResult.completionTokens; }
@@ -419,6 +436,60 @@ namespace RimSynapse.Internal
                         return;
                     }
 
+                    if (provider == ApiProvider.Voicebox)
+                    {
+                        var profilesList = new System.Collections.Generic.List<string>();
+                        try
+                        {
+                            baseUrl = baseUrl.TrimEnd('/');
+                            var pReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/profiles");
+                            if (!string.IsNullOrEmpty(apiKey))
+                            {
+                                pReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                            }
+                            var pCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                            var pRes = _client.SendAsync(pReq, pCts.Token).Result;
+                            if (pRes.IsSuccessStatusCode)
+                            {
+                                string pBody = pRes.Content.ReadAsStringAsync().Result;
+                                var pj = Newtonsoft.Json.Linq.JArray.Parse(pBody);
+                                if (pj != null)
+                                {
+                                    foreach (var cp in pj)
+                                    {
+                                        string pid = cp["id"]?.ToString();
+                                        string pName = cp["name"]?.ToString();
+                                        string pEngine = cp["default_engine"]?.ToString() ?? cp["preset_engine"]?.ToString() ?? "kokoro";
+                                        if (!string.IsNullOrEmpty(pid) && !string.IsNullOrEmpty(pName))
+                                        {
+                                            profilesList.Add($"{pName} ({pEngine})|{pid}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            SynapseLogger.Error($"Voicebox FetchProviderModelsAsync failed: {ex.Message}");
+                        }
+
+                        if (profilesList.Count == 0)
+                        {
+                            profilesList.AddRange(new System.Collections.Generic.List<string> {
+                                "Kokoro|kokoro",
+                                "Qwen TTS|qwen",
+                                "Qwen CustomVoice|qwen_custom_voice",
+                                "LuxTTS|luxtts",
+                                "Chatterbox TTS|chatterbox",
+                                "Chatterbox Turbo|chatterbox_turbo",
+                                "TADA|tada"
+                            });
+                        }
+
+                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, profilesList, "Success"));
+                        return;
+                    }
+
                     baseUrl = baseUrl.TrimEnd('/');
                     string url;
                     if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages"))
@@ -605,6 +676,28 @@ namespace RimSynapse.Internal
                         }
                         return;
                     }
+
+                    if (provider == ApiProvider.Voicebox)
+                    {
+                        baseUrl = baseUrl.TrimEnd('/');
+                        var vbReq = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/profiles");
+                        if (!string.IsNullOrEmpty(apiKey))
+                        {
+                            vbReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                        }
+                        var vbCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                        var vbRes = _client.SendAsync(vbReq, vbCts.Token).Result;
+                        if (vbRes.IsSuccessStatusCode)
+                        {
+                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, "Success!"));
+                        }
+                        else
+                        {
+                            string err = $"{(int)vbRes.StatusCode} {vbRes.ReasonPhrase}";
+                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, err));
+                        }
+                        return;
+                    }
                     
                     // We'll use the models endpoint for the test if possible, as it's a cheap GET request
                     // that doesn't require a valid model name, except for Anthropic which doesn't have a standard /models endpoint in OpenAI compat mode.
@@ -634,6 +727,7 @@ namespace RimSynapse.Internal
                         else if (provider == ApiProvider.Google_Gemini) testModel = !string.IsNullOrEmpty(settings.modelGemini) ? settings.modelGemini : "gemini-flash-lite-latest";
                         else if (provider == ApiProvider.Anthropic_Claude) testModel = !string.IsNullOrEmpty(settings.modelClaude) ? settings.modelClaude : "claude-opus-4-6";
                         else if (provider == ApiProvider.Local_LMStudio) testModel = !string.IsNullOrEmpty(settings.modelLocal) ? settings.modelLocal : (RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model");
+                        else if (provider == ApiProvider.Local_Jan) testModel = !string.IsNullOrEmpty(settings.modelJan) ? settings.modelJan : "jan-model";
                         else if (provider == ApiProvider.Custom) testModel = !string.IsNullOrEmpty(settings.modelCustom) ? settings.modelCustom : "test";
                     }
 

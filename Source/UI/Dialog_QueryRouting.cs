@@ -198,11 +198,13 @@ namespace RimSynapse.UI
             {
                 ApiProvider? pEnum = null;
                 if (currentVal == RoutingId.LocalOnly) pEnum = ApiProvider.Local_LMStudio;
+                else if (currentVal == RoutingId.Jan) pEnum = ApiProvider.Local_Jan;
                 else if (currentVal == RoutingId.OpenAI) pEnum = ApiProvider.OpenAI;
                 else if (currentVal == RoutingId.Gemini) pEnum = ApiProvider.Google_Gemini;
                 else if (currentVal == RoutingId.Claude) pEnum = ApiProvider.Anthropic_Claude;
                 else if (currentVal == RoutingId.Pollinations) pEnum = ApiProvider.Pollinations;
                 else if (currentVal == RoutingId.ElevenLabs) pEnum = ApiProvider.ElevenLabs;
+                else if (currentVal == RoutingId.Voicebox) pEnum = ApiProvider.Voicebox;
                 else if (currentVal != null && currentVal.StartsWith(RoutingId.CustomPrefix)) pEnum = ApiProvider.Custom;
                 
                 if (pEnum.HasValue)
@@ -219,11 +221,13 @@ namespace RimSynapse.UI
             var settings = RimSynapseMod.Instance.Settings;
             if (string.IsNullOrEmpty(routeId) || routeId == "Default") return "";
             if (routeId == RoutingId.LocalOnly) return settings.modelLocal;
+            if (routeId == RoutingId.Jan) return settings.modelJan;
             if (routeId == RoutingId.OpenAI) return settings.modelOpenAi;
             if (routeId == RoutingId.Gemini) return settings.modelGemini;
             if (routeId == RoutingId.Claude) return settings.modelClaude;
             if (routeId == RoutingId.Pollinations) return settings.modelPollinations;
             if (routeId == RoutingId.ElevenLabs) return settings.modelElevenLabs;
+            if (routeId == RoutingId.Voicebox) return settings.modelVoicebox;
             if (routeId.StartsWith(RoutingId.CustomPrefix))
             {
                 string customId = routeId.Substring(RoutingId.CustomPrefix.Length);
@@ -237,10 +241,12 @@ namespace RimSynapse.UI
         {
             if (string.IsNullOrEmpty(id) || id == "Default") return "Default";
             if (id == RoutingId.LocalOnly) return "Local LM Studio";
+            if (id == RoutingId.Jan) return "Jan";
             if (id == RoutingId.OpenAI) return "OpenAI";
             if (id == RoutingId.Gemini) return "Google Gemini";
             if (id == RoutingId.Claude) return "Anthropic Claude";
             if (id == RoutingId.ElevenLabs) return "ElevenLabs";
+            if (id == RoutingId.Voicebox) return "Voicebox";
             if (id.StartsWith(RoutingId.CustomPrefix))
             {
                 string customId = id.Substring(RoutingId.CustomPrefix.Length);
@@ -255,10 +261,13 @@ namespace RimSynapse.UI
         {
             var routes = new Dictionary<string, string>();
             if ((settings.capsLocal & reqCaps) == reqCaps) routes[RoutingId.LocalOnly] = "Local LM Studio";
+            if ((settings.capsJan & reqCaps) == reqCaps) routes[RoutingId.Jan] = "Jan";
             if ((settings.capsOpenAi & reqCaps) == reqCaps) routes[RoutingId.OpenAI] = "OpenAI";
             if ((settings.capsGemini & reqCaps) == reqCaps) routes[RoutingId.Gemini] = "Google Gemini";
             if ((settings.capsClaude & reqCaps) == reqCaps) routes[RoutingId.Claude] = "Anthropic Claude";
             if ((reqCaps & LlmCapabilities.Image) == reqCaps) routes[RoutingId.Pollinations] = "Pollinations.ai";
+            if ((settings.capsElevenLabs & reqCaps) == reqCaps) routes[RoutingId.ElevenLabs] = "ElevenLabs";
+            if ((settings.capsVoicebox & reqCaps) == reqCaps) routes[RoutingId.Voicebox] = "Voicebox";
             
             foreach (var custom in settings.customProviders)
             {

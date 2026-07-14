@@ -127,6 +127,7 @@ You MUST respond strictly in valid JSON:
                     RimSynapse.SynapseGameComponent.Enqueue(() =>
                     {
                         __instance.ReceiveLetter(let, debugInfo, delayTicks, playSound);
+                        TriggerStorytellerAudioComment(let, isThreat);
                     });
                 },
                 new RimSynapse.ChatOptions { priority = 3, requestName = "Rewrite Letter", targetName = originalTitle } // High priority for UI events
@@ -134,6 +135,87 @@ You MUST respond strictly in valid JSON:
 
             // Block the vanilla ReceiveLetter call right now, because we will inject it later
             return false;
+        }
+
+        private static void TriggerStorytellerAudioComment(Letter let, bool isThreat)
+        {
+            try
+            {
+                ChoiceLetter choiceLet = let as ChoiceLetter;
+                if (choiceLet == null) return;
+
+                // 1. Get voice settings based on storyteller extension
+                var extension = Find.Storyteller?.def?.GetModExtension<StorytellerVoiceExtension>();
+                if (extension == null) return;
+
+                string routeId = RimSynapseMod.Instance.Settings.defaultRoutingAudio;
+                string resolvedVoice = "";
+                if (routeId == RoutingId.OpenAI)
+                    resolvedVoice = string.IsNullOrEmpty(extension.openAIVoiceId) ? "nova" : extension.openAIVoiceId;
+                else if (routeId == RoutingId.ElevenLabs)
+                    resolvedVoice = string.IsNullOrEmpty(extension.elevenLabsVoiceId) ? "pNInz6obpgDQGcFmaJgB" : extension.elevenLabsVoiceId;
+                else
+                    resolvedVoice = string.IsNullOrEmpty(extension.localVoicePath) ? "Sounds/Voicebox/AuraVoice.wav" : extension.localVoicePath;
+
+                // 2. Draft prompt to get snarky commentary
+                string eventType = isThreat ? "threat or raid" : "quest opportunity";
+                string systemPrompt = @"You are Aura, the AI Storyteller in RimWorld.
+Generate a brief, 1-sentence reaction or comment to the event that just occurred.
+Be sassy, snarky, or dramatic. Keep it under 15 words. Do not use markdown or quotes.
+Examples:
+- 'Oof, sorry about this one...'
+- 'More beggars? Really?'
+- 'Well, you asked for it.'
+- 'This might get messy.'";
+
+                string userMsg = $"The event title is: {let.Label.Resolve()}\nThe event description is: {choiceLet.Text.Resolve()}";
+
+                SynapseClient.PromptAsync(
+                    RimSynapseMod.ModHandle,
+                    systemPrompt,
+                    userMsg,
+                    result =>
+                    {
+                        if (result.success && !string.IsNullOrWhiteSpace(result.content))
+                        {
+                            string commentText = RimSynapse.Internal.Sanitizer.Clean(result.content).Trim();
+                            
+                            // Send to audio engine
+                            var audioReq = new LlmAudioRequest
+                            {
+                                InputText = commentText,
+                                Voice = resolvedVoice,
+                                ResponseFormat = "pcm"
+                            };
+
+                            // Add appropriate instructions for Voicebox/Kokoro if we route to Voicebox
+                            if (routeId == RoutingId.Voicebox)
+                            {
+                                // Aura is sassy/snarky
+                                audioReq.Instruct = isThreat ? "sarcastic, warning tone, dry" : "sarcastic, playful, snappy";
+                            }
+
+                            SynapseClient.SendAudioAsync(
+                                RimSynapseMod.ModHandle,
+                                audioReq,
+                                new RimSynapse.ChatOptions { priority = 3, requestName = "Storyteller Reaction Voice" },
+                                audioResult =>
+                                {
+                                    if (audioResult.success && !string.IsNullOrEmpty(audioResult.base64Audio))
+                                    {
+                                        RimSynapse.Utils.AudioPlaybackManager.PlayBase64Pcm(audioResult.base64Audio);
+                                    }
+                                }
+                            );
+                        }
+                    },
+                    new RimSynapse.ChatOptions { priority = 3, requestName = "Storyteller Reaction Commentary", targetName = let.Label.Resolve() }
+                );
+            }
+            catch (Exception ex)
+            {
+                SynapseLogger.Warning($"Failed to trigger storyteller audio comment: {ex.Message}");
+            }
         }
     }
 }

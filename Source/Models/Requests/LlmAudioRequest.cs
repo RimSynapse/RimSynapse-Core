@@ -13,6 +13,9 @@ namespace RimSynapse
         /// <summary>Desired output format, e.g. "mp3", "opus", "wav"</summary>
         public string ResponseFormat { get; set; } = "mp3";
 
+        /// <summary>Optional style/delivery instructions for local-first TTS like Voicebox</summary>
+        public string Instruct { get; set; }
+
         public LlmAudioRequest() { }
 
         public LlmAudioRequest(string inputText, string voice)

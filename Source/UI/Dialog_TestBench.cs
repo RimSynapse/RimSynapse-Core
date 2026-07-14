@@ -32,8 +32,6 @@ namespace RimSynapse.UI
         private static string _selectedModelAudio = "tts-1";
         private static bool _playAudioNextFrame = false;
         private static string _audioToPlayBase64 = null;
-        private static GameObject _audioPlayerObject;
-        private static AudioSource _audioSource;
         private static readonly string[] StandardVoices = { "alloy", "echo", "fable", "onyx", "nova", "shimmer", "custom..." };
 
         // --- Image State ---
@@ -97,7 +95,8 @@ namespace RimSynapse.UI
             {
                 var list = new List<FloatMenuOption>();
                 list.Add(new FloatMenuOption(RoutingId.LocalOnly, () => _selectedRoutingIdText = RoutingId.LocalOnly));
-                list.Add(new FloatMenuOption(RoutingId.OpenAI, () => _selectedRoutingIdText = RoutingId.OpenAI));
+                list.Add(new FloatMenuOption(RoutingId.Jan, () => _selectedRoutingIdText = RoutingId.Jan));
+                list.Add(new FloatMenuOption("OpenAI", () => _selectedRoutingIdText = RoutingId.OpenAI));
                 list.Add(new FloatMenuOption(RoutingId.Gemini, () => _selectedRoutingIdText = RoutingId.Gemini));
                 list.Add(new FloatMenuOption(RoutingId.Claude, () => _selectedRoutingIdText = RoutingId.Claude));
                 foreach(var custom in settings.customProviders)
@@ -128,6 +127,7 @@ namespace RimSynapse.UI
             {
                 ApiProvider? pEnum = null;
                 if (_selectedRoutingIdText == RoutingId.LocalOnly) pEnum = ApiProvider.Local_LMStudio;
+                else if (_selectedRoutingIdText == RoutingId.Jan) pEnum = ApiProvider.Local_Jan;
                 else if (_selectedRoutingIdText == RoutingId.OpenAI) pEnum = ApiProvider.OpenAI;
                 else if (_selectedRoutingIdText == RoutingId.Gemini) pEnum = ApiProvider.Google_Gemini;
                 else if (_selectedRoutingIdText == RoutingId.Claude) pEnum = ApiProvider.Anthropic_Claude;
@@ -235,7 +235,7 @@ namespace RimSynapse.UI
             if (_playAudioNextFrame && _audioToPlayBase64 != null)
             {
                 _playAudioNextFrame = false;
-                PlayAudioBase64(_audioToPlayBase64);
+                RimSynapse.Utils.AudioPlaybackManager.PlayBase64Pcm(_audioToPlayBase64);
                 _audioToPlayBase64 = null;
             }
 
@@ -243,8 +243,10 @@ namespace RimSynapse.UI
             {
                 var list = new List<FloatMenuOption>();
                 list.Add(new FloatMenuOption(RoutingId.LocalOnly, () => _selectedRoutingIdAudio = RoutingId.LocalOnly));
-                list.Add(new FloatMenuOption(RoutingId.OpenAI, () => _selectedRoutingIdAudio = RoutingId.OpenAI));
+                list.Add(new FloatMenuOption(RoutingId.Jan, () => _selectedRoutingIdAudio = RoutingId.Jan));
+                list.Add(new FloatMenuOption("OpenAI", () => _selectedRoutingIdAudio = RoutingId.OpenAI));
                 list.Add(new FloatMenuOption("ElevenLabs", () => _selectedRoutingIdAudio = RoutingId.ElevenLabs));
+                list.Add(new FloatMenuOption("Voicebox", () => _selectedRoutingIdAudio = RoutingId.Voicebox));
                 foreach(var custom in settings.customProviders)
                 {
                     string id = RoutingId.CustomPrefix + custom.id;
@@ -273,11 +275,13 @@ namespace RimSynapse.UI
             {
                 ApiProvider? pEnum = null;
                 if (_selectedRoutingIdAudio == RoutingId.LocalOnly) pEnum = ApiProvider.Local_LMStudio;
+                else if (_selectedRoutingIdAudio == RoutingId.Jan) pEnum = ApiProvider.Local_Jan;
                 else if (_selectedRoutingIdAudio == RoutingId.OpenAI) pEnum = ApiProvider.OpenAI;
                 else if (_selectedRoutingIdAudio == RoutingId.Gemini) pEnum = ApiProvider.Google_Gemini;
                 else if (_selectedRoutingIdAudio == RoutingId.Claude) pEnum = ApiProvider.Anthropic_Claude;
                 else if (_selectedRoutingIdAudio == RoutingId.Pollinations) pEnum = ApiProvider.Pollinations;
                 else if (_selectedRoutingIdAudio == RoutingId.ElevenLabs) pEnum = ApiProvider.ElevenLabs;
+                else if (_selectedRoutingIdAudio == RoutingId.Voicebox) pEnum = ApiProvider.Voicebox;
                 else if (_selectedRoutingIdAudio != null && _selectedRoutingIdAudio.StartsWith(RoutingId.CustomPrefix)) pEnum = ApiProvider.Custom;
                 
                 if (pEnum.HasValue)
@@ -308,6 +312,33 @@ namespace RimSynapse.UI
                                 if (v.Contains("|"))
                                 {
                                     var split = v.Split('|');
+                                    label = split[0];
+                                    val = split[1];
+                                }
+                                list.Add(new FloatMenuOption(label, () => _selectedVoice = val));
+                            }
+                            list.Add(new FloatMenuOption("custom...", () => _selectedVoice = "custom..."));
+                            Find.WindowStack.Add(new FloatMenu(list));
+                        }
+                    });
+                }
+                else if (_selectedRoutingIdAudio == RoutingId.Voicebox)
+                {
+                    string url = RimSynapseMod.Instance.Settings.voiceboxUrl;
+                    string apiKey = RimSynapseMod.Instance.Settings.voiceboxApiKey;
+                    _testBusyAudio = true;
+                    Internal.HttpEngine.FetchProviderModelsAsync(ApiProvider.Voicebox, url, apiKey, (success, profiles, err) => {
+                        _testBusyAudio = false;
+                        if (success && profiles != null)
+                        {
+                            var list = new List<FloatMenuOption>();
+                            foreach (var p in profiles)
+                            {
+                                string label = p;
+                                string val = p;
+                                if (p.Contains("|"))
+                                {
+                                    var split = p.Split('|');
                                     label = split[0];
                                     val = split[1];
                                 }
@@ -350,11 +381,11 @@ namespace RimSynapse.UI
                 }
             }
 
-            if (_audioSource != null && _audioSource.isPlaying)
+            if (RimSynapse.Utils.AudioPlaybackManager.IsPlaying)
             {
                 if (listing.ButtonText("Stop Playback"))
                 {
-                    _audioSource.Stop();
+                    RimSynapse.Utils.AudioPlaybackManager.StopPlayback();
                 }
             }
 
@@ -418,70 +449,7 @@ namespace RimSynapse.UI
             });
         }
 
-        private void PlayAudioBase64(string base64)
-        {
-            try
-            {
-                byte[] audioBytes = Convert.FromBase64String(base64);
-
-                AudioClip clip = LoadPcm(audioBytes);
-                if (clip == null)
-                {
-                    SynapseLogger.Error("Failed to parse PCM bytes.");
-                    _testStatusAudio = "Audio Load Error: Failed to parse PCM";
-                    _testStatusColorAudio = Color.red;
-                    return;
-                }
-
-                if (_audioPlayerObject == null)
-                {
-                    _audioPlayerObject = new GameObject("RimSynapse_AudioPlayer");
-                    UnityEngine.Object.DontDestroyOnLoad(_audioPlayerObject);
-                    _audioSource = _audioPlayerObject.AddComponent<AudioSource>();
-                }
-                
-                if (_audioSource.clip != null)
-                {
-                    UnityEngine.Object.Destroy(_audioSource.clip);
-                }
-
-                _audioSource.clip = clip;
-                _audioSource.spatialBlend = 0f;
-                // Double the volume compared to standard UI sounds, clamped to max 1.0f
-                _audioSource.volume = Mathf.Clamp01(Verse.Prefs.VolumeUI * Verse.Prefs.VolumeMaster * 2f);
-                _audioSource.ignoreListenerPause = true;
-                _audioSource.Play();
-                
-                _testStatusAudio += $"\nPlaying audio... ({clip.samples} samples, {clip.length:F1}s)";
-            }
-            catch (Exception ex)
-            {
-                SynapseLogger.Error($"Playback error: {ex.Message}");
-                _testStatusAudio = $"Playback error: {ex.Message}";
-                _testStatusColorAudio = Color.red;
-            }
-        }
-
-        private static AudioClip LoadPcm(byte[] pcmBytes)
-        {
-            if (pcmBytes == null || pcmBytes.Length < 2) return null;
-            int sampleRate = 24000;
-            int channels = 1;
-            int samplesCount = pcmBytes.Length / 2;
-            
-            float[] audioData = new float[samplesCount];
-            for (int i = 0; i < samplesCount; i++)
-            {
-                short sample = BitConverter.ToInt16(pcmBytes, i * 2);
-                float boost = RimSynapse.RimSynapseMod.Instance.Settings.audioBoost;
-                float val = (sample / 32768f) * boost;
-                audioData[i] = UnityEngine.Mathf.Clamp(val, -1f, 1f);
-            }
-            
-            AudioClip clip = AudioClip.Create("TTS_Audio", samplesCount, channels, sampleRate, false);
-            clip.SetData(audioData, 0);
-            return clip;
-        }
+        // AudioPlaybackManager redirects used here
 
         // ==========================================
         // IMAGE TAB
@@ -499,7 +467,8 @@ namespace RimSynapse.UI
             {
                 var list = new List<FloatMenuOption>();
                 list.Add(new FloatMenuOption(RoutingId.LocalOnly, () => _selectedRoutingIdImage = RoutingId.LocalOnly));
-                list.Add(new FloatMenuOption(RoutingId.OpenAI, () => _selectedRoutingIdImage = RoutingId.OpenAI));
+                list.Add(new FloatMenuOption(RoutingId.Jan, () => _selectedRoutingIdImage = RoutingId.Jan));
+                list.Add(new FloatMenuOption("OpenAI", () => _selectedRoutingIdImage = RoutingId.OpenAI));
                 list.Add(new FloatMenuOption(RoutingId.Pollinations, () => _selectedRoutingIdImage = RoutingId.Pollinations));
                 foreach(var custom in settings.customProviders)
                 {
@@ -529,6 +498,7 @@ namespace RimSynapse.UI
             {
                 ApiProvider? pEnum = null;
                 if (_selectedRoutingIdImage == RoutingId.LocalOnly) pEnum = ApiProvider.Local_LMStudio;
+                else if (_selectedRoutingIdImage == RoutingId.Jan) pEnum = ApiProvider.Local_Jan;
                 else if (_selectedRoutingIdImage == RoutingId.OpenAI) pEnum = ApiProvider.OpenAI;
                 else if (_selectedRoutingIdImage == RoutingId.Gemini) pEnum = ApiProvider.Google_Gemini;
                 else if (_selectedRoutingIdImage == RoutingId.Claude) pEnum = ApiProvider.Anthropic_Claude;

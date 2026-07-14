@@ -8,6 +8,14 @@
     <portraitTiny>UI/HeroArt/Storytellers/SynapseTiny</portraitTiny>
     <listOrder>45</listOrder>
     
+    <modExtensions>
+      <li Class="RimSynapse.StorytellerVoiceExtension">
+        <localVoicePath>Sounds/Voicebox/AuraVoice.wav</localVoicePath>
+        <elevenLabsVoiceId>pNInz6obpgDQGcFmaJgB</elevenLabsVoiceId>
+        <openAIVoiceId>nova</openAIVoiceId>
+      </li>
+    </modExtensions>
+
     <comps>
       <!-- Base threats and incidents -->
       <li Class="RimSynapse.Comps.StorytellerCompProperties_Aura">
