@@ -67,6 +67,32 @@ namespace RimSynapse.Comps
                 }
             }
 
+            if (target.Tile >= 0)
+            {
+                int pop = RimSynapse.Utilities.PopulationDensityUtility.GetPopulationAtTile(target.Tile);
+                float raidMult = 1f / (1f + 0.005f * pop);
+                float joinMult = 0.5f + (0.005f * pop);
+                joinMult = UnityEngine.Mathf.Clamp(joinMult, 0.1f, 5.0f);
+
+                if (weights.ContainsKey(IncidentCategoryDefOf.ThreatBig))
+                {
+                    weights[IncidentCategoryDefOf.ThreatBig] *= raidMult;
+                }
+                if (weights.ContainsKey(IncidentCategoryDefOf.ThreatSmall))
+                {
+                    weights[IncidentCategoryDefOf.ThreatSmall] *= raidMult;
+                }
+                if (weights.ContainsKey(IncidentCategoryDefOf.Misc))
+                {
+                    weights[IncidentCategoryDefOf.Misc] *= joinMult;
+                }
+
+                if (factionArrival != null && weights.ContainsKey(factionArrival))
+                {
+                    weights[factionArrival] *= joinMult;
+                }
+            }
+
             return weights.RandomElementByWeightWithFallback(kvp => kvp.Value, default).Key;
         }
 

@@ -366,6 +366,8 @@ namespace RimSynapse
             return System.Linq.Enumerable.Skip(_backlogQueue, System.Math.Max(0, _backlogQueue.Count - count));
         }
 
+        public IEnumerable<PastEvent> AllEvents => _backlogQueue;
+
         public List<PastEvent> GetMostSignificantEvents(int count)
         {
             var list = new List<PastEvent>();

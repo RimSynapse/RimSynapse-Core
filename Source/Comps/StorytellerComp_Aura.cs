@@ -46,22 +46,29 @@ namespace RimSynapse.Comps
                 
                 if (highlyMotivatedFaction != null)
                 {
-                    IncidentParms raidParms = GenerateParms(IncidentCategoryDefOf.ThreatBig, target);
-                    raidParms.faction = highlyMotivatedFaction;
-                    
-                    // Force drop pods if they are rich and far away
-                    if (highlyMotivatedFaction.def.techLevel >= TechLevel.Industrial && Rand.Chance(0.5f))
-                    {
-                        raidParms.raidArrivalMode = PawnsArrivalModeDefOf.CenterDrop;
-                    }
-                    else
-                    {
-                        raidParms.raidArrivalMode = PawnsArrivalModeDefOf.EdgeWalkIn;
-                    }
+                    // Scale motivated raid chance down if population density is high
+                    int pop = target.Tile >= 0 ? RimSynapse.Utilities.PopulationDensityUtility.GetPopulationAtTile(target.Tile) : 0;
+                    float raidMult = 1f / (1f + 0.005f * pop);
 
-                    if (IncidentDefOf.RaidEnemy.Worker.CanFireNow(raidParms))
+                    if (Rand.Chance(raidMult))
                     {
-                        yield return new FiringIncident(IncidentDefOf.RaidEnemy, this, raidParms);
+                        IncidentParms raidParms = GenerateParms(IncidentCategoryDefOf.ThreatBig, target);
+                        raidParms.faction = highlyMotivatedFaction;
+                        
+                        // Force drop pods if they are rich and far away
+                        if (highlyMotivatedFaction.def.techLevel >= TechLevel.Industrial && Rand.Chance(0.5f))
+                        {
+                            raidParms.raidArrivalMode = PawnsArrivalModeDefOf.CenterDrop;
+                        }
+                        else
+                        {
+                            raidParms.raidArrivalMode = PawnsArrivalModeDefOf.EdgeWalkIn;
+                        }
+
+                        if (IncidentDefOf.RaidEnemy.Worker.CanFireNow(raidParms))
+                        {
+                            yield return new FiringIncident(IncidentDefOf.RaidEnemy, this, raidParms);
+                        }
                     }
                 }
                 else

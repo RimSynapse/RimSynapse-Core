@@ -307,6 +307,12 @@ namespace RimSynapse.Comps
             }
             catch { }
 
+            int popDensity = 0;
+            if (map != null && map.Tile >= 0)
+            {
+                popDensity = RimSynapse.Utilities.PopulationDensityUtility.GetPopulationAtTile(map.Tile);
+            }
+
             var auraComp = Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Aura>().FirstOrDefault();
             var props = auraComp?.props as StorytellerCompProperties_Aura;
 
@@ -320,6 +326,7 @@ namespace RimSynapse.Comps
 - Growing Season: {growingSeason} of the year growable (Winter Resource Burden Multiplier: {winterBurden}x)
 - Greenhouse Capacity: {greenhouse}
 - Population: {population} colonists
+- Local Population Density (Pawn dwellings): {popDensity}
 - Livestock: {livestock}
 - Legendary Art: {legendaryArt} pieces (Total Value: {legendaryArtValue} silver)
 - Combat Capability: {combat}
@@ -359,6 +366,7 @@ namespace RimSynapse.Comps
                 .Replace("{winterBurden}", burdenMult.ToString("F1"))
                 .Replace("{greenhouse}", greenhouseText)
                 .Replace("{population}", freeColonists.ToString())
+                .Replace("{popDensity}", popDensity.ToString())
                 .Replace("{livestock}", livestockText)
                 .Replace("{legendaryArt}", legendaryArtCount.ToString())
                 .Replace("{legendaryArtValue}", legendaryArtValue.ToString("F0"))
@@ -407,6 +415,7 @@ You must evaluate:
 2. Failures/Tragedies (e.g. dead colonists, burned buildings, kidnapped pawns) -> Soften the blow (lower pacing, decrease ThreatBig, increase Misc/FactionArrival for traders and helpers).
 3. Resource state (low combat capability, low food, low silver) -> Trigger friendly events (traders, wanderers) or easy quests. High wealth but low defense -> motivated raids.
 4. Legendary Art: Legendary art pieces are renowned world attractions. If the colony has legendary art pieces, it draws visitors and affluent guests. Increase the probability/likelihood of friendly visitors, trade caravans, and affluent travelers ('FactionArrival' and 'Misc') proportionally. Scale the visitor frequency and wealth based on the number and value of legendary art pieces and total colony wealth.
+5. Local Population Density (Pawn dwellings): High population density indicates a civilized, protected region near city centers. In high density areas, favor pawn joins, travelers, and caravans (Misc, FactionArrival) and significantly reduce hostile raids/threats (ThreatBig, ThreatSmall). Low population density (remote frontier) is lawless and dangerous; in low density areas, increase the likelihood of raids (ThreatBig, ThreatSmall) and reduce positive join/wanderer events (Misc).
 
 Return a JSON object containing:
 - 'PacingMultiplier': Float. Standard is 1.0. Increase (>1.0) to speed up event frequency. Decrease (<1.0) to give the colony breathing room.
@@ -520,6 +529,8 @@ For example, if the category is ThreatBig, choose 'RaidEnemy', 'Infestation', 'M
 If the category is FactionArrival, choose 'TraderCaravanArrival', 'VisitorGroup', etc.
 
 Legendary Art Attraction: If the colony has legendary art pieces (reported in metrics), choose friendly visitors, guest groups, and affluent/wealthy traders more frequently to simulate them visiting to admire the art. If colony wealth is also high, attract more affluent or exotic traders.
+
+Civilization and Population Density context: If local population density is high (civilized lands), choose peaceful, urban, or civilized incidents (e.g. wanderers, caravans, peace talks) and avoid wild threats like raw infestations or animal stampedes. If density is low (isolated frontier wilderness), favor rogue raiders, manhunters, or harsh environmental challenges fitting a lawless outpost.
 
 You MUST respond strictly in valid JSON format:
 {{

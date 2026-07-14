@@ -373,7 +373,7 @@ namespace RimSynapse.Patches
                             outcomeDescription = "Tribute: " + (tributeText ?? "A work of legendary beauty has been finished."),
                             outcome = EventOutcome.Triumph
                         };
-                        coreComp.backlogQueueList.Add(ev);
+                        coreComp.EnqueuePastEvent(ev);
                     }
                 }
             }

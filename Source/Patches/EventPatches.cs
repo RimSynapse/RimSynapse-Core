@@ -416,7 +416,7 @@ namespace RimSynapse.Patches
                     outcomeDescription = pawn.LabelShort + " is recovering well and functional again.",
                     outcome = EventOutcome.Success
                 };
-                coreComp.backlogQueueList.Add(ev);
+                coreComp.EnqueuePastEvent(ev);
             }
         }
     }
@@ -441,7 +441,7 @@ namespace RimSynapse.Patches
                 if (coreComp != null)
                 {
                     // Prevent double logging if a surgery restoration occurred in the same tick for this pawn
-                    bool duplicate = coreComp.backlogQueueList.Any(e => 
+                    bool duplicate = coreComp.AllEvents.Any(e => 
                         e.category == "SurgeryRestoration" && 
                         e.gameTick == Find.TickManager.TicksGame && 
                         e.eventDescription.Contains(pawn.LabelShort));
@@ -460,7 +460,7 @@ namespace RimSynapse.Patches
                             outcomeDescription = pawn.LabelShort + " has regained full functionality of their " + partLabel + ".",
                             outcome = EventOutcome.Success
                         };
-                        coreComp.backlogQueueList.Add(ev);
+                        coreComp.EnqueuePastEvent(ev);
                     }
                 }
             }
@@ -491,7 +491,7 @@ namespace RimSynapse.Patches
 
         private static void CheckWitnessedReconstruction(SynapseCoreWorldComponent coreComp, Pawn visitor, int entryTick, int exitTick)
         {
-            var eventsDuringVisit = coreComp.backlogQueueList.Where(e => 
+            var eventsDuringVisit = coreComp.AllEvents.Where(e => 
                 e.gameTick >= entryTick && 
                 e.gameTick <= exitTick).ToList();
 
@@ -512,7 +512,7 @@ namespace RimSynapse.Patches
             if (maxEvent == null) return;
 
             // Determine if the event is significant enough compared to other world events
-            var otherEvents = coreComp.backlogQueueList.Where(e => e.gameTick < entryTick || e.gameTick > exitTick).ToList();
+            var otherEvents = coreComp.AllEvents.Where(e => e.gameTick < entryTick || e.gameTick > exitTick).ToList();
             float avgOtherScore = 30f;
             if (otherEvents.Any())
             {
@@ -532,44 +532,6 @@ namespace RimSynapse.Patches
                               " witnessed a major event: " + maxEvent.eventDescription + 
                               " Reports indicate the local outcome was: " + maxEvent.outcomeDescription + ".";
 
-                try
-                {
-                    var worldComponents = Find.World?.components;
-                    if (worldComponents != null)
-                    {
-                        foreach (var comp in worldComponents)
-                        {
-                            if (comp.GetType().Name == "SynapseWorldNewsWorldComponent")
-                            {
-                                var unpublishedEventsField = comp.GetType().GetField("unpublishedEvents");
-                                if (unpublishedEventsField != null)
-                                {
-                                    var list = (System.Collections.IList)unpublishedEventsField.GetValue(comp);
-                                    if (list != null)
-                                    {
-                                        string eventString = "[" + GenLocalDate.Twelfth(Find.TickManager.TicksGame) + ", " + GenLocalDate.Year(Find.TickManager.TicksGame) + "] Gossip: " + headline + " - " + text;
-                                        list.Add(eventString);
-
-                                        if (list.Count >= 4)
-                                        {
-                                            var triggerMethod = comp.GetType().GetMethod("TriggerNewspaperGeneration", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                                            if (triggerMethod != null)
-                                            {
-                                                triggerMethod.Invoke(comp, null);
-                                            }
-                                        }
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    Log.Warning("Failed to route visitor news to WorldNews module dynamically: " + ex.Message);
-                }
-
                 // Log a Success event in the storyteller backlog representing the rumor spreading
                 var coreEv = new PastEvent
                 {
@@ -581,7 +543,7 @@ namespace RimSynapse.Patches
                     outcomeDescription = visitor.LabelShort + " has spread this story across " + visitor.Faction.Name + " networks.",
                     outcome = EventOutcome.Success
                 };
-                coreComp.backlogQueueList.Add(coreEv);
+                coreComp.EnqueuePastEvent(coreEv);
             }
         }
     }
