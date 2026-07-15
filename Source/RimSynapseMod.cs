@@ -44,8 +44,11 @@ namespace RimSynapse
                     "RimSynapse Core"
                 );
                 
-                ModHandle.RegisterQueryType("aura_pacing", "Storyteller Aura: Pacing", LlmCapabilities.Text);
-                ModHandle.RegisterQueryType("aura_event_selection", "Storyteller Aura: Event Selection", LlmCapabilities.Text);
+                ModHandle.RegisterQueryType("storyteller_pacing", "Storyteller: Pacing", LlmCapabilities.Text);
+                ModHandle.RegisterQueryType("storyteller_event_selection", "Storyteller: Event Selection", LlmCapabilities.Text);
+
+                SynapseToolRegistry.EnsureInitialized();
+                SynapseTemplateRegistry.Initialize();
             });
 
             // Start background services (keep-alive, model discovery, HttpClient, SessionLogger)

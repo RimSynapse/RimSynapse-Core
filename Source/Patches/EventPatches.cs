@@ -238,6 +238,19 @@ namespace RimSynapse.Patches
                 outcomeDesc = $"Raid ended in a {rating}. Casualties: {kills} enemies killed, {downs} downed. Player loss: {colKills} colonists killed, {colInj} injured, {colKid} kidnapped{livestockReport}. Wealth destroyed: {wealthLost:F0} silver.";
             }
 
+            if (coreComp.activeRaidTracker != null)
+            {
+                coreComp.lastRaidOutcome = new RaidOutcomeRecord
+                {
+                    gameTick = Find.TickManager.TicksGame,
+                    colonistsKilled = coreComp.activeRaidTracker.colonistsKilled,
+                    colonistsInjured = coreComp.activeRaidTracker.colonistsInjured,
+                    colonistsKidnapped = coreComp.activeRaidTracker.colonistsKidnapped,
+                    enemiesKilled = coreComp.activeRaidTracker.enemiesKilled,
+                    enemiesDowned = coreComp.activeRaidTracker.enemiesDowned
+                };
+            }
+
             coreComp.ResolveEvent(coreComp.activeRaidEventId, outcomeDesc, outcome);
             coreComp.activeRaidEventId = null;
             coreComp.activeRaidTracker = null;
@@ -547,4 +560,25 @@ namespace RimSynapse.Patches
             }
         }
     }
+
+    /// <summary>
+    /// Intercepts successfully executed incidents to log them in the storyteller's incident history backlog.
+    /// </summary>
+    [HarmonyPatch(typeof(IncidentWorker), "TryExecute")]
+    internal static class Patch_IncidentWorker_TryExecute
+    {
+        [HarmonyPostfix]
+        public static void Postfix(IncidentWorker __instance, IncidentParms parms, bool __result)
+        {
+            if (__result && Current.ProgramState == ProgramState.Playing && Find.World != null)
+            {
+                var coreComp = Find.World.GetComponent<SynapseCoreWorldComponent>();
+                if (coreComp != null && __instance.def != null)
+                {
+                    coreComp.RegisterFiredIncident(__instance.def.defName);
+                }
+            }
+        }
+    }
 }
+

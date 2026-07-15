@@ -6,10 +6,10 @@ using Verse;
 namespace RimSynapse.Comps
 {
     /// <summary>
-    /// Helper methods for the Aura storyteller component:
-    /// faction motivation checks, category selection, and LLM-weighted incident picking.
+    /// Helper methods for the storyteller component:
+    /// Faction motivation checks, category selection, and LLM-weighted incident picking.
     /// </summary>
-    public partial class StorytellerComp_Aura
+    public partial class StorytellerComp_Storyteller
     {
         /// <summary>
         /// Checks all hostile factions. If one perceives the colony as wealthy but weak
@@ -27,9 +27,9 @@ namespace RimSynapse.Comps
                     float normalizedStrength = (tracker.perceivedStrength * 50f) + 1f;
                     float greedRatio = tracker.perceivedWealth / normalizedStrength;
 
-                    if (greedRatio > 3f && Rand.Chance(0.2f))
+                    if (greedRatio > Props.motivatedRaidGreedRatioThreshold && Rand.Chance(Props.motivatedRaidBaseChance))
                     {
-                        tracker.perceivedStrength += 500f; 
+                        tracker.perceivedStrength += Props.motivatedRaidStrengthIncrease; 
                         return faction;
                     }
                 }
@@ -45,19 +45,19 @@ namespace RimSynapse.Comps
         {
             var weights = new Dictionary<IncidentCategoryDef, float>();
             
-            weights[IncidentCategoryDefOf.ThreatBig] = 2f;
-            weights[IncidentCategoryDefOf.ThreatSmall] = 1f;
-            weights[IncidentCategoryDefOf.DiseaseHuman] = 0.5f;
-            weights[IncidentCategoryDefOf.Misc] = 3f;
+            weights[IncidentCategoryDefOf.ThreatBig] = Props.baseWeightThreatBig;
+            weights[IncidentCategoryDefOf.ThreatSmall] = Props.baseWeightThreatSmall;
+            weights[IncidentCategoryDefOf.DiseaseHuman] = Props.baseWeightDiseaseHuman;
+            weights[IncidentCategoryDefOf.Misc] = Props.baseWeightMisc;
             
             var diseaseAnimal = DefDatabase<IncidentCategoryDef>.GetNamedSilentFail("DiseaseAnimal");
-            if (diseaseAnimal != null) weights[diseaseAnimal] = 0.2f;
+            if (diseaseAnimal != null) weights[diseaseAnimal] = Props.baseWeightDiseaseAnimal;
 
             var orbitalVisitor = DefDatabase<IncidentCategoryDef>.GetNamedSilentFail("OrbitalVisitor");
-            if (orbitalVisitor != null) weights[orbitalVisitor] = 1f;
+            if (orbitalVisitor != null) weights[orbitalVisitor] = Props.baseWeightOrbitalVisitor;
 
             var factionArrival = DefDatabase<IncidentCategoryDef>.GetNamedSilentFail("FactionArrival");
-            if (factionArrival != null) weights[factionArrival] = 1f;
+            if (factionArrival != null) weights[factionArrival] = Props.baseWeightFactionArrival;
 
             if (worldComp != null)
             {
@@ -74,8 +74,8 @@ namespace RimSynapse.Comps
                 {
                     pop = SynapseCoreWorldComponent.GetPopulationDensityDelegate(target.Tile);
                 }
-                float raidMult = 1f / (1f + 0.005f * pop);
-                float joinMult = 0.5f + (0.005f * pop);
+                float raidMult = 1f / (1f + Props.motivatedRaidPopulationDensityFactor * pop);
+                float joinMult = Props.populationDensityJoinBase + (Props.populationDensityJoinFactor * pop);
                 joinMult = UnityEngine.Mathf.Clamp(joinMult, 0.1f, 5.0f);
 
                 if (weights.ContainsKey(IncidentCategoryDefOf.ThreatBig))
@@ -99,6 +99,5 @@ namespace RimSynapse.Comps
 
             return weights.RandomElementByWeightWithFallback(kvp => kvp.Value, default).Key;
         }
-
     }
 }

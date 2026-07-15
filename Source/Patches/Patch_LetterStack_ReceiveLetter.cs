@@ -26,8 +26,8 @@ namespace RimSynapse.Patches
             ChoiceLetter choiceLet = let as ChoiceLetter;
             if (choiceLet == null) return true; // Only intercept choice letters
 
-            // Only intercept if Aura (Synapse) is the storyteller
-            if (Find.Storyteller?.def?.defName != "Synapse") return true;
+            // Only intercept if Synapse storyteller is the active storyteller
+            if (Find.Storyteller?.storytellerComps?.OfType<RimSynapse.Comps.StorytellerComp_Storyteller>().Any() != true) return true;
 
             // Determine if it's a major threat or a quest
             bool isThreat = let.def == LetterDefOf.ThreatBig;
@@ -74,9 +74,12 @@ namespace RimSynapse.Patches
             // Add to processed so we don't infinitely loop when we manually inject it later
             _processedLetters.Add(let);
 
+            var props = RimSynapse.Comps.StorytellerComp_Storyteller.GetActiveStorytellerProps();
+            string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
+            string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
             // Ask the LLM to rewrite it
-            string systemPrompt = @"You are Aura, the AI Storyteller in RimWorld.
-A new event or threat has occurred. Rewrite the notification letter to fit your sassy, dramatic, or menacing persona.
+            string systemPrompt = @"You are " + characterName + @", the AI Storyteller in RimWorld.
+A new event or threat has occurred. Rewrite the notification letter to fit your " + speakingStyle + @" persona.
 Use the provided vanilla text as the baseline. Maintain all critical gameplay information (who, what, where, rewards, threats).
 Do NOT use bracket tags like [Asker_nameFull]. Just use the resolved names provided in the vanilla text.
 
@@ -106,6 +109,12 @@ You MUST respond strictly in valid JSON:
   ""Title"": ""A formal or dramatic title for your request"",
   ""Description"": ""Your rewritten multi-paragraph letter. Speak directly to the colonists.""
 }}";
+            }
+
+            string additionalContext = SynapseLetterContextHook.GetAdditionalContext(let, asker);
+            if (!string.IsNullOrEmpty(additionalContext))
+            {
+                systemPrompt += "\n---\nAdditional Tone and Faction Context Guidelines:\n" + additionalContext;
             }
 
             string userMessage = $"Vanilla Title: {originalTitle}\nVanilla Text: {originalText}\nRewrite this event.";
@@ -191,10 +200,12 @@ You MUST respond strictly in valid JSON:
                     resolvedVoice = string.IsNullOrEmpty(extension.localVoicePath) ? "Sounds/Voicebox/AuraVoice.wav" : extension.localVoicePath;
 
                 // 2. Draft prompt to get snarky commentary
-                string eventType = isThreat ? "threat or raid" : "quest opportunity";
-                string systemPrompt = @"You are Aura, the AI Storyteller in RimWorld.
+                var props = RimSynapse.Comps.StorytellerComp_Storyteller.GetActiveStorytellerProps();
+                string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
+                string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
+                string systemPrompt = @"You are " + characterName + @", the AI Storyteller in RimWorld.
 Generate a brief, 1-sentence reaction or comment to the event that just occurred.
-Be sassy, snarky, or dramatic. Keep it under 15 words. Do not use markdown or quotes.
+Be " + speakingStyle + @". Keep it under 15 words. Do not use markdown or quotes.
 Examples:
 - 'Oof, sorry about this one...'
 - 'More beggars? Really?'

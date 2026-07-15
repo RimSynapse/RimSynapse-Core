@@ -29,6 +29,9 @@ namespace RimSynapse
         /// <summary>True if the request was delayed by queue budget throttling.</summary>
         public bool wasThrottled;
 
+        /// <summary>Optional: List of tool calls requested by the assistant.</summary>
+        public System.Collections.Generic.List<ChatToolCall> toolCalls;
+
         /// <summary>Create a successful result.</summary>
         public static ChatResult Success(string content, string model, int promptTokens,
             int completionTokens, long durationMs)

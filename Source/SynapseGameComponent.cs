@@ -130,9 +130,6 @@ namespace RimSynapse
 
         private bool _vramChecked = false;
 
-        /// <summary>
-        /// Called every game tick on the main thread (only while unpaused).
-        /// </summary>
         public override void GameComponentTick()
         {
             if (!_vramChecked)
@@ -140,6 +137,8 @@ namespace RimSynapse
                 _vramChecked = true;
                 VramAdvisor.Check();
             }
+            SynapsePossessionManager.Tick();
+            SynapseObjectControlManager.TickingUpdateHacks();
         }
 
         /// <summary>

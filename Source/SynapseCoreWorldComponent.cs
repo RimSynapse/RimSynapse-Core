@@ -15,6 +15,9 @@ namespace RimSynapse
         
         public List<PastEvent> backlogQueueList = new List<PastEvent>();
         private Queue<PastEvent> _backlogQueue = new Queue<PastEvent>();
+        public List<FiredIncidentRecord> firedIncidentHistory = new List<FiredIncidentRecord>();
+        public List<WealthRecord> wealthHistory = new List<WealthRecord>();
+        public RaidOutcomeRecord lastRaidOutcome;
         private int lastPurgeTick = -1;
         public string activeRaidEventId;
         public RaidTracker activeRaidTracker;
@@ -58,6 +61,7 @@ namespace RimSynapse
             Scribe_Collections.Look(ref factionTrackers, "factionTrackers", LookMode.Deep);
             Scribe_Collections.Look(ref shortTermEvents, "shortTermEvents", LookMode.Deep);
             Scribe_Collections.Look(ref backlogQueueList, "backlogQueueList", LookMode.Deep);
+            Scribe_Collections.Look(ref firedIncidentHistory, "firedIncidentHistory", LookMode.Deep);
 
             // Storyteller properties
             Scribe_Collections.Look(ref categoryMultipliers, "categoryMultipliers", LookMode.Value, LookMode.Value);
@@ -74,6 +78,8 @@ namespace RimSynapse
             Scribe_Collections.Look(ref pawnToRaidId, "pawnToRaidId", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref raidRecruitedPawns, "raidRecruitedPawns", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref visitorEntryTicks, "visitorEntryTicks", LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref wealthHistory, "wealthHistory", LookMode.Deep);
+            Scribe_Deep.Look(ref lastRaidOutcome, "lastRaidOutcome");
 
             if (Scribe.mode == LoadSaveMode.Saving)
             {
@@ -87,6 +93,8 @@ namespace RimSynapse
                 if (factionTrackers == null) factionTrackers = new List<FactionRelationshipTracker>();
                 if (shortTermEvents == null) shortTermEvents = new List<ShortTermEvent>();
                 if (backlogQueueList == null) backlogQueueList = new List<PastEvent>();
+                if (firedIncidentHistory == null) firedIncidentHistory = new List<FiredIncidentRecord>();
+                if (wealthHistory == null) wealthHistory = new List<WealthRecord>();
                 
                 if (categoryMultipliers == null) categoryMultipliers = new Dictionary<string, float>();
                 if (incidentMultipliers == null) incidentMultipliers = new Dictionary<string, float>();
@@ -118,12 +126,19 @@ namespace RimSynapse
                 int maxAgeTicks = (int)(hours * 2500f);
                 
                 shortTermEvents.RemoveAll(e => currentTick - e.gameTick > maxAgeTicks);
+                firedIncidentHistory.RemoveAll(e => currentTick - e.gameTick > 1800000); // Prune older than 30 days
             }
 
             // Update greenhouse cells daily at 12:00
             if (currentTick % 60000 == 30000)
             {
                 UpdateGreenhouseCells();
+            }
+
+            // Daily wealth growth pacing check
+            if (currentTick % 60000 == 45000)
+            {
+                CheckWealthGrowthPacing();
             }
         }
 
@@ -546,6 +561,126 @@ namespace RimSynapse
             float actualThreat = (baseColonistPoints + combatCompetence + securityPower) * TensionModifier;
 
             return UnityEngine.Mathf.Clamp(actualThreat, 35f, 10000f);
+        }
+
+        public void RegisterFiredIncident(string incidentDefName)
+        {
+            if (string.IsNullOrEmpty(incidentDefName)) return;
+            firedIncidentHistory.Add(new FiredIncidentRecord(incidentDefName, Find.TickManager.TicksGame));
+        }
+
+        public int GetRecentIncidentCount(string incidentDefName, int lookbackTicks)
+        {
+            if (string.IsNullOrEmpty(incidentDefName)) return 0;
+            int cutoff = Find.TickManager.TicksGame - lookbackTicks;
+            return firedIncidentHistory.Count(r => r.incidentDefName == incidentDefName && r.gameTick >= cutoff);
+        }
+
+        public float CalculateTrueWealth(Map map, RimSynapse.Comps.StorytellerCompProperties_Storyteller props)
+        {
+            if (map == null) return 0f;
+            if (props == null) return map.wealthWatcher?.WealthTotal ?? 0f;
+
+            float items = map.wealthWatcher?.WealthItems ?? 0f;
+            float buildings = map.wealthWatcher?.WealthBuildings ?? 0f;
+            float pawns = map.wealthWatcher?.WealthPawns ?? 0f;
+
+            float combatCompetence = 0f;
+            if (map.mapPawns?.FreeColonistsSpawned != null)
+            {
+                foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+                {
+                    if (pawn.Downed || pawn.Dead) continue;
+                    combatCompetence += (pawn.skills?.GetSkill(RimWorld.SkillDefOf.Shooting)?.Level ?? 0) * 5f;
+                    combatCompetence += (pawn.skills?.GetSkill(RimWorld.SkillDefOf.Melee)?.Level ?? 0) * 5f;
+                    if (pawn.equipment?.Primary != null)
+                    {
+                        combatCompetence += pawn.equipment.Primary.MarketValue / 10f;
+                    }
+                    if (pawn.apparel?.WornApparel != null)
+                    {
+                        foreach (var app in pawn.apparel.WornApparel)
+                        {
+                            combatCompetence += app.MarketValue / 20f;
+                        }
+                    }
+                }
+            }
+
+            float securityPower = 0f;
+            if (map.listerThings != null)
+            {
+                foreach (Thing t in map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingArtificial))
+                {
+                    if (t.def.building != null && t.def.building.IsTurret)
+                    {
+                        securityPower += t.MarketValue / 5f;
+                    }
+                }
+            }
+
+            return (items * props.weightItemWealth) +
+                   (buildings * props.weightBuildingWealth) +
+                   (pawns * props.weightPawnWealth) +
+                   (combatCompetence * props.weightCombatCompetence) +
+                   (securityPower * props.weightSecurityPower);
+        }
+
+        private void CheckWealthGrowthPacing()
+        {
+            var props = Find.Storyteller?.storytellerComps?.OfType<RimSynapse.Comps.StorytellerComp_Storyteller>().FirstOrDefault()?.props as RimSynapse.Comps.StorytellerCompProperties_Storyteller;
+            if (props == null || Find.AnyPlayerHomeMap == null) return;
+
+            Map map = Find.AnyPlayerHomeMap;
+            float curWealth = CalculateTrueWealth(map, props);
+            int curColonists = map.mapPawns.FreeColonistsCount;
+
+            // Enqueue new record
+            wealthHistory.Add(new WealthRecord(Find.TickManager.TicksGame, curWealth, curColonists));
+
+            // Keep up to 5 days of history (300,000 ticks)
+            wealthHistory.RemoveAll(r => Find.TickManager.TicksGame - r.gameTick > 300000);
+
+            if (wealthHistory.Count >= 2)
+            {
+                var oldest = wealthHistory[0];
+                int tickDiff = Find.TickManager.TicksGame - oldest.gameTick;
+                float days = (float)tickDiff / 60000f;
+                if (days >= 0.5f) // Need at least half a day of data
+                {
+                    float wealthDiff = curWealth - oldest.wealth;
+                    float avgColonists = 0.5f * (curColonists + oldest.pawnCount);
+                    if (avgColonists < 1) avgColonists = 1;
+
+                    float actualGrowthRate = wealthDiff / (avgColonists * days);
+                    float daysPassed = Find.TickManager.TicksGame / 60000f;
+                    float targetRate = props.targetWealthGrowthFactor * (float)System.Math.Pow(daysPassed, props.targetWealthGrowthExponent) + props.targetWealthGrowthBase;
+
+                    // Blend the target growth rate with the actual growth rate based on flexibility
+                    float blendedTargetRate = UnityEngine.Mathf.Lerp(targetRate, actualGrowthRate, props.pacingFlexibility);
+
+                    if (blendedTargetRate > 0)
+                    {
+                        float paceMultiplier = 1.0f;
+                        if (actualGrowthRate >= 0)
+                        {
+                            float ratio = actualGrowthRate / blendedTargetRate;
+                            paceMultiplier = UnityEngine.Mathf.Lerp(0.5f, 2.0f, ratio / 2.0f);
+                        }
+                        else
+                        {
+                            float lossRatio = UnityEngine.Mathf.Abs(actualGrowthRate) / blendedTargetRate;
+                            paceMultiplier = UnityEngine.Mathf.Lerp(0.5f, 0.25f, lossRatio / 2.0f);
+                        }
+
+                        BasePacingMultiplier = UnityEngine.Mathf.Lerp(BasePacingMultiplier, paceMultiplier, 0.3f);
+                        BasePacingMultiplier = UnityEngine.Mathf.Clamp(BasePacingMultiplier, 0.2f, 3.0f);
+                        GlobalPacingMultiplier = BasePacingMultiplier;
+
+                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Daily pacing check: Actual Growth/Pawn/Day: {actualGrowthRate:F0} (Blended Target: {blendedTargetRate:F0}). Adjusting BasePacingMultiplier smoothly to: {BasePacingMultiplier:F2}");
+                    }
+                }
+            }
         }
     }
 

@@ -316,8 +316,8 @@ namespace RimSynapse.Comps
                 }
             }
 
-            var auraComp = Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Aura>().FirstOrDefault();
-            var props = auraComp?.props as StorytellerCompProperties_Aura;
+            var storytellerComp = Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Storyteller>().FirstOrDefault();
+            var props = storytellerComp?.props as StorytellerCompProperties_Storyteller;
 
             string metricsFormat = props?.metricsTemplate;
             if (string.IsNullOrEmpty(metricsFormat))
@@ -361,7 +361,61 @@ namespace RimSynapse.Comps
                 .Replace("{tameWealth}", tameAnimalsWealth.ToString("F0"))
                 .Replace("{animalReport}", animalReport);
 
-            return metricsFormat
+            var coreWorldComp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+            string growthMetric = "";
+            string lastRaidReport = "";
+
+            if (coreWorldComp != null)
+            {
+                if (coreWorldComp.wealthHistory != null && coreWorldComp.wealthHistory.Count >= 2)
+                {
+                    var oldest = coreWorldComp.wealthHistory[0];
+                    int tickDiff = Find.TickManager.TicksGame - oldest.gameTick;
+                    float days = (float)tickDiff / 60000f;
+                    if (days >= 0.5f)
+                    {
+                        float currentTrueWealth = coreWorldComp.CalculateTrueWealth(map, props);
+                        float wealthDiff = currentTrueWealth - oldest.wealth;
+                        float avgColonists = 0.5f * (freeColonists + oldest.pawnCount);
+                        if (avgColonists < 1) avgColonists = 1;
+                        float actualRate = wealthDiff / (avgColonists * days);
+                        
+                        growthMetric = $"\n- Daily True Wealth Growth Rate (Rolling): {actualRate:F0} silver/colonist/day";
+                        if (props != null)
+                        {
+                            float daysPassed = Find.TickManager.TicksGame / 60000f;
+                            float targetRate = props.targetWealthGrowthFactor * (float)System.Math.Pow(daysPassed, props.targetWealthGrowthExponent) + props.targetWealthGrowthBase;
+                            float blendedTargetRate = UnityEngine.Mathf.Lerp(targetRate, actualRate, props.pacingFlexibility);
+                            if (blendedTargetRate > 0)
+                            {
+                                growthMetric += $" (Blended Target: {blendedTargetRate:F0} silver/colonist/day, Flexibility: {props.pacingFlexibility:F2})";
+                            }
+                        }
+                    }
+                }
+
+                if (coreWorldComp.lastRaidOutcome != null)
+                {
+                    float daysSinceRaid = (Find.TickManager.TicksGame - coreWorldComp.lastRaidOutcome.gameTick) / 60000f;
+                    int k = coreWorldComp.lastRaidOutcome.colonistsKilled;
+                    int inj = coreWorldComp.lastRaidOutcome.colonistsInjured;
+                    int kid = coreWorldComp.lastRaidOutcome.colonistsKidnapped;
+                    int ek = coreWorldComp.lastRaidOutcome.enemiesKilled;
+                    int ed = coreWorldComp.lastRaidOutcome.enemiesDowned;
+                    
+                    lastRaidReport = $"\n- Last Raid Outcome ({daysSinceRaid:F1} days ago): ";
+                    if (k == 0 && kid == 0)
+                    {
+                        lastRaidReport += $"Successful defense. Enemies: {ek} killed, {ed} downed. Player loss: {inj} injured, 0 dead/kidnapped.";
+                    }
+                    else
+                    {
+                        lastRaidReport += $"Tragic defense (Colony Recovering). Player loss: {k} killed, {kid} kidnapped, {inj} injured. Enemies: {ek} killed, {ed} downed.";
+                    }
+                }
+            }
+
+            return (metricsFormat
                 .Replace("{wealth}", totalWealth.ToString("F0"))
                 .Replace("{silver}", silverCount.ToString())
                 .Replace("{food}", totalNutrition.ToString("F1"))
@@ -375,13 +429,14 @@ namespace RimSynapse.Comps
                 .Replace("{legendaryArtValue}", legendaryArtValue.ToString("F0"))
                 .Replace("{combat}", $"{capablePawns} healthy colonists capable of violence ({armedPawns} currently armed)")
                 .Replace("{medical}", $"{downedPawns} colonists currently downed/injured")
-                .Replace("{mood}", avgMood.ToString("P0"));
+                .Replace("{mood}", avgMood.ToString("P0")))
+                + growthMetric + lastRaidReport;
         }
 
         public static bool TriggerPacingAdjustment()
         {
             if (Current.ProgramState != ProgramState.Playing || Find.CurrentMap == null) return false;
-            if (Find.Storyteller?.def?.defName != "Synapse") return false;
+            if (Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Storyteller>().Any() != true) return false;
 
             var map = Find.CurrentMap;
             string metrics = GetColonyDetailedMetrics(map);
@@ -405,13 +460,18 @@ namespace RimSynapse.Comps
                 }
             }
 
-            var auraComp = Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Aura>().FirstOrDefault();
-            string systemPrompt = (auraComp?.props as StorytellerCompProperties_Aura)?.pacingSystemPrompt;
+            var props = StorytellerComp_Storyteller.GetActiveStorytellerProps();
+            string systemPrompt = props?.pacingSystemPrompt;
 
             if (string.IsNullOrEmpty(systemPrompt))
             {
-                systemPrompt = @"You are the Aura Storyteller Pacing and Weighting Coordinator.
+                string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
+                string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
+                systemPrompt = @"You are the " + characterName + @" Pacing and Weighting Coordinator.
+Your writing style is " + speakingStyle + @".
 Your role is to orchestrate the colony's challenge level and dynamic pacing based on its current successes, setbacks, and resources.
+
+You have access to tools that query the live state of the colony. If you need more details to decide pacing (e.g. colonist profiles/skills, exact stockpiles, colony moods, or active map threats), you should invoke the corresponding tool.
 
 You must evaluate:
 1. Successes/Triumphs (e.g. repelled raids, completed quests) -> Increase challenge (more ThreatBig/ThreatSmall, higher pacing).
@@ -449,13 +509,19 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
             {
                 SystemPrompt = systemPrompt,
                 Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
-                EnforceJson = true
+                EnforceJson = true,
+                Tools = SynapseToolRegistry.AllTools.Select(t => new GameToolDefinition
+                {
+                    name = t.name,
+                    description = t.description,
+                    parameters = t.parameters
+                }).ToList()
             };
 
             SynapseClient.SendTextAsync(
                 RimSynapseMod.ModHandle,
                 request,
-                new ChatOptions { queryId = "aura_pacing", priority = 1, requestName = "Aura Pacing", targetName = "Colony" },
+                new ChatOptions { queryId = "storyteller_pacing", priority = 1, requestName = "Storyteller Pacing", targetName = "Colony" },
                 result =>
                 {
                     if (result.success)
@@ -479,7 +545,7 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
                                             comp.categoryMultipliers[kvp.Key] = UnityEngine.Mathf.Clamp(kvp.Value, 0.01f, 10.0f);
                                         }
                                     }
-                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Aura pacing adjusted to {comp.GlobalPacingMultiplier} with category multipliers updated.");
+                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller pacing adjusted to {comp.GlobalPacingMultiplier} with category multipliers updated.");
                                 }
                             }
                         }
@@ -520,25 +586,107 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
                 }
             }
 
-            var auraComp = Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Aura>().FirstOrDefault();
-            string systemPrompt = (auraComp?.props as StorytellerCompProperties_Aura)?.selectionSystemPrompt;
+            var props = StorytellerComp_Storyteller.GetActiveStorytellerProps();
+            
+            // Build the list of allowed incidents that can fire now
+            var categoryIncidents = new List<IncidentDef>();
+            foreach (var def in DefDatabase<IncidentDef>.AllDefs)
+            {
+                if (def.category == category)
+                {
+                    bool canFire = false;
+                    try
+                    {
+                        IncidentParms parms = StorytellerUtility.DefaultParmsNow(category, target);
+                        canFire = def.Worker.CanFireNow(parms);
+                    }
+                    catch
+                    {
+                        // Safely ignore any exceptions from third-party incident workers
+                    }
+                    if (canFire)
+                    {
+                        categoryIncidents.Add(def);
+                    }
+                }
+            }
+
+            var activeContextNotes = new List<string>();
+            var incidentLines = new List<string>();
+            foreach (var def in categoryIncidents)
+            {
+                var weightConfig = props?.incidentWeights?.FirstOrDefault(w => w.incidentDefName == def.defName);
+                float weight = 1.0f;
+                if (weightConfig != null)
+                {
+                    weight = weightConfig.baseWeight;
+                    if (weightConfig.rules != null)
+                    {
+                        foreach (var rule in weightConfig.rules)
+                        {
+                            if (EvaluateRule(rule, map, coreWorldComp))
+                            {
+                                weight *= rule.multiplier;
+                                if (!string.IsNullOrEmpty(rule.contextNote) && !activeContextNotes.Contains(rule.contextNote))
+                                {
+                                    activeContextNotes.Add(rule.contextNote);
+                                }
+                            }
+                        }
+                    }
+                }
+                else if (props != null)
+                {
+                    // Fall back to category default
+                    if (category == IncidentCategoryDefOf.ThreatBig) weight = props.baseWeightThreatBig;
+                    else if (category == IncidentCategoryDefOf.ThreatSmall) weight = props.baseWeightThreatSmall;
+                    else if (category == IncidentCategoryDefOf.DiseaseHuman) weight = props.baseWeightDiseaseHuman;
+                    else if (category == IncidentCategoryDefOf.Misc) weight = props.baseWeightMisc;
+                    else if (category.defName == "DiseaseAnimal") weight = props.baseWeightDiseaseAnimal;
+                    else if (category.defName == "OrbitalVisitor") weight = props.baseWeightOrbitalVisitor;
+                    else if (category.defName == "FactionArrival") weight = props.baseWeightFactionArrival;
+                }
+                
+                string desc = weightConfig?.description ?? "A standard " + category.defName + " event.";
+                incidentLines.Add("- '" + def.defName + "' (Base Weight: " + weight.ToString("F1") + "): " + desc);
+            }
+            string allowedIncidentsList = incidentLines.Any() ? string.Join("\n", incidentLines) : "None available.";
+
+            string narrativeContext = "";
+            if (activeContextNotes.Any())
+            {
+                narrativeContext = "\nNarrative Context Notes:\n" + string.Join("\n", activeContextNotes.Select(n => "- " + n)) + "\n";
+            }
+
+            string systemPrompt = props?.selectionSystemPrompt;
 
             if (string.IsNullOrEmpty(systemPrompt))
             {
-                systemPrompt = $@"You are the Aura Storyteller Event Selector.
-An event trigger has occurred for category: {category.defName}.
-You must pick the EXACT IncidentDefName from vanilla RimWorld that fits the current narrative best.
-For example, if the category is ThreatBig, choose 'RaidEnemy', 'Infestation', 'ManhunterPack', etc.
-If the category is FactionArrival, choose 'TraderCaravanArrival', 'VisitorGroup', etc.
+                string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
+                string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
+                systemPrompt = @"You are the " + characterName + @" Event Selector.
+Your writing style is " + speakingStyle + @".
+An event trigger has occurred for category: " + category.defName + @".
+You must pick the EXACT IncidentDefName from the list of allowed incidents below that fits the current narrative best.
+Use the base weights as a reference for how common or rare they should be, but let narrative pacing guide the final choice.
+
+You have access to tools that query the live state of the colony. If you need more details to select the best incident (e.g. checking what weapons they have before sending a raid, checking food stockpiles before toxic fallout, checking their mood to decide if a mental break or trade caravan is better), you should invoke the corresponding tool.
+
+ALLOWED INCIDENTS FOR CATEGORY " + category.defName + @":
+" + allowedIncidentsList + @"
 
 Legendary Art Attraction: If the colony has legendary art pieces (reported in metrics), choose friendly visitors, guest groups, and affluent/wealthy traders more frequently to simulate them visiting to admire the art. If colony wealth is also high, attract more affluent or exotic traders.
 
 Civilization and Population Density context: If local population density is high (civilized lands), choose peaceful, urban, or civilized incidents (e.g. wanderers, caravans, peace talks) and avoid wild threats like raw infestations or animal stampedes. If density is low (isolated frontier wilderness), favor rogue raiders, manhunters, or harsh environmental challenges fitting a lawless outpost.
 
 You MUST respond strictly in valid JSON format:
-{{
+{
   ""IncidentDefName"": ""(The exact def name of the incident)""
-}}";
+}";
+            }
+            else
+            {
+                systemPrompt = systemPrompt.Replace("{allowedIncidentsList}", allowedIncidentsList);
             }
 
             string userMessage = $@"Colony Status:
@@ -546,20 +694,26 @@ You MUST respond strictly in valid JSON format:
 
 Recent Events:
 {recentEvents}
-
+{narrativeContext}
 Provide the incident def name.";
 
             var request = new LlmTextRequest
             {
                 SystemPrompt = systemPrompt,
                 Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
-                EnforceJson = true
+                EnforceJson = true,
+                Tools = SynapseToolRegistry.AllTools.Select(t => new GameToolDefinition
+                {
+                    name = t.name,
+                    description = t.description,
+                    parameters = t.parameters
+                }).ToList()
             };
 
             SynapseClient.SendTextAsync(
                 RimSynapseMod.ModHandle,
                 request,
-                new ChatOptions { queryId = "aura_event_selection", priority = 10, requestName = "Aura Event Selection", targetName = category.defName },
+                new ChatOptions { queryId = "storyteller_event_selection", priority = 10, requestName = "Storyteller Event Selection", targetName = category.defName },
                 result =>
                 {
                     if (coreWorldComp != null)
@@ -584,7 +738,7 @@ Provide the incident def name.";
                                     if (def.Worker.CanFireNow(parms))
                                     {
                                         Find.Storyteller.incidentQueue.Add(def, Find.TickManager.TicksGame, parms);
-                                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Aura Event Selection chose: {defName}");
+                                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Event Selection chose: {defName}");
                                     }
                                 }
                             }
@@ -596,6 +750,125 @@ Provide the incident def name.";
                     }
                 }
             );
+        }
+
+        private static float GetAspectValue(string aspect, string aspectKey, Map map, SynapseCoreWorldComponent worldComp)
+        {
+            switch (aspect)
+            {
+                case "ColonyWealth":
+                    return map?.wealthWatcher?.WealthTotal ?? 0f;
+                case "CombatReadiness":
+                    if (map?.mapPawns?.FreeColonists == null || !map.mapPawns.FreeColonists.Any()) return 1.0f;
+                    int capable = map.mapPawns.FreeColonists.Count(p => !p.Dead && !p.Downed && !p.WorkTagIsDisabled(WorkTags.Violent));
+                    return (float)capable / map.mapPawns.FreeColonists.Count;
+                case "ColonistCount":
+                    return map?.mapPawns?.FreeColonistsCount ?? 0;
+                case "AverageMood":
+                    if (map?.mapPawns?.FreeColonists == null || !map.mapPawns.FreeColonists.Any()) return 0.5f;
+                    return (float)map.mapPawns.FreeColonists.Average(p => p.needs?.mood?.CurLevelPercentage ?? 0.5f);
+                case "PopulationDensity":
+                    if (map != null && map.Tile >= 0 && SynapseCoreWorldComponent.GetPopulationDensityDelegate != null)
+                    {
+                        return SynapseCoreWorldComponent.GetPopulationDensityDelegate(map.Tile);
+                    }
+                    return 0f;
+                case "FoodReserves":
+                    float totalNutrition = 0f;
+                    if (map?.listerThings != null)
+                    {
+                        try
+                        {
+                            foreach (var thing in map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSource))
+                            {
+                                if (thing.def.IsNutritionGivingIngestible && thing.def.ingestible != null)
+                                {
+                                    totalNutrition += thing.stackCount * thing.def.ingestible.CachedNutrition;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    return totalNutrition;
+                case "SilverReserves":
+                    int silverCount = 0;
+                    if (map?.listerThings != null)
+                    {
+                        foreach (var thing in map.listerThings.ThingsOfDef(ThingDefOf.Silver))
+                        {
+                            silverCount += thing.stackCount;
+                        }
+                    }
+                    return silverCount;
+                case "RecentIncidentCount":
+                    if (worldComp == null || string.IsNullOrEmpty(aspectKey)) return 0f;
+                    return worldComp.GetRecentIncidentCount(aspectKey, 900000); // 15 days lookback
+                case "TimePassed":
+                    return Find.TickManager.TicksGame / 60000f; // Days passed
+                case "LastRaidColonistCasualties":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        return worldComp.lastRaidOutcome.colonistsKilled + worldComp.lastRaidOutcome.colonistsKidnapped;
+                    }
+                    return 0f;
+                case "LastRaidEnemyCasualties":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        return worldComp.lastRaidOutcome.enemiesKilled + worldComp.lastRaidOutcome.enemiesDowned;
+                    }
+                    return 0f;
+                case "LastRaidWasSuccess":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        bool playerLoss = (worldComp.lastRaidOutcome.colonistsKilled + worldComp.lastRaidOutcome.colonistsKidnapped) > 0;
+                        bool enemyLoss = (worldComp.lastRaidOutcome.enemiesKilled + worldComp.lastRaidOutcome.enemiesDowned) > 0;
+                        return (enemyLoss && !playerLoss) ? 1f : 0f;
+                    }
+                    return 0f;
+                case "LastRaidWasFailure":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        bool playerLoss = (worldComp.lastRaidOutcome.colonistsKilled + worldComp.lastRaidOutcome.colonistsKidnapped) > 0;
+                        return playerLoss ? 1f : 0f;
+                    }
+                    return 0f;
+                case "RollingWealthGrowthRate":
+                    if (worldComp?.wealthHistory != null && worldComp.wealthHistory.Count >= 2)
+                    {
+                        var oldest = worldComp.wealthHistory[0];
+                        int tickDiff = Find.TickManager.TicksGame - oldest.gameTick;
+                        float days = (float)tickDiff / 60000f;
+                        if (days >= 0.5f)
+                        {
+                            var props = StorytellerComp_Storyteller.GetActiveStorytellerProps();
+                            float currentTrueWealth = worldComp.CalculateTrueWealth(map, props);
+                            float wealthDiff = currentTrueWealth - oldest.wealth;
+                            float avgColonists = 0.5f * (map.mapPawns.FreeColonistsCount + oldest.pawnCount);
+                            if (avgColonists < 1) avgColonists = 1;
+                            return wealthDiff / (avgColonists * days);
+                        }
+                    }
+                    return 0f;
+                default:
+                    return 0f;
+            }
+        }
+
+        private static bool EvaluateRule(IncidentModifierRule rule, Map map, SynapseCoreWorldComponent worldComp)
+        {
+            if (rule == null) return false;
+            float val = GetAspectValue(rule.aspect, rule.aspectKey, map, worldComp);
+            switch (rule.comparison)
+            {
+                case "LessThan":
+                    return val < rule.threshold;
+                case "GreaterThan":
+                    return val > rule.threshold;
+                case "Equals":
+                    return Math.Abs(val - rule.threshold) < 0.001f;
+                default:
+                    return false;
+            }
         }
     }
 }

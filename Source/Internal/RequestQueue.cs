@@ -484,6 +484,59 @@ namespace RimSynapse.Internal
                 var resultObj = HttpEngine.RouteRequestSync(
                     requestToProcess.Mod, requestToProcess.Payload, requestToProcess.CapabilityType, requestToProcess.Options);
 
+                // Check for Tool Use / Function Calling Loop
+                if (resultObj is ChatResult initialChatResult && initialChatResult.success && initialChatResult.toolCalls != null && initialChatResult.toolCalls.Count > 0)
+                {
+                    int maxLoops = 3;
+                    var textReq = requestToProcess.Payload as LlmTextRequest;
+
+                    while (initialChatResult.success && initialChatResult.toolCalls != null && initialChatResult.toolCalls.Count > 0 && maxLoops > 0 && textReq != null)
+                    {
+                        maxLoops--;
+                        SynapseLogger.Message($"[RimSynapse-Core] Assistant requested {initialChatResult.toolCalls.Count} tool calls. Executing on main thread...", requestToProcess.Mod?.ModId);
+
+                        // 1. Add assistant tool calls message to the request's messages list to maintain chat history
+                        var assistantMsg = new ChatMessage("assistant", initialChatResult.content)
+                        {
+                            tool_calls = initialChatResult.toolCalls
+                        };
+                        textReq.Messages.Add(assistantMsg);
+
+                        // 2. Execute each tool on the main thread and add the response message
+                        foreach (var tc in initialChatResult.toolCalls)
+                        {
+                            string toolOutput = ExecuteToolOnMainThread(tc.function.name, tc.function.arguments);
+                            var toolResponseMsg = ChatMessage.Tool(toolOutput, tc.id);
+                            toolResponseMsg.name = tc.function.name;
+                            textReq.Messages.Add(toolResponseMsg);
+                            SynapseLogger.Message($"[RimSynapse-Core] Tool '{tc.function.name}' response: {toolOutput}", requestToProcess.Mod?.ModId);
+                        }
+
+                        // 3. Send follow-up request
+                        long startFollowUp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        var followUpResult = HttpEngine.RouteRequestSync(
+                            requestToProcess.Mod, textReq, requestToProcess.CapabilityType, requestToProcess.Options);
+
+                        if (followUpResult is ChatResult followUpChatResult)
+                        {
+                            // Add up token usage
+                            initialChatResult.promptTokens += followUpChatResult.promptTokens;
+                            initialChatResult.completionTokens += followUpChatResult.completionTokens;
+                            initialChatResult.durationMs += (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startFollowUp);
+                            initialChatResult.content = followUpChatResult.content;
+                            initialChatResult.toolCalls = followUpChatResult.toolCalls;
+                            initialChatResult.success = followUpChatResult.success;
+                            initialChatResult.error = followUpChatResult.error;
+                        }
+                        else
+                        {
+                            initialChatResult.success = false;
+                            initialChatResult.error = "Follow-up request failed or did not return text.";
+                            initialChatResult.toolCalls = null;
+                        }
+                    }
+                }
+
                 if (SessionId != currentSession)
                 {
                     SynapseLogger.Message($"Session changed during request. Discarding response for {requestToProcess.Mod?.DisplayName}.");
@@ -615,6 +668,31 @@ namespace RimSynapse.Internal
                         cb?.DynamicInvoke(ChatResult.Failure($"Queue error: {ex.Message}")));
                 }
             }
+        }
+
+        private static string ExecuteToolOnMainThread(string name, string arguments)
+        {
+            string output = null;
+            var resetEvent = new System.Threading.AutoResetEvent(false);
+
+            SynapseGameComponent.Enqueue(() =>
+            {
+                try
+                {
+                    output = SynapseToolRegistry.ExecuteTool(name, arguments);
+                }
+                catch (Exception ex)
+                {
+                    output = $"{{\"error\": \"Tool execution crashed: {ex.Message}\"}}";
+                }
+                finally
+                {
+                    resetEvent.Set();
+                }
+            });
+
+            resetEvent.WaitOne(TimeSpan.FromSeconds(10)); // Timeout after 10 seconds
+            return output ?? "{\"error\": \"Tool execution timed out.\"}";
         }
 
         private static void UpdateThrottle()

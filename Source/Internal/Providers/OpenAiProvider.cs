@@ -34,7 +34,38 @@ namespace RimSynapse.Internal.Providers
                 }
                 foreach (var msg in request.Messages)
                 {
-                    messagesArray.Add(new JObject { ["role"] = msg.role, ["content"] = msg.content });
+                    var msgObj = new JObject { ["role"] = msg.role };
+                    if (msg.content != null)
+                    {
+                        msgObj["content"] = msg.content;
+                    }
+                    if (msg.role == "tool" && !string.IsNullOrEmpty(msg.tool_call_id))
+                    {
+                        msgObj["tool_call_id"] = msg.tool_call_id;
+                    }
+                    if (msg.role == "tool" && !string.IsNullOrEmpty(msg.name))
+                    {
+                        msgObj["name"] = msg.name;
+                    }
+                    if (msg.tool_calls != null && msg.tool_calls.Count > 0)
+                    {
+                        var tcArray = new JArray();
+                        foreach (var tc in msg.tool_calls)
+                        {
+                            tcArray.Add(new JObject
+                            {
+                                ["id"] = tc.id,
+                                ["type"] = tc.type,
+                                ["function"] = new JObject
+                                {
+                                    ["name"] = tc.function.name,
+                                    ["arguments"] = tc.function.arguments
+                                }
+                            });
+                        }
+                        msgObj["tool_calls"] = tcArray;
+                    }
+                    messagesArray.Add(msgObj);
                 }
 
                 var body = new JObject
@@ -49,6 +80,25 @@ namespace RimSynapse.Internal.Providers
                 if (request.EnforceJson)
                 {
                     body["response_format"] = new JObject { ["type"] = "json_object" };
+                }
+
+                if (request.Tools != null && request.Tools.Count > 0)
+                {
+                    var toolsArray = new JArray();
+                    foreach (var tool in request.Tools)
+                    {
+                        toolsArray.Add(new JObject
+                        {
+                            ["type"] = "function",
+                            ["function"] = new JObject
+                            {
+                                ["name"] = tool.name,
+                                ["description"] = tool.description,
+                                ["parameters"] = JToken.FromObject(tool.parameters)
+                            }
+                        });
+                    }
+                    body["tools"] = toolsArray;
                 }
 
                 string jsonBody = body.ToString(Formatting.None);
@@ -82,12 +132,14 @@ namespace RimSynapse.Internal.Providers
                 string content = null;
                 int promptTokens = 0;
                 int completionTokens = 0;
+                JToken toolCallsToken = null;
 
                 var choices = result["choices"] as JArray;
                 if (choices != null && choices.Count > 0)
                 {
                     var message = choices[0]?["message"];
                     content = message?["content"]?.ToString();
+                    toolCallsToken = message?["tool_calls"];
                 }
 
                 var usage = result["usage"];
@@ -98,7 +150,12 @@ namespace RimSynapse.Internal.Providers
                 }
 
                 long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-                return ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
+                var chatRes = ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
+                if (toolCallsToken != null)
+                {
+                    chatRes.toolCalls = toolCallsToken.ToObject<System.Collections.Generic.List<ChatToolCall>>();
+                }
+                return chatRes;
             }
             catch (Exception ex)
             {

@@ -7,12 +7,18 @@ using Verse;
 namespace RimSynapse.Comps
 {
     /// <summary>
-    /// Main Aura Algorithm storyteller component. Handles the interval tick loop
+    /// Main storyteller component. Handles the interval tick loop
     /// that decides which events fire, factoring in LLM pacing and faction perceptions.
     /// </summary>
-    public partial class StorytellerComp_Aura : StorytellerComp
+    public partial class StorytellerComp_Storyteller : StorytellerComp
     {
-        protected StorytellerCompProperties_Aura Props => (StorytellerCompProperties_Aura)props;
+        protected StorytellerCompProperties_Storyteller Props => (StorytellerCompProperties_Storyteller)props;
+
+        public static StorytellerCompProperties_Storyteller GetActiveStorytellerProps()
+        {
+            var storytellerComp = Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Storyteller>().FirstOrDefault();
+            return storytellerComp?.props as StorytellerCompProperties_Storyteller;
+        }
 
         public override IEnumerable<FiringIncident> MakeIntervalIncidents(IIncidentTarget target)
         {
@@ -52,7 +58,7 @@ namespace RimSynapse.Comps
                     {
                         pop = SynapseCoreWorldComponent.GetPopulationDensityDelegate(target.Tile);
                     }
-                    float raidMult = 1f / (1f + 0.005f * pop);
+                    float raidMult = 1f / (1f + Props.motivatedRaidPopulationDensityFactor * pop);
 
                     if (Rand.Chance(raidMult))
                     {

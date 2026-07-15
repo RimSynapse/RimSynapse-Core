@@ -13,13 +13,13 @@ namespace RimSynapse
         public float? Temperature { get; set; }
         public int? MaxTokens { get; set; }
         
-        /// <summary>
-        /// Forces the provider to output strict JSON.
-        /// (Maps to response_format: json_object on OpenAI)
-        /// </summary>
         public bool EnforceJson { get; set; }
-        
         public bool DisableThinking { get; set; }
+
+        /// <summary>
+        /// List of active Model Context Protocol / Game tools available for this request.
+        /// </summary>
+        public List<GameToolDefinition> Tools { get; set; } = new List<GameToolDefinition>();
 
         public LlmTextRequest() { }
 
