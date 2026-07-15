@@ -98,7 +98,7 @@ namespace RimSynapse.Patches
                 skill = SkillDefOf.Crafting;
             }
 
-            QualityCategory earlyQuality = QualityUtility.GenerateQualityCreatedByPawn(pawn, skill);
+            QualityCategory earlyQuality = QualityUtility.GenerateQualityCreatedByPawn(pawn, skill, false);
 
             var info = new PreRolledQualityInfo
             {
@@ -121,7 +121,7 @@ namespace RimSynapse.Patches
             if (preRolledQualities.ContainsKey(pawn)) return;
 
             SkillDef skill = SkillDefOf.Construction;
-            QualityCategory earlyQuality = QualityUtility.GenerateQualityCreatedByPawn(pawn, skill);
+            QualityCategory earlyQuality = QualityUtility.GenerateQualityCreatedByPawn(pawn, skill, false);
 
             var info = new PreRolledQualityInfo
             {
@@ -270,11 +270,11 @@ namespace RimSynapse.Patches
         }
     }
 
-    [HarmonyPatch(typeof(QualityUtility), nameof(QualityUtility.GenerateQualityCreatedByPawn), new Type[] { typeof(Pawn), typeof(SkillDef) })]
+    [HarmonyPatch(typeof(QualityUtility), nameof(QualityUtility.GenerateQualityCreatedByPawn), new Type[] { typeof(Pawn), typeof(SkillDef), typeof(bool) })]
     public static class Patch_QualityUtility_GenerateQualityCreatedByPawn
     {
         [HarmonyPostfix]
-        public static void Postfix(Pawn pawn, SkillDef skill, ref QualityCategory __result)
+        public static void Postfix(Pawn pawn, SkillDef relevantSkill, bool consumeInspiration, ref QualityCategory __result)
         {
             // If we have a cached pre-rolled quality for this pawn's current job, override the result
             if (Patch_Pawn_Tick_Legendary.preRolledQualities.TryGetValue(pawn, out var info))
@@ -294,7 +294,7 @@ namespace RimSynapse.Patches
     public static class Patch_CompQuality_SetQuality
     {
         [HarmonyPostfix]
-        public static void Postfix(CompQuality __instance, QualityCategory q, ArtGenerationContext source)
+        public static void Postfix(CompQuality __instance, QualityCategory q, ArtGenerationContext? source)
         {
             if (q == QualityCategory.Legendary)
             {
@@ -441,21 +441,24 @@ namespace RimSynapse.Patches
         }
     }
 
-    [HarmonyPatch(typeof(ITab_Art), "size", MethodType.Getter)]
+    [HarmonyPatch(typeof(InspectTabBase), "UpdateSize")]
     public static class Patch_ITab_Art_size
     {
         [HarmonyPostfix]
-        public static void Postfix(ITab_Art __instance, ref Vector2 __result)
+        public static void Postfix(InspectTabBase __instance, ref Vector2 ___size)
         {
-            Thing selected = Traverse.Create(__instance).Property("SelThing").GetValue<Thing>();
-            if (selected != null)
+            if (__instance is ITab_Art tabArt)
             {
-                var coreComp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
-                if (coreComp != null)
+                Thing selected = Traverse.Create(tabArt).Property("SelThing").GetValue<Thing>();
+                if (selected != null)
                 {
-                    if (coreComp.legendaryImagePaths.ContainsKey(selected.ThingID))
+                    var coreComp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+                    if (coreComp != null)
                     {
-                        __result = new Vector2(680f, 300f);
+                        if (coreComp.legendaryImagePaths.ContainsKey(selected.ThingID))
+                        {
+                            ___size = new Vector2(680f, 300f);
+                        }
                     }
                 }
             }
