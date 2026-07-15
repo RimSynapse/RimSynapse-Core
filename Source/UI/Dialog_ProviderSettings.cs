@@ -77,7 +77,7 @@ namespace RimSynapse.UI
             Rect wikiBtnRect = new Rect(inRect.width - 140f, 35f, 140f, 24f);
             if (Widgets.ButtonText(wikiBtnRect, "Open Setup Wiki"))
             {
-                UnityEngine.Application.OpenURL("https://github.com/RimSynapse/RimSynapse-Wiki/blob/main/README.md");
+                Find.WindowStack.Add(new Dialog_Wiki());
             }
             
             var outRect = new Rect(0, 70f, inRect.width, inRect.height - 120f);
