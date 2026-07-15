@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -53,6 +54,16 @@ namespace RimSynapse.Patches
             if (totalDamageDealt > 0f)
             {
                 SynapsePossessionManager.OnPawnTookDamage(__instance);
+                if (__instance.IsColonist)
+                {
+                    var extra = new Dictionary<string, string>
+                    {
+                        { "damageAmount", totalDamageDealt.ToString("F1") },
+                        { "damageDef", dinfo.Def?.defName ?? "Unknown" },
+                        { "instigator", dinfo.Instigator?.LabelShort ?? "Unknown" }
+                    };
+                    SynapseTriggerManager.TriggerEvent("PawnInjured", __instance, extra);
+                }
             }
         }
     }

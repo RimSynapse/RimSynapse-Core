@@ -153,6 +153,11 @@ namespace RimSynapse
                 Find.WindowStack.Add(new RimSynapse.UI.Dialog_TestBench());
             }
 
+            if (listing.ButtonText("Open God Mode Window"))
+            {
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_GodMode());
+            }
+
             listing.Gap(6f);
 
             listing.CheckboxLabeled("Auto-map to active model",

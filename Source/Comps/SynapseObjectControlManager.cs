@@ -18,6 +18,9 @@ namespace RimSynapse
         // Tracks hacking cooldowns: Thing -> cooldown expiration game tick
         public static Dictionary<Thing, int> HackCooldowns = new Dictionary<Thing, int>();
 
+        // Tracks door lock states: Door ThingID -> locked
+        public static HashSet<string> LockedDoors = new HashSet<string>();
+
         public static bool IsSabotaged(Building_Turret turret)
         {
             if (turret == null) return false;

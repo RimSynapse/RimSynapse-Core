@@ -24,7 +24,7 @@ namespace RimSynapse.Patches
     {
         public static bool Prefix(Building_Door __instance, ref bool __result)
         {
-            if (SynapseObjectControlManager.IsHacked(__instance))
+            if (SynapseObjectControlManager.IsHacked(__instance) || SynapseObjectControlManager.LockedDoors.Contains(__instance.ThingID))
             {
                 __result = false; // Remotely locked
                 return false; // Skip vanilla open logic

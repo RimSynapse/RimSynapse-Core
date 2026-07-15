@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -14,6 +15,7 @@ namespace RimSynapse
         public string description;
         public object parameters; // JSON Schema parameter description
         public Func<string, string> handler;
+        public bool isDebugAction = false;
     }
 
     public static class SynapseToolRegistry
@@ -23,14 +25,16 @@ namespace RimSynapse
 
         public static Func<Pawn, string, string, int?, int?, bool> CustomBreakHandler;
 
-        public static void RegisterTool(string name, string description, object parametersSchema, Func<string, string> handler)
+        public static void RegisterTool(string name, string description, object parametersSchema, Func<string, string> handler, bool isDebug = false)
         {
+            EnsureInitialized();
             _tools[name] = new GameTool
             {
                 name = name,
                 description = description,
                 parameters = parametersSchema,
-                handler = handler
+                handler = handler,
+                isDebugAction = isDebug
             };
         }
 
@@ -40,6 +44,15 @@ namespace RimSynapse
             {
                 EnsureInitialized();
                 return _tools.Values;
+            }
+        }
+
+        public static IEnumerable<GameTool> NonDebugTools
+        {
+            get
+            {
+                EnsureInitialized();
+                return _tools.Values.Where(t => !t.isDebugAction);
             }
         }
 
@@ -67,6 +80,7 @@ namespace RimSynapse
 
             // Register Built-in Tools
             RegisterBuiltInTools();
+            RegisterDynamicDebugActions();
         }
 
         private static void RegisterBuiltInTools()
@@ -1190,6 +1204,415 @@ Decide conflict resolution.";
                     }
                 }
             );
+
+            // 13. Modify Pawn State Tool
+            RegisterTool(
+                "modify_pawn_state",
+                "Apply direct modifications to a colonist's health (hediffs), traits, skills, or conversion to an ideology.",
+                new Dictionary<string, object>
+                {
+                    ["type"] = "object",
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["pawnName"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The name of the target colonist."
+                        },
+                        ["action"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The modification type to perform: 'add_hediff', 'remove_body_part', 'convert', 'add_trait', 'remove_trait', 'set_skill'."
+                        },
+                        ["hediffName"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The Def name of the hediff to add (e.g. Cut, WoundInfection, Flu, Catatonic)."
+                        },
+                        ["bodyPart"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The Def name of the body part to modify or remove (e.g. LeftArm, RightEye, Brain)."
+                        },
+                        ["severity"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "number",
+                            ["description"] = "Optional severity for added hediffs (usually 0.0 to 1.0)."
+                        },
+                        ["ideoName"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The name of the target ideology for conversion."
+                        },
+                        ["traitName"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The Def name of the trait to add or remove."
+                        },
+                        ["degree"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "integer",
+                            ["description"] = "Optional degree for added traits."
+                        },
+                        ["skillName"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The Def name of the skill to set."
+                        },
+                        ["level"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "integer",
+                            ["description"] = "The level of the skill to set (0 to 20)."
+                        }
+                    },
+                    ["required"] = new List<string> { "pawnName", "action" }
+                },
+                args =>
+                {
+                    if (Find.CurrentMap == null) return "{\"success\": false, \"reason\": \"No active map loaded.\"}";
+                    try
+                    {
+                        var parsedArgs = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (parsedArgs == null || !parsedArgs.TryGetValue("pawnName", out var pawnVal) || !parsedArgs.TryGetValue("action", out var actionVal))
+                        {
+                            return "{\"success\": false, \"reason\": \"Missing required arguments 'pawnName' or 'action'.\"}";
+                        }
+
+                        string pawnName = pawnVal?.ToString();
+                        string action = actionVal?.ToString();
+
+                        Pawn pawn = Find.CurrentMap.mapPawns.FreeColonists.FirstOrDefault(p => p.LabelShort.Equals(pawnName, StringComparison.OrdinalIgnoreCase));
+                        if (pawn == null)
+                        {
+                            return $"{{\"success\": false, \"reason\": \"Colonist '{pawnName}' not found.\"}}";
+                        }
+
+                        string hediffName = parsedArgs.TryGetValue("hediffName", out var hn) ? hn?.ToString() : null;
+                        string bodyPart = parsedArgs.TryGetValue("bodyPart", out var bp) ? bp?.ToString() : null;
+                        float? severity = null;
+                        if (parsedArgs.TryGetValue("severity", out var sevVal) && sevVal != null && float.TryParse(sevVal.ToString(), out float fSev)) severity = fSev;
+                        
+                        string ideoName = parsedArgs.TryGetValue("ideoName", out var idn) ? idn?.ToString() : null;
+                        string traitName = parsedArgs.TryGetValue("traitName", out var trn) ? trn?.ToString() : null;
+                        int? degree = null;
+                        if (parsedArgs.TryGetValue("degree", out var degVal) && degVal != null && int.TryParse(degVal.ToString(), out int iDeg)) degree = iDeg;
+
+                        string skillName = parsedArgs.TryGetValue("skillName", out var skn) ? skn?.ToString() : null;
+                        int? level = null;
+                        if (parsedArgs.TryGetValue("level", out var lvlVal) && lvlVal != null && int.TryParse(lvlVal.ToString(), out int iLvl)) level = iLvl;
+
+                        if (action.Equals("add_hediff", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (string.IsNullOrEmpty(hediffName)) return "{\"success\": false, \"reason\": \"Missing 'hediffName' parameter.\"}";
+                            HediffDef hediffDef = DefDatabase<HediffDef>.GetNamedSilentFail(hediffName);
+                            if (hediffDef == null) return $"{{\"success\": false, \"reason\": \"HediffDef '{hediffName}' not found.\"}}";
+
+                            BodyPartRecord part = null;
+                            if (!string.IsNullOrEmpty(bodyPart))
+                            {
+                                part = pawn.RaceProps.body.AllParts.FirstOrDefault(p => p.def.defName.Equals(bodyPart, StringComparison.OrdinalIgnoreCase));
+                                if (part == null) return $"{{\"success\": false, \"reason\": \"BodyPartRecord '{bodyPart}' not found on pawn.\"}}";
+                            }
+
+                            Hediff hediff = HediffMaker.MakeHediff(hediffDef, pawn, part);
+                            if (severity.HasValue) hediff.Severity = severity.Value;
+                            pawn.health.AddHediff(hediff, part, null, null);
+
+                            return $"{{\"success\": true, \"message\": \"Successfully added hediff '{hediffName}' to {pawnName}.\"}}";
+                        }
+                        else if (action.Equals("remove_body_part", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (string.IsNullOrEmpty(bodyPart)) return "{\"success\": false, \"reason\": \"Missing 'bodyPart' parameter.\"}";
+                            BodyPartRecord part = pawn.RaceProps.body.AllParts.FirstOrDefault(p => p.def.defName.Equals(bodyPart, StringComparison.OrdinalIgnoreCase));
+                            if (part == null) return $"{{\"success\": false, \"reason\": \"BodyPartRecord '{bodyPart}' not found on pawn.\"}}";
+
+                            pawn.health.AddHediff(HediffMaker.MakeHediff(HediffDefOf.MissingBodyPart, pawn, part), part, null, null);
+                            return $"{{\"success\": true, \"message\": \"Successfully amputated/removed body part '{bodyPart}' from {pawnName}.\"}}";
+                        }
+                        else if (action.Equals("convert", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (string.IsNullOrEmpty(ideoName)) return "{\"success\": false, \"reason\": \"Missing 'ideoName' parameter.\"}";
+                            if (!ModsConfig.IdeologyActive || pawn.Ideo == null) return "{\"success\": false, \"reason\": \"Ideology DLC is not active or target has no ideology.\"}";
+
+                            Ideo targetIdeo = Find.IdeoManager.IdeosListForReading.FirstOrDefault(i => i.name.Equals(ideoName, StringComparison.OrdinalIgnoreCase));
+                            if (targetIdeo == null) return $"{{\"success\": false, \"reason\": \"Ideology '{ideoName}' not found.\"}}";
+
+                            pawn.ideo.SetIdeo(targetIdeo);
+                            return $"{{\"success\": true, \"message\": \"Successfully converted {pawnName} to {ideoName}.\"}}";
+                        }
+                        else if (action.Equals("add_trait", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (string.IsNullOrEmpty(traitName)) return "{\"success\": false, \"reason\": \"Missing 'traitName' parameter.\"}";
+                            TraitDef traitDef = DefDatabase<TraitDef>.GetNamedSilentFail(traitName);
+                            if (traitDef == null) return $"{{\"success\": false, \"reason\": \"TraitDef '{traitName}' not found.\"}}";
+
+                            pawn.story.traits.GainTrait(new Trait(traitDef, degree ?? 0));
+                            return $"{{\"success\": true, \"message\": \"Successfully added trait '{traitName}' to {pawnName}.\"}}";
+                        }
+                        else if (action.Equals("remove_trait", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (string.IsNullOrEmpty(traitName)) return "{\"success\": false, \"reason\": \"Missing 'traitName' parameter.\"}";
+                            TraitDef traitDef = DefDatabase<TraitDef>.GetNamedSilentFail(traitName);
+                            if (traitDef == null) return $"{{\"success\": false, \"reason\": \"TraitDef '{traitName}' not found.\"}}";
+
+                            if (pawn.story.traits.HasTrait(traitDef))
+                            {
+                                var trait = pawn.story.traits.GetTrait(traitDef);
+                                pawn.story.traits.allTraits.Remove(trait);
+                                return $"{{\"success\": true, \"message\": \"Successfully removed trait '{traitName}' from {pawnName}.\"}}";
+                            }
+                            return $"{{\"success\": false, \"reason\": \"{pawnName} does not have trait '{traitName}'.\"}}";
+                        }
+                        else if (action.Equals("set_skill", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (string.IsNullOrEmpty(skillName)) return "{\"success\": false, \"reason\": \"Missing 'skillName' parameter.\"}";
+                            if (!level.HasValue) return "{\"success\": false, \"reason\": \"Missing 'level' parameter.\"}";
+
+                            SkillDef skillDef = DefDatabase<SkillDef>.GetNamedSilentFail(skillName);
+                            if (skillDef == null) return $"{{\"success\": false, \"reason\": \"SkillDef '{skillName}' not found.\"}}";
+
+                            var record = pawn.skills.GetSkill(skillDef);
+                            if (record == null) return $"{{\"success\": false, \"reason\": \"Skill record '{skillName}' not found on {pawnName}.\"}}";
+
+                            record.Level = level.Value;
+                            return $"{{\"success\": true, \"message\": \"Successfully set skill '{skillName}' level to {level.Value} for {pawnName}.\"}}";
+                        }
+
+                        return $"{{\"success\": false, \"reason\": \"Unknown action '{action}'.\"}}";
+                    }
+                    catch (Exception ex)
+                    {
+                        return $"{{\"success\": false, \"reason\": \"Modifying pawn state failed: {ex.Message}\"}}";
+                    }
+                }
+            );
+
+            // 14. Modify Object State Tool
+            RegisterTool(
+                "modify_object_state",
+                "Apply direct modifications to an object/structure on the map (locks, power status, fuel levels, damage, fire).",
+                new Dictionary<string, object>
+                {
+                    ["type"] = "object",
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["thingId"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The unique load ID (ThingID) of the target object."
+                        },
+                        ["action"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The modification type: 'set_power', 'set_fuel', 'inflict_damage', 'set_door_lock', 'spawn_fire'."
+                        },
+                        ["powerOn"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "Target power status for set_power."
+                        },
+                        ["fuelAmount"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "number",
+                            ["description"] = "Target fuel amount for set_fuel."
+                        },
+                        ["damageAmount"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "integer",
+                            ["description"] = "Damage points to deal for inflict_damage."
+                        },
+                        ["locked"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "Lock state for set_door_lock."
+                        }
+                    },
+                    ["required"] = new List<string> { "thingId", "action" }
+                },
+                args =>
+                {
+                    if (Find.CurrentMap == null) return "{\"success\": false, \"reason\": \"No active map loaded.\"}";
+                    try
+                    {
+                        var parsedArgs = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (parsedArgs == null || !parsedArgs.TryGetValue("thingId", out var idVal) || !parsedArgs.TryGetValue("action", out var actionVal))
+                        {
+                            return "{\"success\": false, \"reason\": \"Missing required arguments 'thingId' or 'action'.\"}";
+                        }
+
+                        string thingId = idVal?.ToString();
+                        string action = actionVal?.ToString();
+
+                        Thing thing = null;
+                        foreach (var map in Find.Maps)
+                        {
+                            thing = map.listerThings.AllThings.FirstOrDefault(t => t.ThingID == thingId);
+                            if (thing != null) break;
+                        }
+
+                        if (thing == null)
+                        {
+                            return $"{{\"success\": false, \"reason\": \"Object with ID '{thingId}' not found on any map.\"}}";
+                        }
+
+                        bool? powerOn = null;
+                        if (parsedArgs.TryGetValue("powerOn", out var pVal) && pVal != null && bool.TryParse(pVal.ToString(), out bool bPower)) powerOn = bPower;
+
+                        float? fuelAmount = null;
+                        if (parsedArgs.TryGetValue("fuelAmount", out var fVal) && fVal != null && float.TryParse(fVal.ToString(), out float fFuel)) fuelAmount = fFuel;
+
+                        int? damageAmount = null;
+                        if (parsedArgs.TryGetValue("damageAmount", out var dVal) && dVal != null && int.TryParse(dVal.ToString(), out int iDmg)) damageAmount = iDmg;
+
+                        bool? locked = null;
+                        if (parsedArgs.TryGetValue("locked", out var lVal) && lVal != null && bool.TryParse(lVal.ToString(), out bool bLock)) locked = bLock;
+
+                        if (action.Equals("set_power", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!powerOn.HasValue) return "{\"success\": false, \"reason\": \"Missing 'powerOn' parameter.\"}";
+                            var compPower = thing.TryGetComp<CompPowerTrader>();
+                            if (compPower == null) return "{\"success\": false, \"reason\": \"Target object is not power-grid connectable (no CompPowerTrader).\"}";
+
+                            compPower.PowerOn = powerOn.Value;
+                            return $"{{\"success\": true, \"message\": \"Successfully set power status of {thing.LabelCap} to {powerOn.Value}.\"}}";
+                        }
+                        else if (action.Equals("set_fuel", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!fuelAmount.HasValue) return "{\"success\": false, \"reason\": \"Missing 'fuelAmount' parameter.\"}";
+                            var compRefuelable = thing.TryGetComp<CompRefuelable>();
+                            if (compRefuelable == null) return "{\"success\": false, \"reason\": \"Target object is not refuelable (no CompRefuelable).\"}";
+
+                            compRefuelable.Refuel(fuelAmount.Value - compRefuelable.Fuel);
+                            return $"{{\"success\": true, \"message\": \"Successfully set fuel of {thing.LabelCap} to {compRefuelable.Fuel:F1}.\"}}";
+                        }
+                        else if (action.Equals("inflict_damage", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!damageAmount.HasValue) return "{\"success\": false, \"reason\": \"Missing 'damageAmount' parameter.\"}";
+                            thing.TakeDamage(new DamageInfo(DamageDefOf.Bomb, damageAmount.Value));
+                            return $"{{\"success\": true, \"message\": \"Successfully dealt {damageAmount.Value} damage to {thing.LabelCap}.\"}}";
+                        }
+                        else if (action.Equals("set_door_lock", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!locked.HasValue) return "{\"success\": false, \"reason\": \"Missing 'locked' parameter.\"}";
+                            if (!(thing is Building_Door)) return "{\"success\": false, \"reason\": \"Target object is not a door.\"}";
+
+                            if (locked.Value)
+                            {
+                                SynapseObjectControlManager.LockedDoors.Add(thingId);
+                            }
+                            else
+                            {
+                                SynapseObjectControlManager.LockedDoors.Remove(thingId);
+                            }
+                            return $"{{\"success\": true, \"message\": \"Successfully set door lock status of {thing.LabelCap} to {locked.Value}.\"}}";
+                        }
+                        else if (action.Equals("spawn_fire", StringComparison.OrdinalIgnoreCase))
+                        {
+                            FireUtility.TryStartFireIn(thing.Position, thing.Map, 0.5f, null);
+                            return $"{{\"success\": true, \"message\": \"Successfully spawned fire on {thing.LabelCap}.\"}}";
+                        }
+
+                        return $"{{\"success\": false, \"reason\": \"Unknown action '{action}'.\"}}";
+                    }
+                    catch (Exception ex)
+                    {
+                        return $"{{\"success\": false, \"reason\": \"Modifying object state failed: {ex.Message}\"}}";
+                    }
+                }
+            );
+        }
+
+        private static void RegisterDynamicDebugActions()
+        {
+            try
+            {
+                var tAttr = HarmonyLib.AccessTools.TypeByName("LudeonTK.DebugActionAttribute");
+                var tEnum = HarmonyLib.AccessTools.TypeByName("LudeonTK.DebugActionType");
+                if (tAttr == null || tEnum == null) return;
+
+                object toolMapForPawnsVal = Enum.Parse(tEnum, "ToolMapForPawns");
+                var actionTypeField = tAttr.GetField("actionType", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var nameField = tAttr.GetField("name", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                var categoryField = tAttr.GetField("category", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                if (actionTypeField == null || nameField == null) return;
+
+                var asm = tAttr.Assembly;
+                var methods = asm.GetTypes()
+                    .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+                    .Where(m =>
+                    {
+                        var attrs = m.GetCustomAttributes(tAttr, true);
+                        if (attrs.Length == 0) return false;
+                        var attr = attrs[0];
+                        object val = actionTypeField.GetValue(attr);
+                        if (val == null) return false;
+                        if ((int)val != (int)toolMapForPawnsVal) return false;
+                        var gps = m.GetParameters();
+                        return gps.Length == 1 && gps[0].ParameterType == typeof(Pawn);
+                    })
+                    .ToList();
+
+                foreach (var method in methods)
+                {
+                    var attrs = method.GetCustomAttributes(tAttr, true);
+                    var attr = attrs[0];
+                    string debugName = nameField.GetValue(attr)?.ToString() ?? method.Name;
+                    string category = categoryField?.GetValue(attr)?.ToString() ?? "Other";
+                    
+                    string typePrefix = method.DeclaringType.Name.Replace("DebugTools", "").Replace("DebugActions", "").ToLower();
+                    string toolName = "debug_pawn_" + (string.IsNullOrEmpty(typePrefix) ? "" : typePrefix + "_") + method.Name.ToLower();
+
+                    // Avoid duplicate registrations
+                    RegisterTool(
+                        toolName,
+                        $"[DEBUG ACTION] {debugName} (Category: {category}). Directly invokes the game's debug option on the specified colonist.",
+                        new Dictionary<string, object>
+                        {
+                            ["type"] = "object",
+                            ["properties"] = new Dictionary<string, object>
+                            {
+                                ["pawnName"] = new Dictionary<string, string>
+                                {
+                                    ["type"] = "string",
+                                    ["description"] = "The name of the target colonist/pawn."
+                                }
+                            },
+                            ["required"] = new List<string> { "pawnName" }
+                        },
+                        args =>
+                        {
+                            if (Find.CurrentMap == null) return "{\"success\": false, \"reason\": \"No active map loaded.\"}";
+                            try
+                            {
+                                var parsedArgs = JsonConvert.DeserializeObject<Dictionary<string, string>>(args);
+                                if (parsedArgs == null || !parsedArgs.TryGetValue("pawnName", out var pawnName))
+                                {
+                                    return "{\"success\": false, \"reason\": \"Missing required argument 'pawnName'.\"}";
+                                }
+
+                                Pawn pawn = Find.CurrentMap.mapPawns.AllPawns.FirstOrDefault(p => p.LabelShort.Equals(pawnName, StringComparison.OrdinalIgnoreCase));
+                                if (pawn == null)
+                                {
+                                    return $"{{\"success\": false, \"reason\": \"Pawn '{pawnName}' not found on active map.\"}}";
+                                }
+
+                                method.Invoke(null, new object[] { pawn });
+                                return $"{{\"success\": true, \"message\": \"Invoked debug action '{debugName}' on pawn '{pawnName}' successfully.\"}}";
+                            }
+                            catch (Exception ex)
+                            {
+                                return $"{{\"success\": false, \"reason\": \"Failed to execute debug action: {ex.Message}\"}}";
+                            }
+                        },
+                        true
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimSynapse] Failed to dynamically register debug actions: {ex.Message}");
+            }
         }
 
         private static string AbstractifyText(string text)

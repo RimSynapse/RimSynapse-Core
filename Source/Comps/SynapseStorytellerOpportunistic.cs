@@ -510,7 +510,7 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
                 SystemPrompt = systemPrompt,
                 Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
                 EnforceJson = true,
-                Tools = SynapseToolRegistry.AllTools.Select(t => new GameToolDefinition
+                Tools = SynapseToolRegistry.NonDebugTools.Select(t => new GameToolDefinition
                 {
                     name = t.name,
                     description = t.description,
@@ -702,7 +702,7 @@ Provide the incident def name.";
                 SystemPrompt = systemPrompt,
                 Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
                 EnforceJson = true,
-                Tools = SynapseToolRegistry.AllTools.Select(t => new GameToolDefinition
+                Tools = SynapseToolRegistry.NonDebugTools.Select(t => new GameToolDefinition
                 {
                     name = t.name,
                     description = t.description,

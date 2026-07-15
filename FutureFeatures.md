@@ -27,3 +27,13 @@ Instead of pre-calculating and pushing static colony data packets, Core exposes 
 10. `control_turret`: Directly toggles turret power states, redirects targeting to friendly colonists (if sabotaged), or triggers an emergency bomb detonation (self-destruct).
 11. `attempt_remote_hack`: Tries to remotely breach a target object's firewall. Requires active network gateways (comms console and nearby Hacker Base).
 12. `spawn_hacker_base`: Spawns a hostile transceiver outpost on the world map within 8 tiles of the colony to begin hacking attempts.
+13. `modify_pawn_state`: Apply direct modifications to a colonist's health (hediffs), traits, skills (using public properties), or conversion.
+14. `modify_object_state`: Directly alter structures on the map (locks, power status, fuel levels, damage, fire).
+
+---
+
+## 3. NLP XML Modding & Action Console (Completed)
+- **XML Triggers (`SynapseTriggerDef`)**: Modders can write plain English rules in XML Def files mapping hooks like `PawnInjured` or `PawnMentalBreak` to natural language conditions and instructions.
+- **Trigger Manager (`SynapseTriggerManager`)**: When hooked events fire, automatically compiles target pawn state context and uses the LLM to parse rules against C# tool schemas to execute changes.
+- **God Mode Console (`Dialog_GodMode`)**: Developer-facing console window in mod settings for executing plain-text actions (e.g., setting skills, locking doors, spawning fires) using MCP tools.
+- **Dynamic [DebugAction] Scanner**: Reflects over LudeonTK's debug toolkit at runtime to dynamically register over 80+ pawn-related debug tools to the LLM, keeping them in the background (filtered out of storyteller pacing loops) to maintain minimal context windows.
