@@ -25,16 +25,38 @@ namespace RimSynapse.Comps
             var coreComp = Find.World.GetComponent<RimSynapse.SynapseCoreWorldComponent>();
             if (coreComp == null) yield break;
 
+            var settings = RimSynapseMod.Instance?.Settings;
+
             if (Find.CurrentMap != null)
             {
                 int currentHour = GenLocalDate.HourOfDay(Find.CurrentMap);
+                bool triggerPacing = false;
 
-                // Check every 6 hours
-                if (currentHour % 6 == 0 && coreComp.lastInvestigationHour != currentHour)
+                if (settings?.enableTrainingMode == true && settings?.fastTelemetryMode == true)
+                {
+                    triggerPacing = (Find.TickManager.TicksGame % 1000 == 0);
+                }
+                else
+                {
+                    triggerPacing = (currentHour % 6 == 0 && coreComp.lastInvestigationHour != currentHour);
+                }
+
+                if (triggerPacing)
                 {
                     coreComp.lastInvestigationHour = currentHour;
                     RimSynapse.Comps.SynapseStorytellerOpportunistic.TriggerPacingAdjustment();
                 }
+            }
+
+            if (settings?.enableTrainingMode == true && settings?.fastTelemetryMode == true)
+            {
+                if (Find.TickManager.TicksGame % 2000 == 0)
+                {
+                    var categories = new List<IncidentCategoryDef> { IncidentCategoryDefOf.ThreatBig, IncidentCategoryDefOf.ThreatSmall, IncidentCategoryDefOf.Misc };
+                    var category = categories.RandomElement();
+                    RimSynapse.Comps.SynapseStorytellerOpportunistic.TriggerEventSelection(category, target);
+                }
+                yield break;
             }
 
             float pacingMultiplier = coreComp.GlobalPacingMultiplier;

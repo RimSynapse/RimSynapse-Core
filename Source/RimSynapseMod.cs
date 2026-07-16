@@ -254,7 +254,31 @@ namespace RimSynapse
                 ref Settings.traceDebugMode,
                 "Dumps the full JSON context sent to LM Studio into the standard developer console for troubleshooting.");
 
-            listing.Gap(12f);
+            listing.Gap(6f);
+            listing.CheckboxLabeled("Enable Storyteller Fine-Tuning Curation",
+                ref Settings.enableTrainingMode,
+                "Automatically saves prompt and response data in JSONL format to standard save folder for Gemma 4 fine-tuning.");
+
+            if (Settings.enableTrainingMode)
+            {
+                listing.Gap(2f);
+                listing.CheckboxLabeled("  Enable Storyteller Fast-Telemetry Mode (Dev)",
+                    ref Settings.fastTelemetryMode,
+                    "Runs storyteller evaluations much more frequently (every 1000 ticks) to quickly generate large datasets. Use in Speed 4 (Dev) mode for optimal results.");
+
+                listing.Gap(2f);
+                listing.Label("  Dataset Output Directory (leave blank for default):");
+                Settings.trainingDataDirectory = listing.TextEntry(Settings.trainingDataDirectory);
+
+                listing.Gap(4f);
+                Rect clearBtnRect = listing.GetRect(24f);
+                clearBtnRect.xMin += 15f; // Indent slightly
+                clearBtnRect.width = 220f;
+                if (Widgets.ButtonText(clearBtnRect, "Clear Curation Datasets"))
+                {
+                    ClearTrainingDataFiles();
+                }
+            }
             listing.Label("DLC Context Testing", tooltip: "Simulate disabling DLCs for LLM context generation while they are physically loaded.");
             listing.GapLine();
             if (ModsConfig.IdeologyActive) listing.CheckboxLabeled("Include Ideology Context", ref Settings.testIdeologyActive);
@@ -319,6 +343,25 @@ namespace RimSynapse
             listing.End();
             _viewHeight = listing.CurHeight;
             Widgets.EndScrollView();
+        }
+
+        private void ClearTrainingDataFiles()
+        {
+            try
+            {
+                string dir = Settings.GetTrainingDirectory();
+                string path1 = System.IO.Path.Combine(dir, "training_data.jsonl");
+                string path2 = System.IO.Path.Combine(dir, "debug_training_data.jsonl");
+
+                if (System.IO.File.Exists(path1)) System.IO.File.Delete(path1);
+                if (System.IO.File.Exists(path2)) System.IO.File.Delete(path2);
+
+                Messages.Message("RimSynapse training dataset files cleared successfully.", RimWorld.MessageTypeDefOf.PositiveEvent, false);
+            }
+            catch (System.Exception ex)
+            {
+                Log.Error($"[RimSynapse] Failed to clear training data files: {ex.Message}");
+            }
         }
 
     }

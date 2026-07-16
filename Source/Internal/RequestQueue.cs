@@ -591,6 +591,42 @@ namespace RimSynapse.Internal
                     SynapseLogger.Message(respLog.ToString(), requestToProcess.Mod?.ModId);
                 }
 
+                // ── Telemetry Fine-Tuning Logger ──
+                if (success && settings?.enableTrainingMode == true && requestToProcess.Payload is LlmTextRequest textRequest && resultObj is ChatResult cResult)
+                {
+                    try
+                    {
+                        string sys = "";
+                        string usr = "";
+                        foreach (var m in textRequest.Messages)
+                        {
+                            if (m.role == "system") sys = m.content;
+                            else if (m.role == "user") usr = m.content;
+                        }
+
+                        if (!string.IsNullOrEmpty(usr) && !string.IsNullOrEmpty(cResult.content))
+                        {
+                            var row = new Dictionary<string, string>
+                            {
+                                ["instruction"] = sys,
+                                ["input"] = usr,
+                                ["output"] = cResult.content
+                            };
+                            string jsonLine = Newtonsoft.Json.JsonConvert.SerializeObject(row) + "\n";
+                            string saveDir = settings.GetTrainingDirectory();
+                            if (!System.IO.Directory.Exists(saveDir))
+                            {
+                                System.IO.Directory.CreateDirectory(saveDir);
+                            }
+                            System.IO.File.AppendAllText(System.IO.Path.Combine(saveDir, "training_data.jsonl"), jsonLine);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        SynapseLogger.Warning($"Failed to write training data line: {ex.Message}");
+                    }
+                }
+
                 // Invoke callback
                 var cb = requestToProcess.Callback;
                 if (cb != null)

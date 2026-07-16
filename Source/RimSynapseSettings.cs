@@ -157,10 +157,22 @@ namespace RimSynapse
 
         // --- Logging & Troubleshooting ---
         public bool traceDebugMode = false;
+        public bool enableTrainingMode = false;
+        public bool fastTelemetryMode = false;
+        public string trainingDataDirectory = "";
         public bool testIdeologyActive = true;
         public bool testRoyaltyActive = true;
         public bool testBiotechActive = true;
         public bool testAnomalyActive = true;
+
+        public string GetTrainingDirectory()
+        {
+            if (string.IsNullOrEmpty(trainingDataDirectory))
+            {
+                return System.IO.Path.Combine(GenFilePaths.SaveDataFolderPath, "RimSynapse");
+            }
+            return trainingDataDirectory;
+        }
 
         // --- Notifications ---
         /// <summary>Show VRAM status on game load (default: true). Disable in settings.</summary>
@@ -266,6 +278,9 @@ namespace RimSynapse
             Scribe_Values.Look(ref maxPacingContextTokens, "maxPacingContextTokens", 4096);
             Scribe_Values.Look(ref shortTermMemoryHours, "shortTermMemoryHours", 48f);
             Scribe_Values.Look(ref traceDebugMode, "traceDebugMode", false);
+            Scribe_Values.Look(ref enableTrainingMode, "enableTrainingMode", false);
+            Scribe_Values.Look(ref fastTelemetryMode, "fastTelemetryMode", false);
+            Scribe_Values.Look(ref trainingDataDirectory, "trainingDataDirectory", "");
             Scribe_Values.Look(ref testIdeologyActive, "testIdeologyActive", true);
             Scribe_Values.Look(ref testRoyaltyActive, "testRoyaltyActive", true);
             Scribe_Values.Look(ref testBiotechActive, "testBiotechActive", true);

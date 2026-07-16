@@ -24,6 +24,41 @@ namespace RimSynapse.Comps
 
     public static class SynapseStorytellerOpportunistic
     {
+        private static TimeSpeed _preQuerySpeed = TimeSpeed.Normal;
+        private static int _activeQueriesCount = 0;
+        private static readonly object _speedLock = new object();
+
+        private static void PauseForTelemetry()
+        {
+            if (RimSynapseMod.Instance?.Settings?.enableTrainingMode != true || RimSynapseMod.Instance?.Settings?.fastTelemetryMode != true)
+                return;
+
+            lock (_speedLock)
+            {
+                if (_activeQueriesCount == 0)
+                {
+                    _preQuerySpeed = Find.TickManager.CurTimeSpeed;
+                    Find.TickManager.CurTimeSpeed = TimeSpeed.Paused;
+                }
+                _activeQueriesCount++;
+            }
+        }
+
+        private static void ResumeAfterTelemetry()
+        {
+            if (RimSynapseMod.Instance?.Settings?.enableTrainingMode != true || RimSynapseMod.Instance?.Settings?.fastTelemetryMode != true)
+                return;
+
+            lock (_speedLock)
+            {
+                _activeQueriesCount = Math.Max(0, _activeQueriesCount - 1);
+                if (_activeQueriesCount == 0)
+                {
+                    Find.TickManager.CurTimeSpeed = _preQuerySpeed;
+                }
+            }
+        }
+
         private static string GetToolsTextList()
         {
             int maxBudget = RimSynapseMod.Instance?.Settings?.maxPacingContextTokens ?? 4096;
@@ -593,72 +628,90 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
                 Tools = null // Keep pass 1 extremely small and fast
             };
 
+            PauseForTelemetry();
             SynapseClient.SendTextAsync(
                 RimSynapseMod.ModHandle,
                 request,
                 new ChatOptions { queryId = "storyteller_pacing", priority = 1, requestName = "Storyteller Pacing", targetName = "Colony" },
                 result =>
                 {
-                    if (result.success)
+                    bool runSecondPass = false;
+                    try
                     {
-                        try
+                        if (result.success)
                         {
                             string json = JsonHelper.ExtractJson(result.content);
-                            if (json == null) return;
-
-                            var parsed = JsonConvert.DeserializeObject<PacingAdjustmentResult>(json);
-                            if (parsed != null)
+                            if (json != null)
                             {
-                                if (parsed.RequestTools != null && parsed.RequestTools.Count > 0)
+                                var parsed = JsonConvert.DeserializeObject<PacingAdjustmentResult>(json);
+                                if (parsed != null)
                                 {
-                                    var secondRequest = new LlmTextRequest
+                                    if (parsed.RequestTools != null && parsed.RequestTools.Count > 0)
                                     {
-                                        SystemPrompt = systemPrompt + "\n\nYou requested tools: " + string.Join(", ", parsed.RequestTools) + ". Call them directly now to retrieve the necessary info, and then return the final pacing JSON output.",
-                                        Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
-                                        EnforceJson = true,
-                                        Tools = SynapseToolRegistry.AllTools
-                                            .Where(t => parsed.RequestTools.Contains(t.name))
-                                            .Select(t => new GameToolDefinition
-                                            {
-                                                name = t.name,
-                                                description = t.description,
-                                                parameters = t.parameters
-                                            }).ToList()
-                                    };
-
-                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Pacing requested tools: {string.Join(", ", parsed.RequestTools)}. Running second pass...");
-
-                                    SynapseClient.SendTextAsync(
-                                        RimSynapseMod.ModHandle,
-                                        secondRequest,
-                                        new ChatOptions { queryId = "storyteller_pacing_pass2", priority = 1, requestName = "Storyteller Pacing Pass 2", targetName = "Colony" },
-                                        secondResult =>
+                                        runSecondPass = true;
+                                        var secondRequest = new LlmTextRequest
                                         {
-                                            if (secondResult.success)
+                                            SystemPrompt = systemPrompt + "\n\nYou requested tools: " + string.Join(", ", parsed.RequestTools) + ". Call them directly now to retrieve the necessary info, and then return the final pacing JSON output.",
+                                            Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
+                                            EnforceJson = true,
+                                            Tools = SynapseToolRegistry.AllTools
+                                                .Where(t => parsed.RequestTools.Contains(t.name))
+                                                .Select(t => new GameToolDefinition
+                                                {
+                                                    name = t.name,
+                                                    description = t.description,
+                                                    parameters = t.parameters
+                                                }).ToList()
+                                        };
+
+                                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Pacing requested tools: {string.Join(", ", parsed.RequestTools)}. Running second pass...");
+
+                                        SynapseClient.SendTextAsync(
+                                            RimSynapseMod.ModHandle,
+                                            secondRequest,
+                                            new ChatOptions { queryId = "storyteller_pacing_pass2", priority = 1, requestName = "Storyteller Pacing Pass 2", targetName = "Colony" },
+                                            secondResult =>
                                             {
                                                 try
                                                 {
-                                                    string secondJson = JsonHelper.ExtractJson(secondResult.content);
-                                                    if (secondJson == null) return;
-                                                    var secondParsed = JsonConvert.DeserializeObject<PacingAdjustmentResult>(secondJson);
-                                                    ApplyPacingAdjustment(secondParsed);
+                                                    if (secondResult.success)
+                                                    {
+                                                        string secondJson = JsonHelper.ExtractJson(secondResult.content);
+                                                        if (secondJson != null)
+                                                        {
+                                                            var secondParsed = JsonConvert.DeserializeObject<PacingAdjustmentResult>(secondJson);
+                                                            ApplyPacingAdjustment(secondParsed);
+                                                        }
+                                                    }
                                                 }
                                                 catch (Exception ex)
                                                 {
                                                     RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse pacing second pass: {ex.Message}");
                                                 }
+                                                finally
+                                                {
+                                                    ResumeAfterTelemetry();
+                                                }
                                             }
-                                        }
-                                    );
-                                    return;
+                                        );
+                                    }
+                                    else
+                                    {
+                                        ApplyPacingAdjustment(parsed);
+                                    }
                                 }
-
-                                ApplyPacingAdjustment(parsed);
                             }
                         }
-                        catch (Exception ex)
+                    }
+                    catch (Exception ex)
+                    {
+                        RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse pacing response: {ex.Message}");
+                    }
+                    finally
+                    {
+                        if (!runSecondPass)
                         {
-                            RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse pacing response: {ex.Message}");
+                            ResumeAfterTelemetry();
                         }
                     }
                 }
@@ -830,6 +883,7 @@ Provide the incident def name.";
                 Tools = null // Keep pass 1 extremely small and fast
             };
 
+            PauseForTelemetry();
             SynapseClient.SendTextAsync(
                 RimSynapseMod.ModHandle,
                 request,
@@ -841,66 +895,83 @@ Provide the incident def name.";
                         coreWorldComp.GlobalPacingMultiplier = coreWorldComp.BasePacingMultiplier;
                     }
 
-                    if (result.success)
+                    bool runSecondPass = false;
+                    try
                     {
-                        try
+                        if (result.success)
                         {
                             string json = JsonHelper.ExtractJson(result.content);
-                            if (json == null) return;
-
-                            var parsed = JsonConvert.DeserializeObject<EventSelectionResult>(json);
-                            if (parsed != null)
+                            if (json != null)
                             {
-                                if (parsed.RequestTools != null && parsed.RequestTools.Count > 0)
+                                var parsed = JsonConvert.DeserializeObject<EventSelectionResult>(json);
+                                if (parsed != null)
                                 {
-                                    var secondRequest = new LlmTextRequest
+                                    if (parsed.RequestTools != null && parsed.RequestTools.Count > 0)
                                     {
-                                        SystemPrompt = systemPrompt + "\n\nYou requested tools: " + string.Join(", ", parsed.RequestTools) + ". Call them directly now to retrieve the necessary info, and then return the final incident selection JSON.",
-                                        Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
-                                        EnforceJson = true,
-                                        Tools = SynapseToolRegistry.AllTools
-                                            .Where(t => parsed.RequestTools.Contains(t.name))
-                                            .Select(t => new GameToolDefinition
-                                            {
-                                                name = t.name,
-                                                description = t.description,
-                                                parameters = t.parameters
-                                            }).ToList()
-                                    };
-
-                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Event Selection requested tools: {string.Join(", ", parsed.RequestTools)}. Running second pass...");
-
-                                    SynapseClient.SendTextAsync(
-                                        RimSynapseMod.ModHandle,
-                                        secondRequest,
-                                        new ChatOptions { queryId = "storyteller_event_selection_pass2", priority = 10, requestName = "Storyteller Event Selection Pass 2", targetName = category.defName },
-                                        secondResult =>
+                                        runSecondPass = true;
+                                        var secondRequest = new LlmTextRequest
                                         {
-                                            if (secondResult.success)
+                                            SystemPrompt = systemPrompt + "\n\nYou requested tools: " + string.Join(", ", parsed.RequestTools) + ". Call them directly now to retrieve the necessary info, and then return the final incident selection JSON.",
+                                            Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
+                                            EnforceJson = true,
+                                            Tools = SynapseToolRegistry.AllTools
+                                                .Where(t => parsed.RequestTools.Contains(t.name))
+                                                .Select(t => new GameToolDefinition
+                                                {
+                                                    name = t.name,
+                                                    description = t.description,
+                                                    parameters = t.parameters
+                                                }).ToList()
+                                        };
+
+                                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Event Selection requested tools: {string.Join(", ", parsed.RequestTools)}. Running second pass...");
+
+                                        SynapseClient.SendTextAsync(
+                                            RimSynapseMod.ModHandle,
+                                            secondRequest,
+                                            new ChatOptions { queryId = "storyteller_event_selection_pass2", priority = 10, requestName = "Storyteller Event Selection Pass 2", targetName = category.defName },
+                                            secondResult =>
                                             {
                                                 try
                                                 {
-                                                    string secondJson = JsonHelper.ExtractJson(secondResult.content);
-                                                    if (secondJson == null) return;
-                                                    var secondParsed = JsonConvert.DeserializeObject<EventSelectionResult>(secondJson);
-                                                    ApplyEventSelection(secondParsed, target);
+                                                    if (secondResult.success)
+                                                    {
+                                                        string secondJson = JsonHelper.ExtractJson(secondResult.content);
+                                                        if (secondJson != null)
+                                                        {
+                                                            var secondParsed = JsonConvert.DeserializeObject<EventSelectionResult>(secondJson);
+                                                            ApplyEventSelection(secondParsed, target);
+                                                        }
+                                                    }
                                                 }
                                                 catch (Exception ex)
                                                 {
                                                     RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse event selection second pass: {ex.Message}");
                                                 }
+                                                finally
+                                                {
+                                                    ResumeAfterTelemetry();
+                                                }
                                             }
-                                        }
-                                    );
-                                    return;
+                                        );
+                                    }
+                                    else
+                                    {
+                                        ApplyEventSelection(parsed, target);
+                                    }
                                 }
-
-                                ApplyEventSelection(parsed, target);
                             }
                         }
-                        catch (Exception ex)
+                    }
+                    catch (Exception ex)
+                    {
+                        RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse event selection: {ex.Message}");
+                    }
+                    finally
+                    {
+                        if (!runSecondPass)
                         {
-                            RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse event selection: {ex.Message}");
+                            ResumeAfterTelemetry();
                         }
                     }
                 }
