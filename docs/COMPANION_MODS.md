@@ -106,17 +106,17 @@ public class ContextSettings
 ## Dependency Chain
 
 ```
-RimSynapse-Core (this repo)     ← LM Studio connector, the foundation
+Core (this repo)     ← LM Studio connector, the foundation
 │   │
-│   ├── RimSynapse-Psychology   ← Pawn personality, weighted memories
+│   ├── Psychology   ← Pawn personality, weighted memories
 │   │   │                      
 │   │   │
-│   │   └── RimSynapse-Conversations    ← In-game dialogue UI
+│   │   └── Conversations    ← In-game dialogue UI
 │   │                             (requires Psychology)
 │   │
-│   └── RimSynapse-Conversations        ← (also directly uses Psychology)
+│   └── Conversations        ← (also directly uses Psychology)
 │
-├── RimSynapse-Storyteller      ← AI storyteller + narrative threads
+├── StoryTeller      ← AI storyteller + narrative threads
 │                                  (Core only — soft optional dep on Psychology)
 │
 └── RimSynapse-DevTools         ← Developer dashboard + config tools
@@ -136,7 +136,7 @@ RimSynapse-Core (this repo)     ← LM Studio connector, the foundation
 
 ---
 
-# 2. RimSynapse-Psychology
+# 2. Psychology
 
 **Pawn personality evolution, weighted memories, opinion tracking**
 
@@ -244,7 +244,7 @@ public static PawnPacket BuildPawnPacket(Pawn pawn)
 
 ---
 
-# 3. RimSynapse-Conversations
+# 3. Conversations
 
 **In-game dialogue UI + conversation management**
 
@@ -295,7 +295,7 @@ Let players talk to their colonists. Manages conversation history, displays dial
 
 ---
 
-# 4. RimSynapse-Storyteller
+# 4. StoryTeller
 
 **AI storyteller integration + narrative thread system**
 
