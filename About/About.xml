@@ -77,7 +77,7 @@ The initial roadmap for RimSynapse is now complete! Future updates will focus on
 RimSynapse is an open-source framework designed to be easily hooked into by other modders. I highly encourage you to read the framework documentation and build your own LLM-driven mods!
 - RimSynapse - Core Source and Docs: https://github.com/RimSynapse/RimSynapse-Core
 - RimSynapse - Psychology Source: https://github.com/RimSynapse/RimSynapse-Psychology
-- RimSynapse - Chat Source: https://github.com/RimSynapse/RimSynapse-Chat
+- RimSynapse - Conversations Source: https://github.com/RimSynapse/RimSynapse-Conversations
 - RimSynapse - Factions Source: https://github.com/RimSynapse/RimSynapse-Factions
 - RimSynapse - WorldNews Source: https://github.com/RimSynapse/RimSynapse-WorldNews
 - RimSynapse - NVIDIA Tool Source: https://github.com/RimSynapse/RimSynapse-NVIDIA-Tool

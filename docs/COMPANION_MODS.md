@@ -111,10 +111,10 @@ RimSynapse-Core (this repo)     ← LM Studio connector, the foundation
 │   ├── RimSynapse-Psychology   ← Pawn personality, weighted memories
 │   │   │                      
 │   │   │
-│   │   └── RimSynapse-Chat    ← In-game dialogue UI
+│   │   └── RimSynapse-Conversations    ← In-game dialogue UI
 │   │                             (requires Psychology)
 │   │
-│   └── RimSynapse-Chat        ← (also directly uses Psychology)
+│   └── RimSynapse-Conversations        ← (also directly uses Psychology)
 │
 ├── RimSynapse-Storyteller      ← AI storyteller + narrative threads
 │                                  (Core only — soft optional dep on Psychology)
@@ -244,7 +244,7 @@ public static PawnPacket BuildPawnPacket(Pawn pawn)
 
 ---
 
-# 3. RimSynapse-Chat
+# 3. RimSynapse-Conversations
 
 **In-game dialogue UI + conversation management**
 
