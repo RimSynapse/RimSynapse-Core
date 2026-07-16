@@ -21,11 +21,14 @@ namespace RimSynapse.UI
 
         public Dialog_GodMode()
         {
-            this.forcePause = true;
+            this.forcePause = false;
             this.doCloseX = true;
             this.doCloseButton = true;
-            this.closeOnClickedOutside = true;
-            this.absorbInputAroundWindow = true;
+            this.closeOnClickedOutside = false;
+            this.absorbInputAroundWindow = false;
+            this.resizeable = true;
+            this.draggable = true;
+            this.preventCameraMotion = false;
         }
 
         public override Vector2 InitialSize => new Vector2(650f, 600f);
@@ -57,12 +60,23 @@ namespace RimSynapse.UI
             curY += 35f;
 
             // Text Area for input command
-            Widgets.Label(new Rect(0f, curY, inRect.width, 20f), "Command Input:");
+            Widgets.Label(new Rect(0f, curY, inRect.width, 20f), "Command Input (Press [Enter] to submit):");
             curY += 22f;
             
-            Rect inputRect = new Rect(0f, curY, inRect.width, 100f);
+            Rect inputRect = new Rect(0f, curY, inRect.width, 40f);
+
+            // Listen for Enter key press on the input box
+            if (Event.current.type == EventType.KeyDown && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter))
+            {
+                if (!_busy && !string.IsNullOrEmpty(_commandInput.Trim()))
+                {
+                    ExecuteCommand();
+                    Event.current.Use(); // Consume the event to prevent adding a newline
+                }
+            }
+
             _commandInput = Widgets.TextArea(inputRect, _commandInput);
-            curY += 105f;
+            curY += 45f;
 
             // Execute Button
             Rect execRect = new Rect(0f, curY, 150f, 35f);

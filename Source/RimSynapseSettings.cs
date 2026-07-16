@@ -180,6 +180,7 @@ namespace RimSynapse
 
         /// <summary>Show Queue Monitor icon in the bottom-right toolbar (default: true).</summary>
         public bool showQueueMonitorIcon = true;
+        public bool showGodModeIcon = true;
 
         // --- Queue Monitor Columns ---
         public bool qmShowPrio = true;
@@ -287,6 +288,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref testAnomalyActive, "testAnomalyActive", true);
             Scribe_Values.Look(ref showVramAdvisory, "showVramAdvisory", true);
             Scribe_Values.Look(ref showQueueMonitorIcon, "showQueueMonitorIcon", true);
+            Scribe_Values.Look(ref showGodModeIcon, "showGodModeIcon", true);
 
             Scribe_Values.Look(ref qmShowPrio, "qmShowPrio", true);
             Scribe_Values.Look(ref qmShowMod, "qmShowMod", true);

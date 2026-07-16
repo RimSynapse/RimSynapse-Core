@@ -340,6 +340,10 @@ namespace RimSynapse
                 ref Settings.showQueueMonitorIcon,
                 "Shows the AI queue monitor icon in the bottom right play settings toolbar.");
 
+            listing.CheckboxLabeled("Show God Mode console icon on toolbar",
+                ref Settings.showGodModeIcon,
+                "Shows the God Mode LLM console button in the bottom right play settings toolbar.");
+
             listing.End();
             _viewHeight = listing.CurHeight;
             Widgets.EndScrollView();
