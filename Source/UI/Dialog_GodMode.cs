@@ -66,12 +66,18 @@ namespace RimSynapse.UI
             Rect inputRect = new Rect(0f, curY, inRect.width, 40f);
 
             // Listen for Enter key press on the input box
-            if (Event.current.type == EventType.KeyDown && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter))
+            if (Event.current.type == EventType.KeyDown)
             {
-                if (!_busy && !string.IsNullOrEmpty(_commandInput.Trim()))
+                if (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter)
                 {
-                    ExecuteCommand();
-                    Event.current.Use(); // Consume the event to prevent adding a newline
+                    if (!_busy)
+                    {
+                        if (!string.IsNullOrEmpty(_commandInput.Trim()))
+                        {
+                            ExecuteCommand();
+                            Event.current.Use(); // Consume the event to prevent adding a newline
+                        }
+                    }
                 }
             }
 
@@ -135,35 +141,23 @@ namespace RimSynapse.UI
             _statusColor = new Color(0.7f, 0.7f, 1f);
             _executionLog.Add($"> Request: {_commandInput}");
 
-            // Assemble tool definitions schema
-            var toolsSchema = new System.Text.StringBuilder();
-            foreach (var tool in SynapseToolRegistry.AllTools)
-            {
-                toolsSchema.AppendLine($"- Tool: \"{tool.name}\"");
-                toolsSchema.AppendLine($"  Description: {tool.description}");
-                toolsSchema.AppendLine($"  Arguments schema: {JsonConvert.SerializeObject(tool.parameters)}");
-                toolsSchema.AppendLine();
-            }
-
             string systemPrompt = $@"You are the RimWorld Synapse God Mode action resolver.
 The user will input an instruction in plain English. Your job is to translate this instruction into a sequence of tool/C# function calls to change the game state.
-You have access to the following tools:
 
-{toolsSchema}
+You MUST choose the correct tools to satisfy the user's intent. If you need to search the map for weapons, apparel, food, or resources to interact with, you should FIRST call the 'find_items_on_map' query tool. Once you have the results, proceed to command the pawns or execute target actions.
 
-You MUST choose the correct tools to satisfy the user's intent. If the user asks for multiple modifications or actions, you can return a list of multiple tool calls to be executed in sequence.
-
-For each tool call, specify the name of the tool and the arguments in JSON format.
-Your output must be strictly valid JSON in the following format (no markdown, no other text, no code blocks):
+For your final output, return a JSON object with a list of actions to execute:
 {{
   ""calls"": [
     {{
-      ""tool"": ""modify_pawn_state"",
+      ""tool"": ""possess_colonist"",
       ""arguments"": {{
         ""pawnName"": ""Fred"",
-        ""action"": ""set_skill"",
-        ""skillName"": ""Shooting"",
-        ""level"": 20
+        ""commandName"": ""Equipping sniper rifle"",
+        ""action"": ""equip"",
+        ""targetX"": 12,
+        ""targetZ"": 45,
+        ""targetItemName"": ""Sniper Rifle""
       }}
     }}
   ]
@@ -175,10 +169,35 @@ Your output must be strictly valid JSON in the following format (no markdown, no
                 options.priority = 10;
             }
 
-            SynapseClient.PromptAsync(
+            var toolsList = new List<GameToolDefinition>();
+            foreach (var tool in SynapseToolRegistry.AllTools)
+            {
+                if (tool.name != "execute_game_tool")
+                {
+                    if (tool.name != "list_available_tools")
+                    {
+                        toolsList.Add(new GameToolDefinition
+                        {
+                            name = tool.name,
+                            description = tool.description,
+                            parameters = tool.parameters
+                        });
+                    }
+                }
+            }
+
+            var request = new LlmTextRequest
+            {
+                SystemPrompt = systemPrompt,
+                Messages = new List<ChatMessage> { ChatMessage.User($"User Instruction: {_commandInput}") },
+                EnforceJson = true,
+                Tools = toolsList
+            };
+
+            SynapseClient.SendTextAsync(
                 RimSynapseMod.ModHandle,
-                systemPrompt,
-                $"User Instruction: {_commandInput}",
+                request,
+                options,
                 result =>
                 {
                     _busy = false;
@@ -196,7 +215,21 @@ Your output must be strictly valid JSON in the following format (no markdown, no
                             }
 
                             var response = JsonConvert.DeserializeObject<GodModeResponse>(json);
-                            if (response == null || response.calls == null || response.calls.Count == 0)
+                            if (response == null)
+                            {
+                                _statusText = "No actions executed";
+                                _statusColor = Color.yellow;
+                                _executionLog.Add("[System] No actions were resolved by the LLM.");
+                                return;
+                            }
+                            if (response.calls == null)
+                            {
+                                _statusText = "No actions executed";
+                                _statusColor = Color.yellow;
+                                _executionLog.Add("[System] No actions were resolved by the LLM.");
+                                return;
+                            }
+                            if (response.calls.Count == 0)
                             {
                                 _statusText = "No actions executed";
                                 _statusColor = Color.yellow;
@@ -207,7 +240,6 @@ Your output must be strictly valid JSON in the following format (no markdown, no
                             _statusText = $"Successfully executed {response.calls.Count} actions";
                             _statusColor = Color.green;
 
-                            // Queue the tool calls onto the main thread to run safely
                             SynapseGameComponent.Enqueue(() =>
                             {
                                 foreach (var call in response.calls)
@@ -239,8 +271,7 @@ Your output must be strictly valid JSON in the following format (no markdown, no
                         _statusColor = Color.red;
                         _executionLog.Add($"[Error] LLM Request failed: {result.error}");
                     }
-                },
-                options
+                }
             );
         }
     }
