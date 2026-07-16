@@ -336,6 +336,8 @@ namespace RimSynapse
 
         public void EnqueuePastEvent(PastEvent pastEvent)
         {
+            if (pastEvent == null) return;
+            pastEvent.EnsureMcpTag();
             if (Find.AnyPlayerHomeMap != null)
             {
                 Map map = Find.AnyPlayerHomeMap;
@@ -361,6 +363,10 @@ namespace RimSynapse
             }
             
             _backlogQueue.Enqueue(pastEvent);
+            while (_backlogQueue.Count > 50)
+            {
+                _backlogQueue.Dequeue();
+            }
         }
 
         public bool TryDequeuePastEvent(out PastEvent pastEvent)

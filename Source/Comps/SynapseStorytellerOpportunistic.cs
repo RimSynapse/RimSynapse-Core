@@ -13,10 +13,77 @@ namespace RimSynapse.Comps
     {
         public float PacingMultiplier = 1.0f;
         public Dictionary<string, float> CategoryMultipliers = new Dictionary<string, float>();
+        public List<string> RequestTools = null;
+    }
+
+    public class EventSelectionResult
+    {
+        public string IncidentDefName;
+        public List<string> RequestTools = null;
     }
 
     public static class SynapseStorytellerOpportunistic
     {
+        private static string GetToolsTextList()
+        {
+            int maxBudget = RimSynapseMod.Instance?.Settings?.maxPacingContextTokens ?? 4096;
+            bool limitTools = maxBudget <= 8192;
+
+            var allowedTools = new HashSet<string>
+            {
+                "get_colonists_profile",
+                "get_stockpile_details",
+                "get_active_threats",
+                "get_colony_moods",
+                "get_faction_relations_history"
+            };
+
+            var list = new List<string>();
+            foreach (var tool in SynapseToolRegistry.NonDebugTools)
+            {
+                if (!limitTools || allowedTools.Contains(tool.name))
+                {
+                    list.Add($"- '{tool.name}': {tool.description}");
+                }
+            }
+            return string.Join("\n", list);
+        }
+
+        private static void ApplyPacingAdjustment(PacingAdjustmentResult parsed)
+        {
+            if (parsed == null) return;
+            var comp = Find.World.GetComponent<SynapseCoreWorldComponent>();
+            if (comp != null)
+            {
+                comp.GlobalPacingMultiplier = UnityEngine.Mathf.Clamp(parsed.PacingMultiplier, 0.1f, 5.0f);
+                if (parsed.CategoryMultipliers != null)
+                {
+                    foreach (var kvp in parsed.CategoryMultipliers)
+                    {
+                        comp.categoryMultipliers[kvp.Key] = UnityEngine.Mathf.Clamp(kvp.Value, 0.01f, 10.0f);
+                    }
+                }
+                RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller pacing adjusted to {comp.GlobalPacingMultiplier} with category multipliers updated.");
+            }
+        }
+
+        private static void ApplyEventSelection(EventSelectionResult parsed, IIncidentTarget target)
+        {
+            if (parsed != null && !string.IsNullOrEmpty(parsed.IncidentDefName))
+            {
+                IncidentDef def = DefDatabase<IncidentDef>.GetNamedSilentFail(parsed.IncidentDefName);
+                if (def != null)
+                {
+                    IncidentParms parms = StorytellerUtility.DefaultParmsNow(def.category, target);
+                    if (def.Worker.CanFireNow(parms))
+                    {
+                        Find.Storyteller.incidentQueue.Add(def, Find.TickManager.TicksGame, parms);
+                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Event Selection chose: {parsed.IncidentDefName}");
+                    }
+                }
+            }
+        }
+
         private static string GetColonyDetailedMetrics(Map map)
         {
             if (map == null) return "None.";
@@ -322,31 +389,26 @@ namespace RimSynapse.Comps
             string metricsFormat = props?.metricsTemplate;
             if (string.IsNullOrEmpty(metricsFormat))
             {
-                metricsFormat = @"Colony General and Resource Metrics:
-- Overall Wealth: {wealth} (Items, buildings, and pawns)
-- Available Silver: {silver} (Stored or mined on map)
-- Food Reserves: {food} nutrition points
-- Growing Season: {growingSeason} of the year growable (Winter Resource Burden Multiplier: {winterBurden}x)
-- Greenhouse Capacity: {greenhouse}
-- Population: {population} colonists
-- Local Population Density (Pawn dwellings): {popDensity}
+                metricsFormat = @"Colony General Metrics:
+- Wealth: {wealth} | Silver: {silver} | Food: {food} points
+- Season: {growingSeason} growable (Winter Burden: {winterBurden}x)
+- Greenhouse: {greenhouse}
+- Population: {population} colonists (Local Density: {popDensity})
 - Livestock: {livestock}
-- Legendary Art: {legendaryArt} pieces (Total Value: {legendaryArtValue} silver)
-- Combat Capability: {combat}
-- Medical Status: {medical}
-- Average Mood: {mood}";
+- Legendary Art: {legendaryArt} pieces ({legendaryArtValue} silver)
+- Combat: {combat} | Downed: {medical} | Avg Mood: {mood}";
             }
 
             string livestockFormat = props?.livestockTemplate;
             if (string.IsNullOrEmpty(livestockFormat))
             {
-                livestockFormat = "{tameCount} tamed animals (Total Value: {tameWealth} silver)\n  - Detail: {animalReport}";
+                livestockFormat = "{tameCount} tamed animals (Total Value: {tameWealth} silver)";
             }
 
             string greenhouseFormat = props?.greenhouseTemplate;
             if (string.IsNullOrEmpty(greenhouseFormat))
             {
-                greenhouseFormat = "{greenhouseCells} active growable cells at midday (Hydroponics: {activeHydroponics} active basins, Sun Lamps: {activeSunLamps} powered, Skylights/Solar Roofs: {activeSkylightsCount}, Trend: {trend})";
+                greenhouseFormat = "{greenhouseCells} cells (Hydroponics: {activeHydroponics}, Sun Lamps: {activeSunLamps}, Trend: {trend})";
             }
 
             string greenhouseText = greenhouseFormat
@@ -427,8 +489,8 @@ namespace RimSynapse.Comps
                 .Replace("{livestock}", livestockText)
                 .Replace("{legendaryArt}", legendaryArtCount.ToString())
                 .Replace("{legendaryArtValue}", legendaryArtValue.ToString("F0"))
-                .Replace("{combat}", $"{capablePawns} healthy colonists capable of violence ({armedPawns} currently armed)")
-                .Replace("{medical}", $"{downedPawns} colonists currently downed/injured")
+                .Replace("{combat}", $"{capablePawns} violent ({armedPawns} armed)")
+                .Replace("{medical}", $"{downedPawns} downed")
                 .Replace("{mood}", avgMood.ToString("P0")))
                 + growthMetric + lastRaidReport;
         }
@@ -445,15 +507,17 @@ namespace RimSynapse.Comps
             string recentEvents = "None recently.";
             if (coreComp != null)
             {
-                var events = coreComp.GetRecentEvents(10);
+                int maxBudget = RimSynapseMod.Instance?.Settings?.maxPacingContextTokens ?? 4096;
+                int eventCount = Math.Max(2, maxBudget / 800);
+                var events = coreComp.GetRecentEvents(eventCount);
                 if (events.Any())
                 {
                     recentEvents = string.Join("\n", events.Select(e =>
                     {
-                        string desc = $"- {e.eventDescription}";
-                        if (e.isResolved && !string.IsNullOrEmpty(e.outcomeDescription))
+                        string desc = !string.IsNullOrEmpty(e.mcpTag) ? $"- {e.mcpTag}" : $"- {e.eventDescription}";
+                        if (e.isResolved)
                         {
-                            desc += $" (Resolution: {e.outcomeDescription} [Outcome: {e.outcome}])";
+                            desc += $" ({e.outcome})";
                         }
                         return desc;
                     }));
@@ -467,12 +531,28 @@ namespace RimSynapse.Comps
             {
                 string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
                 string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
+                bool useTools = RimSynapseMod.Instance?.Settings?.enableStorytellerTools == true;
+                string toolInstruction = "";
+                if (useTools)
+                {
+                    string toolsList = GetToolsTextList();
+                    toolInstruction = @"
+You have access to tools that query the live state of the colony. If you need more details to decide pacing (e.g. colonist profiles/skills, exact stockpiles, colony moods, or active map threats), you should request them.
+Available tools to query:
+" + toolsList + @"
+
+If you have enough information to decide pacing, return a JSON object with 'PacingMultiplier' and 'CategoryMultipliers'.
+If you need more details to make the decision, return a JSON object containing ONLY 'RequestTools' (a JSON array of the tool names you want to run), e.g.
+{
+  ""RequestTools"": [""get_colonists_profile"", ""get_active_threats""]
+}
+";
+                }
+
                 systemPrompt = @"You are the " + characterName + @" Pacing and Weighting Coordinator.
 Your writing style is " + speakingStyle + @".
 Your role is to orchestrate the colony's challenge level and dynamic pacing based on its current successes, setbacks, and resources.
-
-You have access to tools that query the live state of the colony. If you need more details to decide pacing (e.g. colonist profiles/skills, exact stockpiles, colony moods, or active map threats), you should invoke the corresponding tool.
-
+" + toolInstruction + @"
 You must evaluate:
 1. Successes/Triumphs (e.g. repelled raids, completed quests) -> Increase challenge (more ThreatBig/ThreatSmall, higher pacing).
 2. Failures/Tragedies (e.g. dead colonists, burned buildings, kidnapped pawns) -> Soften the blow (lower pacing, decrease ThreatBig, increase Misc/FactionArrival for traders and helpers).
@@ -480,7 +560,7 @@ You must evaluate:
 4. Legendary Art: Legendary art pieces are renowned world attractions. If the colony has legendary art pieces, it draws visitors and affluent guests. Increase the probability/likelihood of friendly visitors, trade caravans, and affluent travelers ('FactionArrival' and 'Misc') proportionally. Scale the visitor frequency and wealth based on the number and value of legendary art pieces and total colony wealth.
 5. Local Population Density (Pawn dwellings): High population density indicates a civilized, protected region near city centers. In high density areas, favor pawn joins, travelers, and caravans (Misc, FactionArrival) and significantly reduce hostile raids/threats (ThreatBig, ThreatSmall). Low population density (remote frontier) is lawless and dangerous; in low density areas, increase the likelihood of raids (ThreatBig, ThreatSmall) and reduce positive join/wanderer events (Misc).
 
-Return a JSON object containing:
+If you have enough information, return a JSON object containing:
 - 'PacingMultiplier': Float. Standard is 1.0. Increase (>1.0) to speed up event frequency. Decrease (<1.0) to give the colony breathing room.
 - 'CategoryMultipliers': Dictionary of category def names (e.g. 'ThreatBig', 'ThreatSmall', 'Misc', 'DiseaseHuman', 'FactionArrival') to float multipliers. Standard is 1.0. Increase to make that type of event more likely, decrease to make it less likely.
 
@@ -510,12 +590,7 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
                 SystemPrompt = systemPrompt,
                 Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
                 EnforceJson = true,
-                Tools = SynapseToolRegistry.NonDebugTools.Select(t => new GameToolDefinition
-                {
-                    name = t.name,
-                    description = t.description,
-                    parameters = t.parameters
-                }).ToList()
+                Tools = null // Keep pass 1 extremely small and fast
             };
 
             SynapseClient.SendTextAsync(
@@ -534,19 +609,51 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
                             var parsed = JsonConvert.DeserializeObject<PacingAdjustmentResult>(json);
                             if (parsed != null)
                             {
-                                var comp = Find.World.GetComponent<SynapseCoreWorldComponent>();
-                                if (comp != null)
+                                if (parsed.RequestTools != null && parsed.RequestTools.Count > 0)
                                 {
-                                    comp.GlobalPacingMultiplier = UnityEngine.Mathf.Clamp(parsed.PacingMultiplier, 0.1f, 5.0f);
-                                    if (parsed.CategoryMultipliers != null)
+                                    var secondRequest = new LlmTextRequest
                                     {
-                                        foreach (var kvp in parsed.CategoryMultipliers)
+                                        SystemPrompt = systemPrompt + "\n\nYou requested tools: " + string.Join(", ", parsed.RequestTools) + ". Call them directly now to retrieve the necessary info, and then return the final pacing JSON output.",
+                                        Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
+                                        EnforceJson = true,
+                                        Tools = SynapseToolRegistry.AllTools
+                                            .Where(t => parsed.RequestTools.Contains(t.name))
+                                            .Select(t => new GameToolDefinition
+                                            {
+                                                name = t.name,
+                                                description = t.description,
+                                                parameters = t.parameters
+                                            }).ToList()
+                                    };
+
+                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Pacing requested tools: {string.Join(", ", parsed.RequestTools)}. Running second pass...");
+
+                                    SynapseClient.SendTextAsync(
+                                        RimSynapseMod.ModHandle,
+                                        secondRequest,
+                                        new ChatOptions { queryId = "storyteller_pacing_pass2", priority = 1, requestName = "Storyteller Pacing Pass 2", targetName = "Colony" },
+                                        secondResult =>
                                         {
-                                            comp.categoryMultipliers[kvp.Key] = UnityEngine.Mathf.Clamp(kvp.Value, 0.01f, 10.0f);
+                                            if (secondResult.success)
+                                            {
+                                                try
+                                                {
+                                                    string secondJson = JsonHelper.ExtractJson(secondResult.content);
+                                                    if (secondJson == null) return;
+                                                    var secondParsed = JsonConvert.DeserializeObject<PacingAdjustmentResult>(secondJson);
+                                                    ApplyPacingAdjustment(secondParsed);
+                                                }
+                                                catch (Exception ex)
+                                                {
+                                                    RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse pacing second pass: {ex.Message}");
+                                                }
+                                            }
                                         }
-                                    }
-                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller pacing adjusted to {comp.GlobalPacingMultiplier} with category multipliers updated.");
+                                    );
+                                    return;
                                 }
+
+                                ApplyPacingAdjustment(parsed);
                             }
                         }
                         catch (Exception ex)
@@ -571,15 +678,17 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
             string recentEvents = "None recently.";
             if (coreWorldComp != null)
             {
-                var events = coreWorldComp.GetRecentEvents(5);
+                int maxBudget = RimSynapseMod.Instance?.Settings?.maxPacingContextTokens ?? 4096;
+                int eventCount = Math.Max(2, maxBudget / 800);
+                var events = coreWorldComp.GetRecentEvents(eventCount);
                 if (events.Any())
                 {
                     recentEvents = string.Join("\n", events.Select(e =>
                     {
-                        string desc = $"- {e.eventDescription}";
-                        if (e.isResolved && !string.IsNullOrEmpty(e.outcomeDescription))
+                        string desc = !string.IsNullOrEmpty(e.mcpTag) ? $"- {e.mcpTag}" : $"- {e.eventDescription}";
+                        if (e.isResolved)
                         {
-                            desc += $" (Resolution: {e.outcomeDescription} [Outcome: {e.outcome}])";
+                            desc += $" ({e.outcome})";
                         }
                         return desc;
                     }));
@@ -664,14 +773,30 @@ Analyze the situation and provide the PacingMultiplier and CategoryMultipliers."
             {
                 string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
                 string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
+                bool useTools = RimSynapseMod.Instance?.Settings?.enableStorytellerTools == true;
+                string toolInstruction = "";
+                if (useTools)
+                {
+                    string toolsList = GetToolsTextList();
+                    toolInstruction = @"
+You have access to tools that query the live state of the colony. If you need more details to select the best incident (e.g. checking what weapons they have before sending a raid, checking food stockpiles before toxic fallout, checking their mood to decide if a mental break or trade caravan is better), you should request them.
+Available tools to query:
+" + toolsList + @"
+
+If you have enough information to decide pacing, return a JSON object with 'IncidentDefName'.
+If you need more details to make the decision, return a JSON object containing ONLY 'RequestTools' (a JSON array of the tool names you want to run), e.g.
+{
+  ""RequestTools"": [""get_colonists_profile"", ""get_active_threats""]
+}
+";
+                }
+
                 systemPrompt = @"You are the " + characterName + @" Event Selector.
 Your writing style is " + speakingStyle + @".
 An event trigger has occurred for category: " + category.defName + @".
 You must pick the EXACT IncidentDefName from the list of allowed incidents below that fits the current narrative best.
 Use the base weights as a reference for how common or rare they should be, but let narrative pacing guide the final choice.
-
-You have access to tools that query the live state of the colony. If you need more details to select the best incident (e.g. checking what weapons they have before sending a raid, checking food stockpiles before toxic fallout, checking their mood to decide if a mental break or trade caravan is better), you should invoke the corresponding tool.
-
+" + toolInstruction + @"
 ALLOWED INCIDENTS FOR CATEGORY " + category.defName + @":
 " + allowedIncidentsList + @"
 
@@ -679,7 +804,7 @@ Legendary Art Attraction: If the colony has legendary art pieces (reported in me
 
 Civilization and Population Density context: If local population density is high (civilized lands), choose peaceful, urban, or civilized incidents (e.g. wanderers, caravans, peace talks) and avoid wild threats like raw infestations or animal stampedes. If density is low (isolated frontier wilderness), favor rogue raiders, manhunters, or harsh environmental challenges fitting a lawless outpost.
 
-You MUST respond strictly in valid JSON format:
+If you have enough information, return a JSON object containing:
 {
   ""IncidentDefName"": ""(The exact def name of the incident)""
 }";
@@ -702,12 +827,7 @@ Provide the incident def name.";
                 SystemPrompt = systemPrompt,
                 Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
                 EnforceJson = true,
-                Tools = SynapseToolRegistry.NonDebugTools.Select(t => new GameToolDefinition
-                {
-                    name = t.name,
-                    description = t.description,
-                    parameters = t.parameters
-                }).ToList()
+                Tools = null // Keep pass 1 extremely small and fast
             };
 
             SynapseClient.SendTextAsync(
@@ -728,19 +848,54 @@ Provide the incident def name.";
                             string json = JsonHelper.ExtractJson(result.content);
                             if (json == null) return;
 
-                            var parsed = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
-                            if (parsed != null && parsed.TryGetValue("IncidentDefName", out string defName))
+                            var parsed = JsonConvert.DeserializeObject<EventSelectionResult>(json);
+                            if (parsed != null)
                             {
-                                IncidentDef def = DefDatabase<IncidentDef>.GetNamedSilentFail(defName);
-                                if (def != null)
+                                if (parsed.RequestTools != null && parsed.RequestTools.Count > 0)
                                 {
-                                    IncidentParms parms = StorytellerUtility.DefaultParmsNow(def.category, target);
-                                    if (def.Worker.CanFireNow(parms))
+                                    var secondRequest = new LlmTextRequest
                                     {
-                                        Find.Storyteller.incidentQueue.Add(def, Find.TickManager.TicksGame, parms);
-                                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Event Selection chose: {defName}");
-                                    }
+                                        SystemPrompt = systemPrompt + "\n\nYou requested tools: " + string.Join(", ", parsed.RequestTools) + ". Call them directly now to retrieve the necessary info, and then return the final incident selection JSON.",
+                                        Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
+                                        EnforceJson = true,
+                                        Tools = SynapseToolRegistry.AllTools
+                                            .Where(t => parsed.RequestTools.Contains(t.name))
+                                            .Select(t => new GameToolDefinition
+                                            {
+                                                name = t.name,
+                                                description = t.description,
+                                                parameters = t.parameters
+                                            }).ToList()
+                                    };
+
+                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Event Selection requested tools: {string.Join(", ", parsed.RequestTools)}. Running second pass...");
+
+                                    SynapseClient.SendTextAsync(
+                                        RimSynapseMod.ModHandle,
+                                        secondRequest,
+                                        new ChatOptions { queryId = "storyteller_event_selection_pass2", priority = 10, requestName = "Storyteller Event Selection Pass 2", targetName = category.defName },
+                                        secondResult =>
+                                        {
+                                            if (secondResult.success)
+                                            {
+                                                try
+                                                {
+                                                    string secondJson = JsonHelper.ExtractJson(secondResult.content);
+                                                    if (secondJson == null) return;
+                                                    var secondParsed = JsonConvert.DeserializeObject<EventSelectionResult>(secondJson);
+                                                    ApplyEventSelection(secondParsed, target);
+                                                }
+                                                catch (Exception ex)
+                                                {
+                                                    RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse event selection second pass: {ex.Message}");
+                                                }
+                                            }
+                                        }
+                                    );
+                                    return;
                                 }
+
+                                ApplyEventSelection(parsed, target);
                             }
                         }
                         catch (Exception ex)

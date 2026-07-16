@@ -131,6 +131,20 @@ namespace RimSynapse
                     $"({Internal.ModelManager.ContextLength?.ToString() ?? "unknown"} tokens).");
             }
             
+            listing.CheckboxLabeled("Enable storyteller tool usage",
+                ref Settings.enableStorytellerTools,
+                "When enabled, allows the AI storyteller to invoke tools to query precise game data. " +
+                "Disabling this reduces the prompt size significantly (fits in standard 8K context windows) and speeds up storytelling evaluation.");
+
+            if (Settings.enableStorytellerTools)
+            {
+                listing.Gap(4f);
+                Settings.maxPacingContextTokens = (int)listing.SliderLabeled(
+                    $"Storyteller Max Context Budget: {Settings.maxPacingContextTokens} tokens",
+                    Settings.maxPacingContextTokens, 2048f, 16384f,
+                    tooltip: "The target maximum prompt budget for storyteller checks. Lower values (like 2048) speed up generation and use less VRAM. Higher values allow including more detailed event histories.");
+            }
+
             listing.Gap(4f);
             Settings.shortTermMemoryHours = listing.SliderLabeled(
                 $"Short-Term Memory Window: {Settings.shortTermMemoryHours:F0} hours",

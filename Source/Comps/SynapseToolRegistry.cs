@@ -85,10 +85,10 @@ namespace RimSynapse
 
         private static void RegisterBuiltInTools()
         {
-            // 1. Colonist Profile Tool
+            // Meta-Tool: list_available_tools
             RegisterTool(
-                "get_colonists_profile",
-                "Get detailed information of all colonists in the colony, including their skills (shooting, melee), traits, weapon equipped, and health/injury conditions.",
+                "list_available_tools",
+                "Get the directory of all available game tools, including their names, descriptions, and required argument schemas.",
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
@@ -96,6 +96,99 @@ namespace RimSynapse
                 },
                 args =>
                 {
+                    var list = new List<object>();
+                    foreach (var tool in _tools.Values)
+                    {
+                        if (tool.isDebugAction || tool.name == "list_available_tools" || tool.name == "execute_game_tool")
+                            continue;
+
+                        list.Add(new
+                        {
+                            name = tool.name,
+                            description = tool.description,
+                            parameterSchema = tool.parameters
+                        });
+                    }
+                    return JsonConvert.SerializeObject(list);
+                }
+            );
+
+            // Meta-Tool: execute_game_tool
+            RegisterTool(
+                "execute_game_tool",
+                "Execute any game tool from the directory by name and passing a JSON arguments string.",
+                new Dictionary<string, object>
+                {
+                    ["type"] = "object",
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["tool_name"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The exact name of the tool to execute."
+                        },
+                        ["arguments_json"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The JSON string of the arguments to pass. E.g. '{}' if the tool has no parameters."
+                        }
+                    },
+                    ["required"] = new List<string> { "tool_name", "arguments_json" }
+                },
+                args =>
+                {
+                    try
+                    {
+                        var data = JsonConvert.DeserializeObject<Dictionary<string, string>>(args);
+                        if (data == null || !data.TryGetValue("tool_name", out string toolName))
+                        {
+                            return "{\"error\": \"Missing tool_name parameter.\"}";
+                        }
+                        
+                        string subArgs = "{}";
+                        if (data.TryGetValue("arguments_json", out string tempArgs))
+                        {
+                            subArgs = tempArgs;
+                        }
+
+                        return ExecuteTool(toolName, subArgs);
+                    }
+                    catch (Exception ex)
+                    {
+                        return $"{{\"error\": \"Failed to parse meta-tool arguments: {ex.Message}\"}}";
+                    }
+                }
+            );
+
+            // 1. Colonist Profile Tool
+            RegisterTool(
+                "get_colonists_profile",
+                "Get detailed information of all colonists in the colony, including their skills (shooting, melee), traits, weapon equipped, and health/injury conditions.",
+                new Dictionary<string, object>
+                {
+                    ["type"] = "object",
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["compact"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "If true, returns extremely compact/abbreviated details to save token costs."
+                        }
+                    }
+                },
+                args =>
+                {
+                    bool compact = false;
+                    try
+                    {
+                        var dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (dict != null && dict.TryGetValue("compact", out var val) && val is bool b)
+                        {
+                            compact = b;
+                        }
+                    }
+                    catch {}
+
                     if (Find.CurrentMap == null) return "{\"error\": \"No active map loaded.\"}";
                     var list = new List<object>();
                     foreach (var pawn in Find.CurrentMap.mapPawns.FreeColonists)
@@ -103,21 +196,36 @@ namespace RimSynapse
                         var shooting = pawn.skills?.GetSkill(SkillDefOf.Shooting)?.Level ?? 0;
                         var melee = pawn.skills?.GetSkill(SkillDefOf.Melee)?.Level ?? 0;
                         var weapon = pawn.equipment?.Primary?.LabelShort ?? "None";
-                        var traits = pawn.story?.traits?.allTraits?.Select(t => t.LabelCap) ?? Enumerable.Empty<string>();
-                        var health = pawn.health?.hediffSet?.hediffs
-                            .Where(h => h.Visible && !h.IsPermanent())
-                            .Select(h => h.LabelCap) ?? Enumerable.Empty<string>();
 
-                        list.Add(new
+                        if (compact)
                         {
-                            name = pawn.LabelShort,
-                            shootingLevel = shooting,
-                            meleeLevel = melee,
-                            equippedWeapon = weapon,
-                            traits = traits.ToList(),
-                            currentHealthConditions = health.ToList(),
-                            isDowned = pawn.Downed
-                        });
+                            list.Add(new
+                            {
+                                name = pawn.LabelShort,
+                                shoot = shooting,
+                                melee = melee,
+                                weapon = weapon,
+                                down = pawn.Downed
+                            });
+                        }
+                        else
+                        {
+                            var traits = pawn.story?.traits?.allTraits?.Select(t => t.LabelCap) ?? Enumerable.Empty<string>();
+                            var health = pawn.health?.hediffSet?.hediffs
+                                .Where(h => h.Visible && !h.IsPermanent())
+                                .Select(h => h.LabelCap) ?? Enumerable.Empty<string>();
+
+                            list.Add(new
+                            {
+                                name = pawn.LabelShort,
+                                shootingLevel = shooting,
+                                meleeLevel = melee,
+                                equippedWeapon = weapon,
+                                traits = traits.ToList(),
+                                currentHealthConditions = health.ToList(),
+                                isDowned = pawn.Downed
+                            });
+                        }
                     }
                     return JsonConvert.SerializeObject(list);
                 }
@@ -130,10 +238,28 @@ namespace RimSynapse
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
-                    ["properties"] = new Dictionary<string, object>()
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["compact"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "If true, returns extremely compact details to save token costs by omitting zero-value keys."
+                        }
+                    }
                 },
                 args =>
                 {
+                    bool compact = false;
+                    try
+                    {
+                        var dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (dict != null && dict.TryGetValue("compact", out var val) && val is bool b)
+                        {
+                            compact = b;
+                        }
+                    }
+                    catch {}
+
                     if (Find.CurrentMap == null) return "{\"error\": \"No active map loaded.\"}";
                     var map = Find.CurrentMap;
 
@@ -169,6 +295,18 @@ namespace RimSynapse
                         }
                     }
 
+                    if (compact)
+                    {
+                        var result = new Dictionary<string, object>();
+                        if (silver > 0) result["silver"] = silver;
+                        if (steel > 0) result["steel"] = steel;
+                        if (components > 0) result["components"] = components;
+                        if (wood > 0) result["wood"] = wood;
+                        if (medicine > 0) result["medicine"] = medicine;
+                        if (nutrition > 0) result["nutrition"] = (int)nutrition;
+                        return JsonConvert.SerializeObject(result);
+                    }
+
                     return JsonConvert.SerializeObject(new
                     {
                         silverAvailable = silver,
@@ -188,10 +326,28 @@ namespace RimSynapse
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
-                    ["properties"] = new Dictionary<string, object>()
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["compact"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "If true, returns extremely compact details to save token costs by omitting zero-value threat keys."
+                        }
+                    }
                 },
                 args =>
                 {
+                    bool compact = false;
+                    try
+                    {
+                        var dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (dict != null && dict.TryGetValue("compact", out var val) && val is bool b)
+                        {
+                            compact = b;
+                        }
+                    }
+                    catch {}
+
                     if (Find.CurrentMap == null) return "{\"error\": \"No active map loaded.\"}";
                     var map = Find.CurrentMap;
 
@@ -216,6 +372,18 @@ namespace RimSynapse
                     }
 
                     int fireCount = map.listerThings.ThingsOfDef(ThingDefOf.Fire)?.Count ?? 0;
+
+                    if (compact)
+                    {
+                        var result = new Dictionary<string, object>();
+                        if (raiders > 0) result["raiders"] = raiders;
+                        if (mechanoids > 0) result["mechs"] = mechanoids;
+                        if (infestations > 0) result["hives"] = infestations;
+                        if (shipParts > 0) result["shipParts"] = shipParts;
+                        if (fireCount > 0) result["fires"] = fireCount;
+                        return JsonConvert.SerializeObject(result);
+                    }
+
                     return JsonConvert.SerializeObject(new
                     {
                         activeHostileRaiders = raiders,
@@ -234,10 +402,28 @@ namespace RimSynapse
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
-                    ["properties"] = new Dictionary<string, object>()
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["compact"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "If true, returns extremely compact details to save token costs by omitting list of negative thoughts."
+                        }
+                    }
                 },
                 args =>
                 {
+                    bool compact = false;
+                    try
+                    {
+                        var dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (dict != null && dict.TryGetValue("compact", out var val) && val is bool b)
+                        {
+                            compact = b;
+                        }
+                    }
+                    catch {}
+
                     if (Find.CurrentMap == null) return "{\"error\": \"No active map loaded.\"}";
                     var map = Find.CurrentMap;
 
@@ -255,28 +441,40 @@ namespace RimSynapse
                             else if (curMood < pawn.mindState.mentalBreaker.BreakThresholdMinor) breakRisk = "Minor";
                         }
 
-                        var topThoughts = new List<string>();
-                        var memories = pawn.needs.mood.thoughts?.memories;
-                        if (memories?.Memories != null)
+                        if (compact)
                         {
-                            foreach (var thought in memories.Memories)
+                            colonistMoods.Add(new
                             {
-                                float offset = thought.MoodOffset();
-                                if (offset < -5f)
+                                name = pawn.LabelShort,
+                                mood = (int)(pawn.needs.mood.CurLevelPercentage * 100),
+                                risk = breakRisk != "None" ? breakRisk : null
+                            });
+                        }
+                        else
+                        {
+                            var topThoughts = new List<string>();
+                            var memories = pawn.needs.mood.thoughts?.memories;
+                            if (memories?.Memories != null)
+                            {
+                                foreach (var thought in memories.Memories)
                                 {
-                                    string label = thought.CurStage?.label?.CapitalizeFirst() ?? thought.def?.LabelCap ?? "Thought";
-                                    topThoughts.Add($"{label} ({offset:F0} mood)");
+                                    float offset = thought.MoodOffset();
+                                    if (offset < -5f)
+                                    {
+                                        string label = thought.CurStage?.label?.CapitalizeFirst() ?? thought.def?.LabelCap ?? "Thought";
+                                        topThoughts.Add($"{label} ({offset:F0} mood)");
+                                    }
                                 }
                             }
-                        }
 
-                        colonistMoods.Add(new
-                        {
-                            name = pawn.LabelShort,
-                            moodPercentage = pawn.needs.mood.CurLevelPercentage,
-                            breakRisk = breakRisk,
-                            criticalThoughts = topThoughts.Take(3).ToList()
-                        });
+                            colonistMoods.Add(new
+                            {
+                                name = pawn.LabelShort,
+                                moodPercentage = pawn.needs.mood.CurLevelPercentage,
+                                breakRisk = breakRisk,
+                                criticalThoughts = topThoughts.Take(3).ToList()
+                            });
+                        }
                     }
 
                     return JsonConvert.SerializeObject(colonistMoods);
@@ -290,10 +488,28 @@ namespace RimSynapse
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
-                    ["properties"] = new Dictionary<string, object>()
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["compact"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "If true, returns extremely compact details to save token costs by omitting full turrets, doors, and generators details lists (returns counts instead)."
+                        }
+                    }
                 },
                 args =>
                 {
+                    bool compact = false;
+                    try
+                    {
+                        var dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (dict != null && dict.TryGetValue("compact", out var val) && val is bool b)
+                        {
+                            compact = b;
+                        }
+                    }
+                    catch {}
+
                     if (Find.CurrentMap == null) return "{\"error\": \"No active map loaded.\"}";
                     var map = Find.CurrentMap;
 
@@ -368,6 +584,22 @@ namespace RimSynapse
                         }
                     }
 
+                    if (compact)
+                    {
+                        return JsonConvert.SerializeObject(new
+                        {
+                            biome = biome,
+                            temp = temp,
+                            weather = weather,
+                            mountainCells = mountainCells,
+                            vents = ventsCount,
+                            commsActive = SynapseObjectControlManager.IsCommsConsoleActive(map),
+                            turretsCount = turretsList.Count,
+                            generatorsCount = generatorsList.Count,
+                            doorsCount = doorsList.Count
+                        });
+                    }
+
                     return JsonConvert.SerializeObject(new
                     {
                         biome = biome,
@@ -391,10 +623,28 @@ namespace RimSynapse
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
-                    ["properties"] = new Dictionary<string, object>()
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["compact"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "If true, returns extremely compact details to save token costs by omitting description and thematicGuide text."
+                        }
+                    }
                 },
                 args =>
                 {
+                    bool compact = false;
+                    try
+                    {
+                        var dict = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (dict != null && dict.TryGetValue("compact", out var val) && val is bool b)
+                        {
+                            compact = b;
+                        }
+                    }
+                    catch {}
+
                     var props = RimSynapse.Comps.StorytellerComp_Storyteller.GetActiveStorytellerProps();
                     var list = new List<object>();
 
@@ -402,26 +652,41 @@ namespace RimSynapse
                     {
                         if (def.category == null) continue;
 
-                        string guide = "";
                         float baseWeight = 1.0f;
-                        string desc = def.description ?? "";
-
                         var config = props?.incidentWeights?.FirstOrDefault(w => w.incidentDefName == def.defName);
                         if (config != null)
                         {
-                            guide = config.thematicGuide ?? "";
                             baseWeight = config.baseWeight;
-                            if (string.IsNullOrEmpty(desc)) desc = config.description ?? "";
                         }
 
-                        list.Add(new
+                        if (compact)
                         {
-                            incidentDefName = def.defName,
-                            category = def.category.defName,
-                            baseWeight = baseWeight,
-                            description = desc,
-                            thematicGuide = guide
-                        });
+                            list.Add(new
+                            {
+                                def = def.defName,
+                                cat = def.category.defName,
+                                weight = baseWeight
+                            });
+                        }
+                        else
+                        {
+                            string desc = def.description ?? "";
+                            string guide = "";
+                            if (config != null)
+                            {
+                                guide = config.thematicGuide ?? "";
+                                if (string.IsNullOrEmpty(desc)) desc = config.description ?? "";
+                            }
+
+                            list.Add(new
+                            {
+                                incidentDefName = def.defName,
+                                category = def.category.defName,
+                                baseWeight = baseWeight,
+                                description = desc,
+                                thematicGuide = guide
+                            });
+                        }
                     }
 
                     return JsonConvert.SerializeObject(list);
