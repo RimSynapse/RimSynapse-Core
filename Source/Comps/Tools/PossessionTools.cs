@@ -276,35 +276,90 @@ namespace RimSynapse
 
         private static bool TryEquipOrIngestAtCell(Pawn pawn, Dictionary<string, object> parsedArgs, int? targetX, int? targetZ, JobDef jobDef, bool requireIngestible = false)
         {
-            if (!targetX.HasValue || !targetZ.HasValue) return false;
-
-            var cell = new IntVec3(targetX.Value, 0, targetZ.Value);
             string itemDef = parsedArgs.TryGetValue("targetItemDef", out var tid) ? tid?.ToString() : null;
             string itemName = parsedArgs.TryGetValue("targetItemName", out var tin) ? tin?.ToString() : null;
 
             Thing item = null;
-            foreach (var t in cell.GetThingList(pawn.Map))
+
+            if (targetX.HasValue && targetZ.HasValue)
             {
-                if (itemDef != null)
+                var cell = new IntVec3(targetX.Value, 0, targetZ.Value);
+                foreach (var t in cell.GetThingList(pawn.Map))
                 {
-                    if (t.def.defName.Equals(itemDef, StringComparison.OrdinalIgnoreCase))
+                    bool isMatch = false;
+                    if (itemDef != null)
+                    {
+                        isMatch = t.def.defName.Equals(itemDef, StringComparison.OrdinalIgnoreCase);
+                    }
+                    else if (itemName != null)
+                    {
+                        if (itemName.Equals("weapon", StringComparison.OrdinalIgnoreCase) || itemName.Equals("any weapon", StringComparison.OrdinalIgnoreCase))
+                        {
+                            isMatch = t.def.IsWeapon;
+                        }
+                        else
+                        {
+                            isMatch = t.Label.IndexOf(itemName, StringComparison.OrdinalIgnoreCase) >= 0;
+                        }
+                    }
+                    else
+                    {
+                        isMatch = true;
+                    }
+
+                    if (isMatch)
                     {
                         item = t;
                         break;
                     }
                 }
-                else if (itemName != null)
+            }
+            else
+            {
+                // Auto-locate closest matching item on the map!
+                float closestDist = float.MaxValue;
+                foreach (var t in pawn.Map.listerThings.AllThings)
                 {
-                    if (t.Label.IndexOf(itemName, StringComparison.OrdinalIgnoreCase) >= 0)
+                    // Skip if item is forbidden, held by someone else, or unreachable
+                    if (t.IsForbidden(pawn) || t.ParentHolder is Pawn || !pawn.CanReach(t, Verse.AI.PathEndMode.Touch, Danger.Deadly))
+                        continue;
+
+                    if (requireIngestible && t.def.ingestible == null)
+                        continue;
+
+                    if (jobDef == JobDefOf.Equip && !t.def.IsWeapon)
+                        continue;
+
+                    bool isMatch = false;
+                    if (itemDef != null)
                     {
-                        item = t;
-                        break;
+                        isMatch = t.def.defName.Equals(itemDef, StringComparison.OrdinalIgnoreCase);
                     }
-                }
-                else
-                {
-                    item = t;
-                    break;
+                    else if (itemName != null)
+                    {
+                        if (itemName.Equals("weapon", StringComparison.OrdinalIgnoreCase) || itemName.Equals("any weapon", StringComparison.OrdinalIgnoreCase))
+                        {
+                            isMatch = t.def.IsWeapon;
+                        }
+                        else
+                        {
+                            isMatch = t.Label.IndexOf(itemName, StringComparison.OrdinalIgnoreCase) >= 0;
+                        }
+                    }
+                    else
+                    {
+                        isMatch = true;
+                    }
+
+                    if (isMatch)
+                    {
+                        float dist = pawn.Position.DistanceToSquared(t.Position);
+                        if (dist < closestDist)
+                        {
+                            closestDist = dist;
+                            item = t;
+                        }
+                    }
                 }
             }
 

@@ -271,7 +271,7 @@ namespace RimSynapse
                         if (pawn == null) return $"{{\"success\": false, \"reason\": \"Pawn '{pawnName}' not found.\"}}";
 
                         ThingWithComps primary = pawn.equipment.Primary;
-                        if (primary == null) return $"{{\"success\": false, \"reason\": \"Pawn '{pawnName}' is not holding a weapon.\"}}";
+                        if (primary == null) return $"{{\"success\": false, \"reason\": \"Pawn '{pawnName}' is not holding a weapon. You must first order them to equip a weapon using possess_colonist(action='equip', targetItemName='weapon') before calling damage_self_with_equipped.\"}}";
 
                         VerbTracker verbTracker = primary.GetComp<CompEquippable>()?.verbTracker;
                         Verb primaryVerb = verbTracker?.AllVerbs?.FirstOrDefault(v => v.verbProps.isPrimary);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Verse;
 
 namespace RimSynapse
 {
@@ -31,6 +32,38 @@ namespace RimSynapse
 
             var planner = new SynapseLlmPlanner(command, logCallback, onComplete);
             planner.Start();
+        }
+
+        /// <summary>
+        /// Programmatically executes a pre-built stateful Synapse script from JSON.
+        /// </summary>
+        /// <param name="scriptJson">The serialized JSON representation of a SynapseScript object.</param>
+        /// <param name="logCallback">Optional callback to receive step execution and delay logs.</param>
+        public static void ExecuteScript(string scriptJson, Action<string> logCallback = null)
+        {
+            if (string.IsNullOrEmpty(scriptJson)) return;
+            try
+            {
+                var script = Newtonsoft.Json.JsonConvert.DeserializeObject<SynapseScript>(scriptJson);
+                if (script != null)
+                {
+                    SynapseScriptRunner.StartScript(script, logCallback);
+                }
+            }
+            catch (Exception ex)
+            {
+                logCallback?.Invoke($"[API Error] Failed to execute script JSON: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Registers a custom wait condition evaluator that can be checked by the script runner.
+        /// </summary>
+        /// <param name="conditionName">Unique identifier name for the condition (e.g. 'is_mentally_stable').</param>
+        /// <param name="evaluator">The evaluation function returning true when condition is met.</param>
+        public static void RegisterScriptWaitCondition(string conditionName, Func<Pawn, Dictionary<string, object>, bool> evaluator)
+        {
+            SynapseScriptRunner.RegisterWaitCondition(conditionName, evaluator);
         }
     }
 

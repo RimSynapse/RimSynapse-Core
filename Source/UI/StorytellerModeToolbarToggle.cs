@@ -7,11 +7,11 @@ namespace RimSynapse.UI
 {
     /// <summary>
     /// Harmony postfix on PlaySettings.DoPlaySettingsGlobalControls.
-    /// Adds our LLM God Mode console toggle icon to the settings toolbar row.
+    /// Adds our LLM Storyteller Mode console toggle icon to the settings toolbar row.
     /// </summary>
     [HarmonyPatch(typeof(PlaySettings), nameof(PlaySettings.DoPlaySettingsGlobalControls))]
     [StaticConstructorOnStartup]
-    internal static class GodModeToolbarToggle
+    internal static class StorytellerModeToolbarToggle
     {
         private static readonly Texture2D _cachedIcon = GenerateIconForPatch();
 
@@ -23,23 +23,23 @@ namespace RimSynapse.UI
             
             if (RimSynapseMod.Instance?.Settings?.showGodModeIcon == false) return;
 
-            bool isOpen = Find.WindowStack.IsOpen<Dialog_GodMode>();
+            bool isOpen = Find.WindowStack.IsOpen<Dialog_StorytellerMode>();
             bool wasOpen = isOpen;
 
             row.ToggleableIcon(ref isOpen, _cachedIcon,
-                "Toggle RimSynapse God Mode Console\n\n" +
-                "Opens a direct LLM-driven developer console to execute natural language actions on colony objects.",
+                "Toggle RimSynapse Storyteller Mode Console\n\n" +
+                "Opens a direct LLM-driven storyteller console to execute natural language actions on colony objects.",
                 SoundDefOf.Mouseover_ButtonToggle);
 
             if (isOpen != wasOpen)
             {
                 if (isOpen)
                 {
-                    Find.WindowStack.Add(new Dialog_GodMode());
+                    Find.WindowStack.Add(new Dialog_StorytellerMode());
                 }
                 else
                 {
-                    var window = Find.WindowStack.WindowOfType<Dialog_GodMode>();
+                    var window = Find.WindowStack.WindowOfType<Dialog_StorytellerMode>();
                     if (window != null)
                     {
                         window.Close();
@@ -108,26 +108,26 @@ namespace RimSynapse.UI
 
         private static Texture2D GenerateIconForPatch()
         {
-            string[] gmMask = new string[]
+            string[] stMask = new string[]
             {
                 "                        ",
                 "                        ",
                 "                        ",
                 "                        ",
                 "                        ",
-                "      xxxx       xxxx   ",
-                "     xxxxxx      xxxx   ",
-                "    xx    xx     x  x   ",
-                "    xx           x  x   ",
-                "   xx    xxx    xx  xx  ",
-                "   xx    xxx    xx  xx  ",
-                "   xx     xx    xx  xx  ",
-                "   xx     xx    xx  xx  ",
-                "    xx   xxx    xx  xx  ",
-                "    xx   xxx    xx  xx  ",
-                "     xxxxxx     xx  xx  ",
-                "      xxxx     xxxx  xx ",
-                "               xxxx  xx ",
+                "     xxxx     xxxxxxx   ",
+                "    xx  xx      xxx     ",
+                "    xx          xxx     ",
+                "     xxxx       xxx     ",
+                "        xx      xxx     ",
+                "    xx  xx      xxx     ",
+                "     xxxx       xxx     ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        ",
+                "                        ",
                 "                        ",
                 "                        ",
                 "                        ",
@@ -135,7 +135,7 @@ namespace RimSynapse.UI
                 "                        ",
                 "                        "
             };
-            return GenerateIconFromMask(gmMask);
+            return GenerateIconFromMask(stMask);
         }
     }
 }

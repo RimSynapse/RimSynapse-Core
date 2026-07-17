@@ -88,7 +88,8 @@ namespace RimSynapse
                     {
                         return $"{{\"success\": false, \"reason\": \"Modifying object state failed: {ex.Message}\"}}";
                     }
-                }
+                },
+                true
             );
         }
 

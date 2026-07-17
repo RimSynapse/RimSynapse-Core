@@ -105,9 +105,9 @@ namespace RimSynapse
                 Find.WindowStack.Add(new RimSynapse.UI.Dialog_TestBench());
             }
 
-            if (listing.ButtonText("Open God Mode Window"))
+            if (listing.ButtonText("Open Storyteller Mode Window"))
             {
-                Find.WindowStack.Add(new RimSynapse.UI.Dialog_GodMode());
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_StorytellerMode());
             }
 
             listing.Gap(6f);
@@ -282,9 +282,9 @@ namespace RimSynapse
                 ref Settings.showQueueMonitorIcon,
                 "Shows the AI queue monitor icon in the bottom right play settings toolbar.");
 
-            listing.CheckboxLabeled("Show God Mode console icon on toolbar",
+            listing.CheckboxLabeled("Show Storyteller Mode console icon on toolbar",
                 ref Settings.showGodModeIcon,
-                "Shows the God Mode LLM console button in the bottom right play settings toolbar.");
+                "Shows the Storyteller Mode LLM console button in the bottom right play settings toolbar.");
 
             listing.End();
             _viewHeight = listing.CurHeight;

@@ -35,6 +35,14 @@ namespace RimSynapse
 
         private static readonly List<ActiveScript> _activeScripts = new List<ActiveScript>();
         private static readonly List<ActiveScript> _toRemove = new List<ActiveScript>();
+        
+        private static readonly Dictionary<string, Func<Pawn, Dictionary<string, object>, bool>> _customConditions = 
+            new Dictionary<string, Func<Pawn, Dictionary<string, object>, bool>>(StringComparer.OrdinalIgnoreCase);
+
+        public static void RegisterWaitCondition(string conditionName, Func<Pawn, Dictionary<string, object>, bool> evaluator)
+        {
+            _customConditions[conditionName] = evaluator;
+        }
 
         public static void StartScript(SynapseScript script, Action<string> logCallback)
         {
@@ -71,7 +79,8 @@ namespace RimSynapse
 
                     if (!timeout)
                     {
-                        conditionMet = CheckCondition(active.waitCondition, active.waitPawnName);
+                        var step = active.script.steps[active.currentStepIndex];
+                        conditionMet = CheckCondition(active.waitCondition, active.waitPawnName, step.arguments);
                     }
 
                     if (conditionMet)
@@ -176,12 +185,25 @@ namespace RimSynapse
             }
         }
 
-        private static bool CheckCondition(string condition, string pawnName)
+        private static bool CheckCondition(string condition, string pawnName, Dictionary<string, object> arguments)
         {
             if (Find.CurrentMap == null) return false;
             
             Pawn pawn = Find.CurrentMap.mapPawns.AllPawns.FirstOrDefault(p => p.LabelShort.Equals(pawnName, StringComparison.OrdinalIgnoreCase));
             if (pawn == null) return false;
+
+            if (_customConditions.TryGetValue(condition, out var customEvaluator))
+            {
+                try
+                {
+                    return customEvaluator(pawn, arguments);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[RimSynapse] Exception in custom script condition '{condition}': {ex.Message}");
+                    return false;
+                }
+            }
 
             if (condition.Equals("has_ranged_weapon", StringComparison.OrdinalIgnoreCase))
             {
@@ -195,7 +217,15 @@ namespace RimSynapse
             }
             else if (condition.Equals("reached_cell", StringComparison.OrdinalIgnoreCase))
             {
-                return true; 
+                if (arguments != null && arguments.TryGetValue("targetX", out var xVal) && arguments.TryGetValue("targetZ", out var zVal))
+                {
+                    if (int.TryParse(xVal.ToString(), out int tx) && int.TryParse(zVal.ToString(), out int tz))
+                    {
+                        var cell = new IntVec3(tx, 0, tz);
+                        return pawn.Position.DistanceToSquared(cell) <= 4f || (pawn.CurJob != null && pawn.CurJob.def != JobDefOf.Goto && pawn.Position.DistanceToSquared(cell) <= 9f);
+                    }
+                }
+                return pawn.CurJob == null || pawn.CurJob.def != JobDefOf.Goto;
             }
             else if (condition.Equals("pawn_downed", StringComparison.OrdinalIgnoreCase))
             {

@@ -9,7 +9,7 @@ using RimSynapse.Models;
 
 namespace RimSynapse.UI
 {
-    public class Dialog_GodMode : Window
+    public class Dialog_StorytellerMode : Window
     {
         private static string _commandInput = "Make Fred have 20 Shooting, remove the Bipolar trait from Sarah, and start a fire on the solar generator.";
         private static string _statusText = "Ready";
@@ -21,7 +21,7 @@ namespace RimSynapse.UI
         private static bool _showFeatureRequestButton = false;
         private static string _rawJsonCallLog = "";
 
-        public Dialog_GodMode()
+        public Dialog_StorytellerMode()
         {
             this.forcePause = false;
             this.doCloseX = true;
@@ -39,7 +39,7 @@ namespace RimSynapse.UI
         public override void DoWindowContents(Rect inRect)
         {
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, inRect.width, 35f), "Synapse God Mode (LLM Direct Action Console)");
+            Widgets.Label(new Rect(0f, 0f, inRect.width, 35f), "Synapse Storyteller Mode (LLM Direct Action Console)");
             Text.Font = GameFont.Small;
 
             float curY = 40f;
@@ -50,7 +50,7 @@ namespace RimSynapse.UI
             curY += 45f;
 
             // Target Provider Selector
-            Rect providerRect = new Rect(0f, curY, 300f, 30f);
+            Rect providerRect = new Rect(0f, curY, 260f, 30f);
             if (Widgets.ButtonText(providerRect, $"Target Provider: {_selectedRoutingId}"))
             {
                 var list = new List<FloatMenuOption>();
@@ -59,6 +59,14 @@ namespace RimSynapse.UI
                 list.Add(new FloatMenuOption("OpenAI", () => _selectedRoutingId = RoutingId.OpenAI));
                 list.Add(new FloatMenuOption(RoutingId.Gemini, () => _selectedRoutingId = RoutingId.Gemini));
                 Find.WindowStack.Add(new FloatMenu(list));
+            }
+
+            // Enable Debug/Cheating Actions checkbox
+            var settings = RimSynapseMod.Instance?.Settings;
+            if (settings != null)
+            {
+                Rect debugToggleRect = new Rect(280f, curY, 300f, 30f);
+                Widgets.CheckboxLabeled(debugToggleRect, "Enable Debug/Cheating Actions", ref settings.enableCheatingActions);
             }
             curY += 35f;
 
@@ -159,7 +167,7 @@ namespace RimSynapse.UI
             string dlcStatus = $"{(ModsConfig.IdeologyActive ? "Ideology " : "")}{(ModsConfig.RoyaltyActive ? "Royalty " : "")}{(ModsConfig.BiotechActive ? "Biotech " : "")}{(ModsConfig.AnomalyActive ? "Anomaly " : "")}";
             if (string.IsNullOrEmpty(dlcStatus)) dlcStatus = "None";
 
-            string logMarkdown = $@"# RimSynapse God Mode Feature Request Log
+            string logMarkdown = $@"# RimSynapse Storyteller Mode Feature Request Log
 
 **Command Entered:** `{_commandInput}`
 **Active Model:** `{activeModel}`

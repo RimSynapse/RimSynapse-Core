@@ -95,6 +95,7 @@ namespace RimSynapse
 
         // --- Behavior ---
         public bool autoMapModel = true;
+        public bool enableCheatingActions = false;
         public string selectedModel = "";
         public bool sanitizeResponse = true;
         public bool enableKeepAlive = true;
@@ -229,6 +230,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref tokensPromptCustom, "tokensPromptCustom", 0);
             Scribe_Values.Look(ref tokensCompletionCustom, "tokensCompletionCustom", 0);
             Scribe_Values.Look(ref autoMapModel, "autoMapModel", true);
+            Scribe_Values.Look(ref enableCheatingActions, "enableCheatingActions", false);
             Scribe_Values.Look(ref selectedModel, "selectedModel", "");
             Scribe_Values.Look(ref sanitizeResponse, "sanitizeResponse", true);
             Scribe_Values.Look(ref enableKeepAlive, "enableKeepAlive", true);

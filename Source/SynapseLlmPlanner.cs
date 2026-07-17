@@ -27,7 +27,7 @@ namespace RimSynapse
         public void Start()
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("You are the RimWorld Synapse God Mode action resolver.");
+            sb.AppendLine("You are the RimWorld Synapse Storyteller Mode action resolver.");
             sb.AppendLine("The user will input an instruction in plain English. Your job is to translate this instruction into sequential game actions.");
             sb.AppendLine();
             sb.AppendLine("You operate as a stateful, planning-based agent across a multi-turn loop.");
@@ -37,9 +37,14 @@ namespace RimSynapse
             sb.AppendLine("2. **QUERY**: On your first turn, output ONLY search/query calls (like 'search_map_entities') to locate target pawns, items, or weapons on the map.");
             sb.AppendLine("3. **ASSEMBLE & EXECUTE**: Once you receive the search results:");
             sb.AppendLine("   - Analyze the active game state (e.g. proximity of weapons, pawn inventories).");
-            sb.AppendLine("   - If the action is immediate, output a flat JSON list of 'calls'.");
-            sb.AppendLine("   - If the action requires time-delayed steps (such as walking to a weapon, waiting for it to be equipped, and then performing an action), output a stateful JSON 'script'.");
-            sb.AppendLine("   - Enforce thematic and immersive flavor text: use descriptive 'commandName' values and add custom popups or letters.");
+            sb.AppendLine("   - If the action is immediate and single-tick (e.g. modify skill level, change weather, trigger incident), output a flat JSON list of 'calls'.");
+            sb.AppendLine("   - If the action is sequential or time-delayed (e.g. walk to a weapon, wait to equip it, and then perform an action), you MUST output a stateful JSON 'script'.");
+            sb.AppendLine("   - CRITICAL WARNING: Do NOT combine movement/equipping and dependent actions in a flat 'calls' list! Flat 'calls' execute in the exact same game tick, so a dependent action (like 'damage_self_with_equipped') will execute and fail immediately before the pawn can reach the item! You must use a 'script' with a 'wait_until' step for these sequences.");
+            sb.AppendLine("   - Enforce thematic and immersive flavor text: use descriptive 'commandName' values.");
+            sb.AppendLine();
+            sb.AppendLine("CRITICAL CONSTRAINTS:");
+            sb.AppendLine("- NEVER use 'send_notification_letter' in scripts or tool calls. RimWorld's vanilla engine naturally posts letter alerts when pawns die or events trigger. Creating letters programmatically will cause duplicate or false notifications.");
+            sb.AppendLine("- NEVER use 'modify_pawn_state' with action='kill' to resolve suicide, combat, or murder instructions. You must simulate the actions naturally (e.g. by equipping a weapon and calling 'damage_self_with_equipped'). The 'kill' action is a developer-only debugging override and must never be used to cheat or bypass pathing/weapons checks.");
             sb.AppendLine();
             sb.AppendLine("Format for immediate calls:");
             sb.AppendLine("{");
@@ -89,15 +94,6 @@ namespace RimSynapse
             sb.AppendLine("        \"targetBodyPart\": \"Head\",");
             sb.AppendLine("        \"damageMultiplier\": 4.0");
             sb.AppendLine("      }");
-            sb.AppendLine("    },");
-            sb.AppendLine("    {");
-            sb.AppendLine("      \"type\": \"send_notification_letter\",");
-            sb.AppendLine("      \"arguments\": {");
-            sb.AppendLine("        \"title\": \"Death: Dole\",");
-            sb.AppendLine("        \"text\": \"Dole has taken his own life.\",");
-            sb.AppendLine("        \"letterType\": \"death\",");
-            sb.AppendLine("        \"pawnName\": \"Dole\"");
-            sb.AppendLine("      }");
             sb.AppendLine("    }");
             sb.AppendLine("  ]");
             sb.AppendLine("}");
@@ -110,18 +106,26 @@ namespace RimSynapse
             var coreTools = new List<string> { 
                 "search_map_entities", 
                 "search_game_definitions", 
-                "modify_pawn_state", 
                 "possess_colonist", 
                 "damage_self_with_equipped", 
-                "send_notification_letter",
                 "list_available_tools"
             };
+
+            bool enableCheating = RimSynapseMod.Instance?.Settings?.enableCheatingActions ?? false;
+            if (enableCheating)
+            {
+                coreTools.Add("modify_pawn_state");
+            }
 
             var nonCoreScoredTools = new List<KeyValuePair<double, GameTool>>();
 
             foreach (var tool in SynapseToolRegistry.AllTools)
             {
                 if (tool.name == "execute_game_tool")
+                    continue;
+
+                // Hide debug/cheating tools if disabled
+                if (tool.isDebugAction && !enableCheating)
                     continue;
 
                 if (coreTools.Contains(tool.name))
@@ -164,6 +168,10 @@ namespace RimSynapse
             {
                 if (coreTools.Contains(tool.name))
                 {
+                    // Double check debug action criteria
+                    if (tool.isDebugAction && !enableCheating)
+                        continue;
+
                     finalToolsList.Add(tool);
                 }
             }
@@ -175,6 +183,9 @@ namespace RimSynapse
                 {
                     if (tool.name != "execute_game_tool" && !coreTools.Contains(tool.name))
                     {
+                        if (tool.isDebugAction && !enableCheating)
+                            continue;
+
                         if (!finalToolsList.Contains(tool))
                         {
                             finalToolsList.Add(tool);

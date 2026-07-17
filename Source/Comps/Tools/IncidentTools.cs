@@ -181,7 +181,8 @@ namespace RimSynapse
                     {
                         return $"{{\"success\": false, \"reason\": \"Crash during execution: {ex.Message}\"}}";
                     }
-                }
+                },
+                true
             );
 
             // Send Notification Letter Tool
@@ -249,7 +250,8 @@ namespace RimSynapse
                     {
                         return $"{{\"success\": false, \"reason\": \"Failed to post letter: {ex.Message}\"}}";
                     }
-                }
+                },
+                true
             );
         }
     }

@@ -127,7 +127,8 @@ namespace RimSynapse
                     {
                         return $"{{\"success\": false, \"reason\": \"Modifying pawn state failed: {ex.Message}\"}}";
                     }
-                }
+                },
+                true
             );
         }
 
