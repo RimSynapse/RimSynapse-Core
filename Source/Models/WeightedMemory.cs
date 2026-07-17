@@ -8,6 +8,8 @@ namespace RimSynapse.Models
         public string summary;
         public string memoryType;        // raid, social, event, trade, quest, backstory, etc.
         public List<string> tags = new List<string>();
+        public List<string> subjectPawnIds = new List<string>();
+        public bool isLongTerm = false;
         
         /// <summary>Absolute tick when this memory occurred. Used for date display and chronological sorting.</summary>
         public long absTick;
@@ -35,11 +37,14 @@ namespace RimSynapse.Models
             Scribe_Values.Look(ref baseWeight, "baseWeight", 1.0f);
             Scribe_Values.Look(ref decayRate, "decayRate", 0.05f);
             Scribe_Values.Look(ref timesReferenced, "timesReferenced", 0);
+            Scribe_Values.Look(ref isLongTerm, "isLongTerm", false);
+            Scribe_Collections.Look(ref subjectPawnIds, "subjectPawnIds", LookMode.Value);
             
             // Ensure lists are initialized after loading
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
                 if (tags == null) tags = new List<string>();
+                if (subjectPawnIds == null) subjectPawnIds = new List<string>();
             }
         }
 

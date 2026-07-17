@@ -68,94 +68,86 @@ namespace RimSynapse.Internal.Providers
                     messagesArray.Add(msgObj);
                 }
 
-                var body = new JObject
-                {
-                    ["model"] = model,
-                    ["messages"] = messagesArray
-                };
-
-                if (request.MaxTokens.HasValue) body["max_tokens"] = request.MaxTokens.Value;
-                if (request.Temperature.HasValue) body["temperature"] = request.Temperature.Value;
+                bool omitResponseFormat = false;
+                int maxRetries = 2;
+                int currentAttempt = 0;
                 
-                if (request.EnforceJson)
+                while (currentAttempt < maxRetries)
                 {
-                    body["response_format"] = new JObject { ["type"] = "json_object" };
-                }
+                    currentAttempt++;
 
-                if (request.Tools != null && request.Tools.Count > 0)
-                {
-                    var toolsArray = new JArray();
-                    foreach (var tool in request.Tools)
+                    var body = new JObject
                     {
-                        toolsArray.Add(new JObject
-                        {
-                            ["type"] = "function",
-                            ["function"] = new JObject
-                            {
-                                ["name"] = tool.name,
-                                ["description"] = tool.description,
-                                ["parameters"] = JToken.FromObject(tool.parameters)
-                            }
-                        });
+                        ["model"] = model,
+                        ["messages"] = messagesArray
+                    };
+
+                    if (request.MaxTokens.HasValue) body["max_tokens"] = request.MaxTokens.Value;
+                    if (request.Temperature.HasValue) body["temperature"] = request.Temperature.Value;
+                    
+                    if (request.EnforceJson && !omitResponseFormat)
+                    {
+                        body["response_format"] = new JObject { ["type"] = "json_object" };
                     }
-                    body["tools"] = toolsArray;
+
+                    if (request.Tools != null && request.Tools.Count > 0)
+                    {
+                        var toolsArray = new JArray();
+                        foreach (var tool in request.Tools)
+                        {
+                            toolsArray.Add(new JObject
+                            {
+                                ["type"] = "function",
+                                ["function"] = new JObject
+                                {
+                                    ["name"] = tool.name,
+                                    ["description"] = tool.description,
+                                    ["parameters"] = JToken.FromObject(tool.parameters)
+                                }
+                            });
+                        }
+                        body["tools"] = toolsArray;
+                    }
+
+                    string jsonBody = body.ToString(Formatting.None);
+                    SynapseLogger.TraceContext(jsonBody, url);
+
+                    var req = new HttpRequestMessage(HttpMethod.Post, url)
+                    {
+                        Content = new StringContent(jsonBody, Encoding.UTF8, "application/json"),
+                    };
+
+                    if (!string.IsNullOrEmpty(apiKey))
+                    {
+                        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                    }
+
+                    long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+                    
+                    var response = _client.SendAsync(req, cts.Token).Result;
+                    string responseBody = response.Content.ReadAsStringAsync().Result;
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest && responseBody.Contains("response_format") && !omitResponseFormat)
+                        {
+                            omitResponseFormat = true;
+                            SynapseLogger.Warning("Endpoint rejected 'json_object' response_format. Retrying without it...");
+                            continue;
+                        }
+
+                        long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
+                        var error = $"OpenAI-compatible endpoint returned {(int)response.StatusCode}: {responseBody}";
+                        SynapseLogger.Error(error);
+                        return ChatResult.Failure(error, dur);
+                    }
+                    
+                    // Break out of the retry loop on success
+                    return ProcessSuccessfulResponse(responseBody, model, startMs);
                 }
-
-                string jsonBody = body.ToString(Formatting.None);
-                SynapseLogger.TraceContext(jsonBody, url);
-
-                var req = new HttpRequestMessage(HttpMethod.Post, url)
-                {
-                    Content = new StringContent(jsonBody, Encoding.UTF8, "application/json"),
-                };
-
-                if (!string.IsNullOrEmpty(apiKey))
-                {
-                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-                }
-
-                long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
                 
-                var response = _client.SendAsync(req, cts.Token).Result;
-                string responseBody = response.Content.ReadAsStringAsync().Result;
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-                    var error = $"OpenAI-compatible endpoint returned {(int)response.StatusCode}: {responseBody}";
-                    SynapseLogger.Error(error);
-                    return ChatResult.Failure(error, dur);
-                }
-
-                var result = JObject.Parse(responseBody);
-                string content = null;
-                int promptTokens = 0;
-                int completionTokens = 0;
-                JToken toolCallsToken = null;
-
-                var choices = result["choices"] as JArray;
-                if (choices != null && choices.Count > 0)
-                {
-                    var message = choices[0]?["message"];
-                    content = message?["content"]?.ToString();
-                    toolCallsToken = message?["tool_calls"];
-                }
-
-                var usage = result["usage"];
-                if (usage != null)
-                {
-                    promptTokens = usage["prompt_tokens"]?.Value<int>() ?? 0;
-                    completionTokens = usage["completion_tokens"]?.Value<int>() ?? 0;
-                }
-
-                long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-                var chatRes = ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
-                if (toolCallsToken != null)
-                {
-                    chatRes.toolCalls = toolCallsToken.ToObject<System.Collections.Generic.List<ChatToolCall>>();
-                }
-                return chatRes;
+                return ChatResult.Failure("Exceeded max retries.");
             }
             catch (Exception ex)
             {
@@ -163,6 +155,38 @@ namespace RimSynapse.Internal.Providers
                 SynapseLogger.Error($"OpenAI Request failed: {error}");
                 return ChatResult.Failure(error);
             }
+        }
+        
+        private ChatResult ProcessSuccessfulResponse(string responseBody, string model, long startMs)
+        {
+            var result = JObject.Parse(responseBody);
+            string content = null;
+            int promptTokens = 0;
+            int completionTokens = 0;
+            JToken toolCallsToken = null;
+
+            var choices = result["choices"] as JArray;
+            if (choices != null && choices.Count > 0)
+            {
+                var message = choices[0]?["message"];
+                content = message?["content"]?.ToString();
+                toolCallsToken = message?["tool_calls"];
+            }
+
+            var usage = result["usage"];
+            if (usage != null)
+            {
+                promptTokens = usage["prompt_tokens"]?.Value<int>() ?? 0;
+                completionTokens = usage["completion_tokens"]?.Value<int>() ?? 0;
+            }
+
+            long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
+            var chatRes = ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
+            if (toolCallsToken != null)
+            {
+                chatRes.toolCalls = toolCallsToken.ToObject<System.Collections.Generic.List<ChatToolCall>>();
+            }
+            return chatRes;
         }
 
         public ChatResult SendVisionRequestSync(LlmVisionRequest request, string baseUrl, string apiKey, string model)

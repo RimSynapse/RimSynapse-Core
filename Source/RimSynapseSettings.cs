@@ -99,6 +99,7 @@ namespace RimSynapse
         public bool sanitizeResponse = true;
         public bool enableKeepAlive = true;
         public bool disableThinking = true;
+        public bool disableSafetyContextStripping = false;
         public float audioBoost = 2.5f;
 
         // --- Context Embedding ---
@@ -231,6 +232,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref sanitizeResponse, "sanitizeResponse", true);
             Scribe_Values.Look(ref enableKeepAlive, "enableKeepAlive", true);
             Scribe_Values.Look(ref disableThinking, "disableThinking", true);
+            Scribe_Values.Look(ref disableSafetyContextStripping, "disableSafetyContextStripping", false);
             Scribe_Values.Look(ref audioBoost, "audioBoost", 2.5f);
             Scribe_Values.Look(ref timeoutSeconds, "timeoutSeconds", 120);
             Scribe_Values.Look(ref maxRequestsPerMinute, "maxRequestsPerMinute", 30);

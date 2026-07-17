@@ -340,61 +340,48 @@ namespace RimSynapse.Internal
         {
             try
             {
-                var comps = pawn.AllComps;
-                if (comps == null) return;
+                var coreComp = pawn.GetComp<RimSynapse.Comps.SynapseCorePawnComp>();
+                if (coreComp == null) return;
 
-                foreach (var comp in comps)
+                // Grab filtered memories. If there's a target pawn, pull memories specific to them FIRST.
+                string targetPawnId = packet.targetPawn?.pawnId;
+                
+                // Fetch the top 5 memory burdens
+                string topBurdens = coreComp.GetTopMemoryBurdens(5, 0f, null, targetPawnId);
+                
+                if (topBurdens != "None")
                 {
-                    var compType = comp.GetType();
-                    if (compType.Name != "SynapsePawnComp") continue;
-
-                    // Read memories
-                    var memoriesField = compType.GetField("memories");
-                    if (memoriesField?.GetValue(comp) is System.Collections.IList memList)
+                    slots.Add(MakeSlot("memories", $"[Memories] {topBurdens}"));
+                    
+                    // We also populate packet.sourcePawn.memories for raw data injection
+                    var filteredMemories = targetPawnId != null 
+                        ? coreComp.GetMemoriesByPawnId(targetPawnId) 
+                        : coreComp.memories;
+                        
+                    var entries = new List<MemoryEntry>();
+                    foreach (var mem in filteredMemories)
                     {
-                        var entries = new List<MemoryEntry>();
-                        foreach (var mem in memList)
+                        entries.Add(new MemoryEntry
                         {
-                            var memType = mem.GetType();
-                            var summary = memType.GetField("summary")?.GetValue(mem) as string;
-                            var weight = memType.GetField("weight")?.GetValue(mem);
-                            var mType = memType.GetField("memoryType")?.GetValue(mem) as string;
-
-                            if (summary != null && weight != null)
-                            {
-                                entries.Add(new MemoryEntry
-                                {
-                                    summary = summary,
-                                    weight = (float)weight,
-                                    memoryType = mType,
-                                });
-                            }
-                        }
-
-                        if (entries.Count > 0)
-                        {
-                            entries.Sort((a, b) => b.weight.CompareTo(a.weight));
-                            packet.sourcePawn.memories = entries.Take(5).ToList();
-                            slots.Add(MakeSlot("memories", FormatMemories(entries)));
-                        }
+                            summary = mem.summary,
+                            weight = mem.weight,
+                            memoryType = mem.memoryType
+                        });
                     }
+                    entries.Sort((a, b) => b.weight.CompareTo(a.weight));
+                    packet.sourcePawn.memories = entries.Take(5).ToList();
+                }
 
-                    // Read personality summary
-                    var personalityField = compType.GetField("personalitySummary");
-                    if (personalityField?.GetValue(comp) is string personality &&
-                        !string.IsNullOrEmpty(personality))
-                    {
-                        packet.sourcePawn.personalitySummary = personality;
-                        slots.Add(MakeSlot("personalitySummary",
-                            $"[Personality] {personality}"));
-                    }
-
-                    break; // Found the comp, stop searching
+                // Read personality summary natively
+                if (!string.IsNullOrEmpty(coreComp.personalitySummary))
+                {
+                    packet.sourcePawn.personalitySummary = coreComp.personalitySummary;
+                    slots.Add(MakeSlot("personalitySummary", $"[Personality] {coreComp.personalitySummary}"));
                 }
             }
             catch (Exception ex)
             {
-                SynapseLogger.Message($"Could not read Psychology comp data: {ex.Message}");
+                SynapseLogger.Message($"Could not read Core comp memory data: {ex.Message}");
             }
         }
 

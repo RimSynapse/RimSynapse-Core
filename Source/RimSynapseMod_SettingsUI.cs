@@ -169,6 +169,10 @@ namespace RimSynapse
                 ref Settings.disableThinking,
                 "Prevent reasoning models from using chain-of-thought. Saves tokens and reduces latency.");
                 
+            listing.CheckboxLabeled("Disable Safety Context Stripping (Experimental)",
+                ref Settings.disableSafetyContextStripping,
+                "Disables the geometric abstraction wrapper used to bypass local LLM safety filters during violent mental breaks. Enable this to test your endpoint's raw uncensored capabilities.");
+                
             listing.Gap(6f);
             
             Settings.audioBoost = listing.SliderLabeled(

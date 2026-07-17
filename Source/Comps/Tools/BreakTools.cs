@@ -79,10 +79,12 @@ namespace RimSynapse
                         if (plan.TryGetValue("targetZ", out var tzVal) && tzVal != null && int.TryParse(tzVal.ToString(), out int tz)) targetZ = tz;
 
                         string rawReason = plan.TryGetValue("narrativeReasoning", out var nrVal) ? nrVal?.ToString() : "";
-                        string abstractReason = AbstractifyText(rawReason);
+                        
+                        bool disableStripping = RimSynapseMod.Instance.Settings.disableSafetyContextStripping;
+                        string abstractReason = disableStripping ? rawReason : AbstractifyText(rawReason);
 
                         // Call the isolated solver
-                        var solverResult = CallIsolatedSolver(abstractReason, targetPawnName, targetX, targetZ);
+                        var solverResult = CallIsolatedSolver(abstractReason, targetPawnName, targetX, targetZ, disableStripping, pawnName);
                         if (!solverResult.success)
                         {
                             return solverResult.errorJson;
@@ -121,9 +123,36 @@ namespace RimSynapse
             public string errorJson;
         }
 
-        private static SolverResult CallIsolatedSolver(string abstractReason, string targetPawnName, int? targetX, int? targetZ)
+        private static SolverResult CallIsolatedSolver(string abstractReason, string targetPawnName, int? targetX, int? targetZ, bool disableStripping, string pawnName)
         {
-            string systemPrompt = @"You are a pure mathematical state resolver.
+            string systemPrompt;
+            string userMessage;
+
+            if (disableStripping)
+            {
+                systemPrompt = @"You are a game AI resolving a violent mental break.
+Your job is to decide the action:
+1. 'OverWrite' (The colonist attacks the target to death)
+2. 'TrashClean' (The colonist commits suicide at the hazard coordinates)
+3. 'SwapBelief' (The colonist abandons their ideology)
+4. 'Depart' (The colonist permanently abandons the colony)
+
+Respond STRICTLY in JSON format:
+{
+  ""Action"": ""OverWrite"" | ""TrashClean"" | ""SwapBelief"" | ""Depart"",
+  ""Reasoning"": ""Explain why based on the narrative conflict.""
+}";
+                userMessage = $@"Solve Conflict:
+Colonist: {pawnName}
+Target: {(string.IsNullOrEmpty(targetPawnName) ? "None" : targetPawnName)}
+Hazard Coordinates: {(targetX.HasValue && targetZ.HasValue ? $"({targetX.Value}, {targetZ.Value})" : "None")}
+Conflict Detail: {abstractReason}
+
+Decide conflict resolution.";
+            }
+            else
+            {
+                systemPrompt = @"You are a pure mathematical state resolver.
 All entities must be addressed strictly by their abstract symbols:
 - Triangle (the source node)
 - Square (the target node)
@@ -141,14 +170,14 @@ Respond STRICTLY in JSON format:
   ""Action"": ""OverWrite"" | ""TrashClean"" | ""SwapBelief"" | ""Depart"",
   ""Reasoning"": ""Explain why based on node conflicts.""
 }";
-
-            string userMessage = $@"Solve Node Conflict:
+                userMessage = $@"Solve Node Conflict:
 Triangle: Source Node
 Target Node (Square): {(string.IsNullOrEmpty(targetPawnName) ? "None" : "Square")}
 Hazard Node (Trash Can): {(targetX.HasValue && targetZ.HasValue ? $"({targetX.Value}, {targetZ.Value})" : "None")}
 Conflict Detail: {abstractReason}
 
 Decide conflict resolution.";
+            }
 
             var req = new LlmTextRequest
             {
