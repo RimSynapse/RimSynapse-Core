@@ -44,6 +44,18 @@ namespace RimSynapse
             _customConditions[conditionName] = evaluator;
         }
 
+        public static int ActiveScriptsCount => _activeScripts.Count;
+
+        public static List<string> GetActiveScriptNames()
+        {
+            var list = new List<string>();
+            foreach (var s in _activeScripts)
+            {
+                list.Add(s.script?.scriptName ?? "Unnamed");
+            }
+            return list;
+        }
+
         public static void StartScript(SynapseScript script, Action<string> logCallback)
         {
             if (script == null || script.steps == null || script.steps.Count == 0) return;

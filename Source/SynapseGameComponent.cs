@@ -27,6 +27,7 @@ namespace RimSynapse
 
         /// <summary>Interval between opportunistic task checks during pause (seconds).</summary>
         private const float PauseCheckInterval = 2.0f;
+        private static int _fileCheckCooldown = 0;
 
         public SynapseGameComponent(Game game) { }
 
@@ -82,6 +83,13 @@ namespace RimSynapse
         {
             // Process callbacks from the queue (LLM results, log dispatch, etc.)
             ProcessMainThreadQueue();
+
+            _fileCheckCooldown++;
+            if (_fileCheckCooldown >= 60)
+            {
+                _fileCheckCooldown = 0;
+                PollScriptInputFile();
+            }
 
             // ── Pause-time opportunistic task handling ──
             if (Find.TickManager == null) return;
@@ -164,6 +172,141 @@ namespace RimSynapse
             base.LoadedGame();
             ClearAllQueues();
             SynapseLogger.Message("Loaded game. Queues cleared.");
+        }
+
+        private void PollScriptInputFile()
+        {
+            try
+            {
+                string inputPath = "d:/github/rimsynapse/Core/script_input.json";
+                string outputPath = "d:/github/rimsynapse/Core/script_output.log";
+                string requestPath = "d:/github/rimsynapse/Core/game_state_request.json";
+                string statePath = "d:/github/rimsynapse/Core/game_state.json";
+
+                // Poll script execution
+                if (System.IO.File.Exists(inputPath))
+                {
+                    string json = System.IO.File.ReadAllText(inputPath);
+                    System.IO.File.Delete(inputPath);
+
+                    if (System.IO.File.Exists(outputPath))
+                    {
+                        System.IO.File.Delete(outputPath);
+                    }
+
+                    RimSynapseAPI.ExecuteScript(json, msg =>
+                    {
+                        try
+                        {
+                            System.IO.File.AppendAllText(outputPath, msg + "\n");
+                        }
+                        catch {}
+                    });
+                }
+
+                // Poll game state request
+                if (System.IO.File.Exists(requestPath))
+                {
+                    System.IO.File.Delete(requestPath);
+                    string stateDump = GetGameStateDump();
+                    System.IO.File.WriteAllText(statePath, stateDump);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"[RimSynapse] Failed to poll script or state files: {ex.Message}");
+            }
+        }
+
+        private string GetGameStateDump()
+        {
+            try
+            {
+                var dump = new System.Collections.Generic.Dictionary<string, object>();
+                
+                // Storyteller
+                if (Find.Storyteller != null)
+                {
+                    dump["storyteller"] = Find.Storyteller.def?.defName ?? "Unknown";
+                }
+
+                // Colonists
+                var colonists = new System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, object>>();
+                if (Find.CurrentMap != null && Find.CurrentMap.mapPawns != null)
+                {
+                    foreach (var pawn in Find.CurrentMap.mapPawns.FreeColonists)
+                    {
+                        if (pawn == null) continue;
+
+                        var pData = new System.Collections.Generic.Dictionary<string, object>();
+                        pData["name"] = pawn.LabelShort;
+                        pData["fullName"] = pawn.Name?.ToStringFull ?? pawn.Label;
+                        pData["x"] = pawn.Position.x;
+                        pData["z"] = pawn.Position.z;
+                        pData["isDowned"] = pawn.Downed;
+                        pData["isDrafted"] = pawn.Drafted;
+                        pData["equippedWeapon"] = pawn.equipment?.Primary?.def?.defName ?? "None";
+
+                        // Skills
+                        var skills = new System.Collections.Generic.Dictionary<string, object>();
+                        if (pawn.skills != null)
+                        {
+                            foreach (var skill in pawn.skills.skills)
+                            {
+                                if (skill?.def == null) continue;
+                                var skData = new System.Collections.Generic.Dictionary<string, object>();
+                                skData["level"] = skill.Level;
+                                skData["passion"] = skill.passion.ToString();
+                                skills[skill.def.defName] = skData;
+                            }
+                        }
+                        pData["skills"] = skills;
+
+                        // Traits
+                        var traits = new System.Collections.Generic.List<string>();
+                        if (pawn.story?.traits != null)
+                        {
+                            foreach (var trait in pawn.story.traits.allTraits)
+                            {
+                                if (trait?.def == null) continue;
+                                traits.Add(trait.def.defName);
+                            }
+                        }
+                        pData["traits"] = traits;
+
+                        // Health Hediffs
+                        var hediffs = new System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, object>>();
+                        if (pawn.health?.hediffSet != null)
+                        {
+                            foreach (var hediff in pawn.health.hediffSet.hediffs)
+                            {
+                                if (hediff?.def == null) continue;
+                                var hData = new System.Collections.Generic.Dictionary<string, object>();
+                                hData["defName"] = hediff.def.defName;
+                                hData["label"] = hediff.Label;
+                                hData["severity"] = hediff.Severity;
+                                hediffs.Add(hData);
+                            }
+                        }
+                        pData["hediffs"] = hediffs;
+
+                        colonists.Add(pData);
+                    }
+                }
+                dump["colonists"] = colonists;
+
+                // Active Scripts
+                var runnerData = new System.Collections.Generic.Dictionary<string, object>();
+                runnerData["activeScriptsCount"] = SynapseScriptRunner.ActiveScriptsCount;
+                runnerData["activeScripts"] = SynapseScriptRunner.GetActiveScriptNames();
+                dump["scriptRunner"] = runnerData;
+
+                return Newtonsoft.Json.JsonConvert.SerializeObject(dump, Newtonsoft.Json.Formatting.Indented);
+            }
+            catch (Exception ex)
+            {
+                return $"{{\"error\": \"Failed to serialize game state: {ex.Message}\"}}";
+            }
         }
     }
 }

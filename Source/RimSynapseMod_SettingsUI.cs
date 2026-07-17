@@ -110,6 +110,11 @@ namespace RimSynapse
                 Find.WindowStack.Add(new RimSynapse.UI.Dialog_StorytellerMode());
             }
 
+            if (listing.ButtonText("Open Script Debugger Window"))
+            {
+                Find.WindowStack.Add(new RimSynapse.UI.Dialog_ScriptDebugger());
+            }
+
             listing.Gap(6f);
 
             listing.CheckboxLabeled("Auto-map to active model",
