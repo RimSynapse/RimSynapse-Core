@@ -204,6 +204,39 @@ namespace RimSynapse
                     });
                 }
 
+                string storytellerInputPath = "d:/github/rimsynapse/Core/storyteller_input.txt";
+                string storytellerOutputPath = "d:/github/rimsynapse/Core/storyteller_output.log";
+
+                // Poll storyteller command execution
+                if (System.IO.File.Exists(storytellerInputPath))
+                {
+                    string command = System.IO.File.ReadAllText(storytellerInputPath).Trim();
+                    System.IO.File.Delete(storytellerInputPath);
+
+                    if (System.IO.File.Exists(storytellerOutputPath))
+                    {
+                        System.IO.File.Delete(storytellerOutputPath);
+                    }
+
+                    System.IO.File.WriteAllText(storytellerOutputPath, $"[Storyteller Console] Processing command: {command}\n");
+
+                    RimSynapseAPI.ExecuteNaturalLanguageCommand(command, msg =>
+                    {
+                        try
+                        {
+                            System.IO.File.AppendAllText(storytellerOutputPath, msg + "\n");
+                        }
+                        catch {}
+                    }, (success, finalSummary) =>
+                    {
+                        try
+                        {
+                            System.IO.File.AppendAllText(storytellerOutputPath, $"[Storyteller Console] Complete. Success: {success}. Summary: {finalSummary}\n");
+                        }
+                        catch {}
+                    });
+                }
+
                 // Poll game state request
                 if (System.IO.File.Exists(requestPath))
                 {

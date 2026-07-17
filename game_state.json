@@ -1,0 +1,218 @@
+{
+  "storyteller": "Cassandra",
+  "colonists": [
+    {
+      "name": "Devyn",
+      "fullName": "Devyn Cobbler",
+      "x": 142,
+      "z": 114,
+      "isDowned": false,
+      "isDrafted": false,
+      "equippedWeapon": "None",
+      "skills": {
+        "Shooting": {
+          "level": 6,
+          "passion": "Minor"
+        },
+        "Melee": {
+          "level": 9,
+          "passion": "Minor"
+        },
+        "Construction": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Mining": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Cooking": {
+          "level": 4,
+          "passion": "None"
+        },
+        "Plants": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Animals": {
+          "level": 10,
+          "passion": "Major"
+        },
+        "Crafting": {
+          "level": 4,
+          "passion": "None"
+        },
+        "Artistic": {
+          "level": 4,
+          "passion": "None"
+        },
+        "Medicine": {
+          "level": 6,
+          "passion": "None"
+        },
+        "Social": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Intellectual": {
+          "level": 1,
+          "passion": "None"
+        }
+      },
+      "traits": [
+        "PsychicSensitivity"
+      ],
+      "hediffs": [
+        {
+          "defName": "Asthma",
+          "label": "asthma (minor)",
+          "severity": 0.016
+        },
+        {
+          "defName": "Asthma",
+          "label": "asthma (minor)",
+          "severity": 0.016
+        },
+        {
+          "defName": "GoJuiceAddiction",
+          "label": "go-juice addiction (39%)",
+          "severity": 0.6148359
+        }
+      ]
+    },
+    {
+      "name": "Eli",
+      "fullName": "Eli Hess",
+      "x": 136,
+      "z": 124,
+      "isDowned": false,
+      "isDrafted": false,
+      "equippedWeapon": "None",
+      "skills": {
+        "Shooting": {
+          "level": 10,
+          "passion": "Major"
+        },
+        "Melee": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Construction": {
+          "level": 4,
+          "passion": "Major"
+        },
+        "Mining": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Cooking": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Plants": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Animals": {
+          "level": 4,
+          "passion": "Minor"
+        },
+        "Crafting": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Artistic": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Medicine": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Social": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Intellectual": {
+          "level": 4,
+          "passion": "None"
+        }
+      },
+      "traits": [
+        "Bloodlust",
+        "Jealous",
+        "AnnoyingVoice"
+      ],
+      "hediffs": []
+    },
+    {
+      "name": "Pickles",
+      "fullName": "Wesley Pickles",
+      "x": 145,
+      "z": 115,
+      "isDowned": false,
+      "isDrafted": false,
+      "equippedWeapon": "None",
+      "skills": {
+        "Shooting": {
+          "level": 7,
+          "passion": "Minor"
+        },
+        "Melee": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Construction": {
+          "level": 5,
+          "passion": "Minor"
+        },
+        "Mining": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Cooking": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Plants": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Animals": {
+          "level": 10,
+          "passion": "Minor"
+        },
+        "Crafting": {
+          "level": 7,
+          "passion": "Minor"
+        },
+        "Artistic": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Medicine": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Social": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Intellectual": {
+          "level": 0,
+          "passion": "None"
+        }
+      },
+      "traits": [
+        "Jealous",
+        "DislikesWomen",
+        "Kind"
+      ],
+      "hediffs": []
+    }
+  ],
+  "scriptRunner": {
+    "activeScriptsCount": 0,
+    "activeScripts": []
+  }
+}

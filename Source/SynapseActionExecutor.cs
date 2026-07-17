@@ -60,12 +60,11 @@ namespace RimSynapse
                         {
                             logCallback?.Invoke(msg);
                             scriptLog.Add(msg);
-                            if (msg.Contains("finished") || msg.Contains("Warning") || msg.Contains("Error"))
-                            {
-                                string scriptOutcome = string.Join("\n", scriptLog);
-                                messages.Add(ChatMessage.User($"Script execution finished. Logs:\n{scriptOutcome}\n\nPlease review and either generate next tool calls/script, or respond with a final summary if done."));
-                                planner.RunAgentLoop(options);
-                            }
+                        }, () =>
+                        {
+                            string scriptOutcome = string.Join("\n", scriptLog);
+                            messages.Add(ChatMessage.User($"Script execution finished. Logs:\n{scriptOutcome}\n\nPlease review and either generate next tool calls/script, or respond with a final summary if done."));
+                            planner.RunAgentLoop(options);
                         });
                     });
                     return true;

@@ -75,6 +75,11 @@ namespace RimSynapse
                             ["items"] = new Dictionary<string, string> { ["type"] = "string" },
                             ["description"] = "Optional: List of conditions that release possession (e.g. [\"Damage\", \"EnemyNearby\", \"ExtremeMood\"])."
                         },
+                        ["allowForbidden"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "boolean",
+                            ["description"] = "Optional: If true, allows interacting with forbidden items or structures. Useful for mental breaks or storyteller self-harm events."
+                        },
                         ["maxDurationTicks"] = new Dictionary<string, string>
                         {
                             ["type"] = "integer",
@@ -163,6 +168,12 @@ namespace RimSynapse
 
         private static bool ExecutePossessionAction(Pawn pawn, string action, Dictionary<string, object> parsedArgs, int? targetX, int? targetZ)
         {
+            bool allowForbidden = false;
+            if (parsedArgs != null && parsedArgs.TryGetValue("allowForbidden", out var allowVal) && allowVal != null)
+            {
+                bool.TryParse(allowVal.ToString(), out allowForbidden);
+            }
+
             if (action == "draft")
             {
                 pawn.drafter.Drafted = true;
@@ -268,7 +279,7 @@ namespace RimSynapse
 
                 if (job != null)
                 {
-                    return pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+                    return TryTakeOrderedJobBypassingForbid(pawn, job, target, allowForbidden);
                 }
             }
             return false;
@@ -278,6 +289,12 @@ namespace RimSynapse
         {
             string itemDef = parsedArgs.TryGetValue("targetItemDef", out var tid) ? tid?.ToString() : null;
             string itemName = parsedArgs.TryGetValue("targetItemName", out var tin) ? tin?.ToString() : null;
+
+            bool allowForbidden = false;
+            if (parsedArgs != null && parsedArgs.TryGetValue("allowForbidden", out var allowVal) && allowVal != null)
+            {
+                bool.TryParse(allowVal.ToString(), out allowForbidden);
+            }
 
             Thing item = null;
 
@@ -320,8 +337,9 @@ namespace RimSynapse
                 float closestDist = float.MaxValue;
                 foreach (var t in pawn.Map.listerThings.AllThings)
                 {
-                    // Skip if item is forbidden, held by someone else, or unreachable
-                    if (t.IsForbidden(pawn) || t.ParentHolder is Pawn || !pawn.CanReach(t, Verse.AI.PathEndMode.Touch, Danger.Deadly))
+                    // Skip if item is held by someone else or unreachable
+                    bool isForbidden = t.IsForbidden(pawn);
+                    if ((isForbidden && !allowForbidden) || t.ParentHolder is Pawn || !pawn.CanReach(t, Verse.AI.PathEndMode.Touch, Danger.Deadly))
                         continue;
 
                     if (requireIngestible && t.def.ingestible == null)
@@ -368,7 +386,32 @@ namespace RimSynapse
 
             Job job = JobMaker.MakeJob(jobDef, item);
             if (requireIngestible) job.count = 1;
-            return pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+            return TryTakeOrderedJobBypassingForbid(pawn, job, item, allowForbidden);
+        }
+
+        private static bool TryTakeOrderedJobBypassingForbid(Pawn pawn, Job job, Thing target, bool allowForbidden)
+        {
+            if (target == null)
+            {
+                return pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+            }
+
+            bool oldForbidden = target.IsForbidden(pawn);
+            bool shouldBypass = oldForbidden && allowForbidden;
+
+            if (shouldBypass)
+            {
+                target.SetForbidden(false, false);
+            }
+
+            bool success = pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+
+            if (shouldBypass)
+            {
+                target.SetForbidden(true, false);
+            }
+
+            return success;
         }
     }
 }

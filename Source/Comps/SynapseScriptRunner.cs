@@ -31,6 +31,7 @@ namespace RimSynapse
             public int waitTimeoutTicks = 0;
             public int waitStartTick = 0;
             public Action<string> logCallback;
+            public Action onFinished;
         }
 
         private static readonly List<ActiveScript> _activeScripts = new List<ActiveScript>();
@@ -56,7 +57,7 @@ namespace RimSynapse
             return list;
         }
 
-        public static void StartScript(SynapseScript script, Action<string> logCallback)
+        public static void StartScript(SynapseScript script, Action<string> logCallback, Action onFinished = null)
         {
             if (script == null || script.steps == null || script.steps.Count == 0) return;
             
@@ -64,7 +65,8 @@ namespace RimSynapse
             {
                 script = script,
                 currentStepIndex = 0,
-                logCallback = logCallback
+                logCallback = logCallback,
+                onFinished = onFinished
             };
             
             _activeScripts.Add(active);
@@ -194,6 +196,14 @@ namespace RimSynapse
             {
                 active.logCallback?.Invoke($"[Script Runner] Script '{active.script.scriptName}' finished.");
                 _toRemove.Add(active);
+                try
+                {
+                    active.onFinished?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    active.logCallback?.Invoke($"[Error] onFinished callback failed: {ex.Message}");
+                }
             }
         }
 
