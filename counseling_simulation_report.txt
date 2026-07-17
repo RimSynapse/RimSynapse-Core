@@ -1,0 +1,21 @@
+===============================================================================
+          RIMSYNAPE PSYCHOLOGY: MULTI-TRAIT COUNSELING SIMULATION REPORT
+===============================================================================
+Total Runs Modeled Per Trait: 100
+Therapist Social Skill: Level 10
+Assumed Patient Mood: 50% (Cure scale factor: 0.05)
+Assumed Environment: Private Room (+20% Success Chance)
+Combined Cure Probability Per Session: ~4.00%
+-------------------------------------------------------------------------------
+| Trait Label     | Min Sessions | Max Sessions | Avg Sessions | Empirical Cure% |
+-------------------------------------------------------------------------------
+| Synapse_PTSD    | 1            | 126          | 30.39        | 3.291        % |
+| Depressive      | 2            | 155          | 29.57        | 3.382        % |
+| Pessimist       | 1            | 101          | 23.96        | 4.174        % |
+| Volatile        | 1            | 138          | 27.44        | 3.644        % |
+| Nervous         | 1            | 135          | 26.42        | 3.785        % |
+| Psychopath      | 1            | 134          | 23.70        | 4.219        % |
+| Bloodlust       | 1            | 157          | 23.51        | 4.254        % |
+-------------------------------------------------------------------------------
+STATUS: VERIFIED SUCCESSFUL
+===============================================================================

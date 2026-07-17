@@ -182,6 +182,8 @@ namespace RimSynapse
                 string outputPath = "d:/github/rimsynapse/Core/script_output.log";
                 string requestPath = "d:/github/rimsynapse/Core/game_state_request.json";
                 string statePath = "d:/github/rimsynapse/Core/game_state.json";
+                string toolInputPath = "d:/github/rimsynapse/Core/tool_input.json";
+                string toolOutputPath = "d:/github/rimsynapse/Core/tool_output.json";
 
                 // Poll script execution
                 if (System.IO.File.Exists(inputPath))
@@ -243,6 +245,44 @@ namespace RimSynapse
                     System.IO.File.Delete(requestPath);
                     string stateDump = GetGameStateDump();
                     System.IO.File.WriteAllText(statePath, stateDump);
+                }
+
+                // Poll tool execution
+                if (System.IO.File.Exists(toolInputPath))
+                {
+                    string json = System.IO.File.ReadAllText(toolInputPath);
+                    System.IO.File.Delete(toolInputPath);
+
+                    if (System.IO.File.Exists(toolOutputPath))
+                    {
+                        System.IO.File.Delete(toolOutputPath);
+                    }
+
+                    Enqueue(() =>
+                    {
+                        try
+                        {
+                            var request = Newtonsoft.Json.JsonConvert.DeserializeObject<ToolRequest>(json);
+                            if (request != null && !string.IsNullOrEmpty(request.name))
+                            {
+                                string argsStr = request.arguments != null ? Newtonsoft.Json.JsonConvert.SerializeObject(request.arguments) : "{}";
+                                string result = SynapseToolRegistry.ExecuteTool(request.name, argsStr);
+                                System.IO.File.WriteAllText(toolOutputPath, result);
+                            }
+                            else
+                            {
+                                System.IO.File.WriteAllText(toolOutputPath, "{\"error\": \"Invalid tool request format.\"}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            try
+                            {
+                                System.IO.File.WriteAllText(toolOutputPath, $"{{\"error\": {Newtonsoft.Json.JsonConvert.SerializeObject(ex.Message)}}}");
+                            }
+                            catch {}
+                        }
+                    });
                 }
             }
             catch (Exception ex)
@@ -341,6 +381,12 @@ namespace RimSynapse
                 return $"{{\"error\": \"Failed to serialize game state: {ex.Message}\"}}";
             }
         }
+    }
+
+    public class ToolRequest
+    {
+        public string name;
+        public object arguments;
     }
 }
 

@@ -2,96 +2,17 @@
   "storyteller": "Cassandra",
   "colonists": [
     {
-      "name": "Devyn",
-      "fullName": "Devyn Cobbler",
-      "x": 142,
-      "z": 114,
+      "name": "Runya",
+      "fullName": "Runyawen 'Runya' Morwen",
+      "x": 158,
+      "z": 133,
       "isDowned": false,
       "isDrafted": false,
       "equippedWeapon": "None",
       "skills": {
         "Shooting": {
-          "level": 6,
-          "passion": "Minor"
-        },
-        "Melee": {
-          "level": 9,
-          "passion": "Minor"
-        },
-        "Construction": {
-          "level": 1,
-          "passion": "None"
-        },
-        "Mining": {
           "level": 3,
           "passion": "None"
-        },
-        "Cooking": {
-          "level": 4,
-          "passion": "None"
-        },
-        "Plants": {
-          "level": 0,
-          "passion": "None"
-        },
-        "Animals": {
-          "level": 10,
-          "passion": "Major"
-        },
-        "Crafting": {
-          "level": 4,
-          "passion": "None"
-        },
-        "Artistic": {
-          "level": 4,
-          "passion": "None"
-        },
-        "Medicine": {
-          "level": 6,
-          "passion": "None"
-        },
-        "Social": {
-          "level": 3,
-          "passion": "None"
-        },
-        "Intellectual": {
-          "level": 1,
-          "passion": "None"
-        }
-      },
-      "traits": [
-        "PsychicSensitivity"
-      ],
-      "hediffs": [
-        {
-          "defName": "Asthma",
-          "label": "asthma (minor)",
-          "severity": 0.016
-        },
-        {
-          "defName": "Asthma",
-          "label": "asthma (minor)",
-          "severity": 0.016
-        },
-        {
-          "defName": "GoJuiceAddiction",
-          "label": "go-juice addiction (39%)",
-          "severity": 0.6148359
-        }
-      ]
-    },
-    {
-      "name": "Eli",
-      "fullName": "Eli Hess",
-      "x": 136,
-      "z": 124,
-      "isDowned": false,
-      "isDrafted": false,
-      "equippedWeapon": "None",
-      "skills": {
-        "Shooting": {
-          "level": 10,
-          "passion": "Major"
         },
         "Melee": {
           "level": 1,
@@ -99,91 +20,199 @@
         },
         "Construction": {
           "level": 4,
-          "passion": "Major"
+          "passion": "Minor"
         },
         "Mining": {
-          "level": 2,
+          "level": 0,
           "passion": "None"
         },
         "Cooking": {
-          "level": 2,
+          "level": 0,
           "passion": "None"
         },
         "Plants": {
-          "level": 1,
+          "level": 3,
           "passion": "None"
         },
         "Animals": {
+          "level": 11,
+          "passion": "Major"
+        },
+        "Crafting": {
           "level": 4,
           "passion": "Minor"
         },
-        "Crafting": {
-          "level": 1,
-          "passion": "None"
-        },
         "Artistic": {
+          "level": 6,
+          "passion": "Minor"
+        },
+        "Medicine": {
           "level": 2,
           "passion": "None"
         },
-        "Medicine": {
-          "level": 0,
-          "passion": "None"
-        },
         "Social": {
-          "level": 0,
+          "level": 1,
           "passion": "None"
         },
         "Intellectual": {
-          "level": 4,
+          "level": 2,
           "passion": "None"
         }
       },
       "traits": [
-        "Bloodlust",
-        "Jealous",
-        "AnnoyingVoice"
+        "Pyromaniac"
       ],
       "hediffs": []
     },
     {
-      "name": "Pickles",
-      "fullName": "Wesley Pickles",
-      "x": 145,
+      "name": "Timofei",
+      "fullName": "Timofei Jensen",
+      "x": 137,
+      "z": 112,
+      "isDowned": false,
+      "isDrafted": false,
+      "equippedWeapon": "None",
+      "skills": {
+        "Shooting": {
+          "level": 6,
+          "passion": "Major"
+        },
+        "Melee": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Construction": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Mining": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Cooking": {
+          "level": 4,
+          "passion": "None"
+        },
+        "Plants": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Animals": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Crafting": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Artistic": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Medicine": {
+          "level": 10,
+          "passion": "Major"
+        },
+        "Social": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Intellectual": {
+          "level": 5,
+          "passion": "Minor"
+        }
+      },
+      "traits": [
+        "Jealous",
+        "Bloodlust"
+      ],
+      "hediffs": [
+        {
+          "defName": "SimpleProstheticLeg",
+          "label": "prosthetic leg",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        }
+      ]
+    },
+    {
+      "name": "Simone",
+      "fullName": "Brandon Simone",
+      "x": 138,
       "z": 115,
       "isDowned": false,
       "isDrafted": false,
       "equippedWeapon": "None",
       "skills": {
         "Shooting": {
-          "level": 7,
-          "passion": "Minor"
-        },
-        "Melee": {
-          "level": 1,
-          "passion": "None"
-        },
-        "Construction": {
-          "level": 5,
-          "passion": "Minor"
-        },
-        "Mining": {
-          "level": 3,
-          "passion": "None"
-        },
-        "Cooking": {
           "level": 0,
           "passion": "None"
         },
-        "Plants": {
+        "Melee": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Construction": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Mining": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Cooking": {
           "level": 2,
           "passion": "None"
         },
-        "Animals": {
-          "level": 10,
+        "Plants": {
+          "level": 3,
           "passion": "Minor"
         },
+        "Animals": {
+          "level": 12,
+          "passion": "Major"
+        },
         "Crafting": {
-          "level": 7,
+          "level": 3,
           "passion": "Minor"
         },
         "Artistic": {
@@ -191,24 +220,29 @@
           "passion": "None"
         },
         "Medicine": {
-          "level": 0,
-          "passion": "None"
+          "level": 10,
+          "passion": "Major"
         },
         "Social": {
-          "level": 2,
+          "level": 0,
           "passion": "None"
         },
         "Intellectual": {
-          "level": 0,
-          "passion": "None"
+          "level": 8,
+          "passion": "Minor"
         }
       },
       "traits": [
-        "Jealous",
-        "DislikesWomen",
-        "Kind"
+        "Transhumanist",
+        "Pyromaniac"
       ],
-      "hediffs": []
+      "hediffs": [
+        {
+          "defName": "HeartArteryBlockage",
+          "label": "artery blockage (minor)",
+          "severity": 0.129100084
+        }
+      ]
     }
   ],
   "scriptRunner": {

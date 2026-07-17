@@ -64,6 +64,34 @@ namespace RimSynapse
                 return;
             }
 
+            // Quicktest mock bypass to avoid slow LLM generation during developer tests
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-quicktest") >= 0)
+            {
+                string mockContent = "{\"success\": true}";
+                string userMsgLower = messages.FindLast(m => m.role == "user")?.content?.ToLower() ?? "";
+                string sysMsgLower = messages.Find(m => m.role == "system")?.content?.ToLower() ?? "";
+
+                if (sysMsgLower.Contains("childhood") || userMsgLower.Contains("childhood"))
+                {
+                    mockContent = "{\n  \"Memory\": \"I spent my childhood digging trenches and learning the names of wild plants. My hands were always calloused, but I found peace in the quiet woods.\",\n  \"Hometown\": \"Kharstead\",\n  \"Tags\": [\"Origin\", \"Childhood\", \"Plants\"],\n  \"EmotionalTone\": \"neutral\"\n}";
+                }
+                else if (sysMsgLower.Contains("adulthood") || userMsgLower.Contains("adulthood"))
+                {
+                    mockContent = "{\n  \"Memory\": \"As an adult, I worked the heavy machinery in the logging camps. One winter, the heating failed, and we survived by felling wood.\",\n  \"Tags\": [\"Adulthood\", \"Plants\", \"Survival\"],\n  \"EmotionalTone\": \"determined\"\n}";
+                }
+                else if (sysMsgLower.Contains("psychology") || sysMsgLower.Contains("profile") || userMsgLower.Contains("profile") || userMsgLower.Contains("synthesize"))
+                {
+                    mockContent = "{\n  \"Personality\": \"A quiet and pragmatic individual who values survival. They are driven by practical results.\",\n  \"JungianType\": \"ISTJ\",\n  \"CoreArchetype\": \"Explorer\",\n  \"Temperament\": \"Phlegmatic\",\n  \"FirstImpression\": \"I've arrived. Let's get to work.\",\n  \"LeadershipStyle\": \"Rules through pragmatism and a focus on survival resources.\"\n}";
+                }
+                else if (sysMsgLower.Contains("narrative ai") || sysMsgLower.Contains("faction") || userMsgLower.Contains("faction"))
+                {
+                    mockContent = "{\n  \"Description\": \"An ancient faction of survivors who have weathered the harsh rimworld for generations. They value tradition and self-sufficiency, often trading with friendly neighbors while fiercely defending their borders from outlaws.\",\n  \"CurrentHiddenAgenda\": \"They seek to establish dynamic dominance by acquiring advanced tech resources through covert operations.\"\n}";
+                }
+
+                callback?.Invoke(new ChatResult { success = true, content = mockContent, model = "QuicktestMockModel" });
+                return;
+            }
+
             // Validate messages
             string validationError = InputConverter.Validate(messages);
             if (validationError != null)

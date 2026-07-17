@@ -1,0 +1,11 @@
+=================================================
+PTSD DESENSITIZATION EMPIRICAL PLAYTEST REPORT
+=================================================
+Total Runs Modeled: 100
+Target Cure Chance (Theoretical): 0.5% (0.005)
+Min Shots to Cure: 1
+Max Shots to Cure: 947
+Average Shots to Cure: 202.81
+Empirical Cure Probability: 0.493%
+=================================================
+STATUS: VERIFIED SUCCESSFUL
