@@ -16,19 +16,43 @@ namespace RimSynapse
             // Meta-Tool: list_available_tools
             RegisterTool(
                 "list_available_tools",
-                "Get the directory of all available game tools, including their names, descriptions, and required argument schemas.",
+                "Get the directory of available game tools. Can optionally specify a search query keyword to filter the tools.",
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
-                    ["properties"] = new Dictionary<string, object>()
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["query"] = new Dictionary<string, object>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Optional search query to filter tool names and descriptions."
+                        }
+                    }
                 },
                 args =>
                 {
+                    string filter = null;
+                    try
+                    {
+                        var parsedArgs = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (parsedArgs != null && parsedArgs.TryGetValue("query", out var qVal))
+                            filter = qVal?.ToString()?.ToLower();
+                    }
+                    catch {}
+
                     var list = new List<object>();
                     foreach (var tool in _tools.Values)
                     {
                         if (tool.isDebugAction || tool.name == "list_available_tools" || tool.name == "execute_game_tool")
                             continue;
+
+                        if (!string.IsNullOrEmpty(filter))
+                        {
+                            bool nameMatch = tool.name.ToLower().Contains(filter);
+                            bool descMatch = tool.description.ToLower().Contains(filter);
+                            if (!nameMatch && !descMatch)
+                                continue;
+                        }
 
                         list.Add(new
                         {

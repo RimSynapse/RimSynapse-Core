@@ -81,7 +81,12 @@ namespace RimSynapse
                         ["level"] = new Dictionary<string, string>
                         {
                             ["type"] = "integer",
-                            ["description"] = "The level of the skill to set (0 to 20)."
+                            ["description"] = "Optional level of the skill to set (0 to 20)."
+                        },
+                        ["passion"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Optional passion level to set for 'set_skill' action: 'None', 'Minor', 'Major' (Major is burning/major passion)."
                         }
                     },
                     ["required"] = new List<string> { "action" }
@@ -219,7 +224,6 @@ namespace RimSynapse
             else if (action.Equals("set_skill", StringComparison.OrdinalIgnoreCase))
             {
                 if (string.IsNullOrEmpty(skillName)) return "{\"success\": false, \"reason\": \"Missing 'skillName' parameter.\"}";
-                if (!level.HasValue) return "{\"success\": false, \"reason\": \"Missing 'level' parameter.\"}";
 
                 SkillDef skillDef = DefDatabase<SkillDef>.GetNamedSilentFail(skillName);
                 if (skillDef == null) return $"{{\"success\": false, \"reason\": \"SkillDef '{skillName}' not found.\"}}";
@@ -227,8 +231,31 @@ namespace RimSynapse
                 var record = pawn.skills.GetSkill(skillDef);
                 if (record == null) return $"{{\"success\": false, \"reason\": \"Skill record '{skillName}' not found on {pawnName}.\"}}";
 
-                record.Level = level.Value;
-                return $"{{\"success\": true, \"message\": \"Successfully set skill '{skillName}' level to {level.Value} for {pawnName}.\"}}";
+                string msg = "";
+                if (level.HasValue)
+                {
+                    record.Level = level.Value;
+                    msg += $"level to {level.Value}";
+                }
+
+                if (parsedArgs.TryGetValue("passion", out var passionVal) && passionVal != null)
+                {
+                    string passStr = passionVal.ToString();
+                    if (Enum.TryParse<RimWorld.Passion>(passStr, true, out var passionEnum))
+                    {
+                        record.passion = passionEnum;
+                        if (msg != "") msg += " and ";
+                        msg += $"passion to {passionEnum}";
+                    }
+                    else
+                    {
+                        return $"{{\"success\": false, \"reason\": \"Invalid passion level '{passStr}'. Use 'None', 'Minor', or 'Major'.\"}}";
+                    }
+                }
+
+                if (msg == "") return "{\"success\": false, \"reason\": \"Must specify at least 'level' or 'passion' to modify skill.\"}";
+
+                return $"{{\"success\": true, \"message\": \"Successfully set skill '{skillName}' {msg} for {pawnName}.\"}}";
             }
 
             return $"{{\"success\": false, \"reason\": \"Unknown action '{action}'.\"}}";
