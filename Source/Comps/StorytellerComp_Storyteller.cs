@@ -69,49 +69,12 @@ namespace RimSynapse.Comps
 
             if (Rand.Chance(probPerCheck))
             {
-                // PERCEPTION CHECK: Does a hostile faction see us as an easy target?
-                Faction highlyMotivatedFaction = GetMotivatedFaction(coreComp);
-                
-                if (highlyMotivatedFaction != null)
+                IncidentCategoryDef category = ChooseCategory(target, coreComp);
+                if (category != null)
                 {
-                    // Scale motivated raid chance down if population density is high
-                    int pop = 0;
-                    if (target.Tile >= 0 && SynapseCoreWorldComponent.GetPopulationDensityDelegate != null)
-                    {
-                        pop = SynapseCoreWorldComponent.GetPopulationDensityDelegate(target.Tile);
-                    }
-                    float raidMult = 1f / (1f + Props.motivatedRaidPopulationDensityFactor * pop);
-
-                    if (Rand.Chance(raidMult))
-                    {
-                        IncidentParms raidParms = GenerateParms(IncidentCategoryDefOf.ThreatBig, target);
-                        raidParms.faction = highlyMotivatedFaction;
-                        
-                        // Force drop pods if they are rich and far away
-                        if (highlyMotivatedFaction.def.techLevel >= TechLevel.Industrial && Rand.Chance(0.5f))
-                        {
-                            raidParms.raidArrivalMode = PawnsArrivalModeDefOf.CenterDrop;
-                        }
-                        else
-                        {
-                            raidParms.raidArrivalMode = PawnsArrivalModeDefOf.EdgeWalkIn;
-                        }
-
-                        if (IncidentDefOf.RaidEnemy.Worker.CanFireNow(raidParms))
-                        {
-                            yield return new FiringIncident(IncidentDefOf.RaidEnemy, this, raidParms);
-                        }
-                    }
-                }
-                else
-                {
-                    IncidentCategoryDef category = ChooseCategory(target, coreComp);
-                    if (category != null)
-                    {
-                        // Temporarily reduce pacing to prevent further events while LLM is thinking
-                        coreComp.GlobalPacingMultiplier = 0.001f;
-                        RimSynapse.Comps.SynapseStorytellerOpportunistic.TriggerEventSelection(category, target);
-                    }
+                    // Temporarily reduce pacing to prevent further events while LLM is thinking
+                    coreComp.GlobalPacingMultiplier = 0.001f;
+                    RimSynapse.Comps.SynapseStorytellerOpportunistic.TriggerEventSelection(category, target);
                 }
             }
         }

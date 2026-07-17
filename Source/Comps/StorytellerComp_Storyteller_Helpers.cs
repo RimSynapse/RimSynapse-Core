@@ -11,31 +11,7 @@ namespace RimSynapse.Comps
     /// </summary>
     public partial class StorytellerComp_Storyteller
     {
-        /// <summary>
-        /// Checks all hostile factions. If one perceives the colony as wealthy but weak
-        /// (high greed ratio), it becomes highly motivated to invade.
-        /// </summary>
-        private Faction GetMotivatedFaction(SynapseCoreWorldComponent coreComp)
-        {
-            if (coreComp == null) return null;
 
-            foreach (var tracker in coreComp.factionTrackers)
-            {
-                Faction faction = Find.FactionManager.AllFactions.FirstOrDefault(f => f.GetUniqueLoadID() == tracker.factionId);
-                if (faction != null && faction.HostileTo(Faction.OfPlayer))
-                {
-                    float normalizedStrength = (tracker.perceivedStrength * 50f) + 1f;
-                    float greedRatio = tracker.perceivedWealth / normalizedStrength;
-
-                    if (greedRatio > Props.motivatedRaidGreedRatioThreshold && Rand.Chance(Props.motivatedRaidBaseChance))
-                    {
-                        tracker.perceivedStrength += Props.motivatedRaidStrengthIncrease; 
-                        return faction;
-                    }
-                }
-            }
-            return null;
-        }
 
         /// <summary>
         /// Selects an incident category (ThreatBig, Misc, Disease, etc.) using

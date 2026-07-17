@@ -21,6 +21,17 @@ namespace RimSynapse
         public static event ContextInjectionHandler OnInjectGenericContext;
 
         /// <summary>
+        /// Fires when global news is published. Used by RimSynapse-Factions to simulate rumor spread.
+        /// (float wealthDelta, float strengthDelta)
+        /// </summary>
+        public static event System.Action<float, float> OnGlobalKnowledgeBroadcast;
+
+        public static void BroadcastGlobalKnowledge(float wealthDelta, float strengthDelta)
+        {
+            OnGlobalKnowledgeBroadcast?.Invoke(wealthDelta, strengthDelta);
+        }
+
+        /// <summary>
         /// Fires the OnInjectGenericContext event and returns a concatenated string of all injected context.
         /// </summary>
         public static string GatherGenericContext(Pawn pawn, string contextType)
