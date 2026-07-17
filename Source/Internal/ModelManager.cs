@@ -104,6 +104,15 @@ namespace RimSynapse.Internal
                     ActiveModel = result.modelIds[0];
                     ContextLength = result.contextLength;
 
+                    if (ContextLength.HasValue && ContextLength.Value > 0)
+                    {
+                        var settings = RimSynapseMod.Instance?.Settings;
+                        if (settings != null)
+                        {
+                            settings.modelContextLimit = ContextLength.Value;
+                        }
+                    }
+
                     if (previousModel != ActiveModel)
                     {
                         SynapseLogger.Info("model",

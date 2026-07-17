@@ -310,6 +310,27 @@ namespace RimSynapse.Internal
                         string id = m["id"]?.ToString();
                         if (!string.IsNullOrEmpty(id))
                             result.modelIds.Add(id);
+
+                        // Try to extract active model's context window size from any typical LM Studio / OpenAI extensions
+                        if (result.contextLength == null)
+                        {
+                            try
+                            {
+                                if (m["context_length"] != null)
+                                    result.contextLength = m["context_length"].Value<int>();
+                                else if (m["max_context_length"] != null)
+                                    result.contextLength = m["max_context_length"].Value<int>();
+                                else if (m["context_window"] != null)
+                                    result.contextLength = m["context_window"].Value<int>();
+                                else if (m["meta"]?["context_length"] != null)
+                                    result.contextLength = m["meta"]["context_length"].Value<int>();
+                                else if (m["meta"]?["context_window"] != null)
+                                    result.contextLength = m["meta"]["context_window"].Value<int>();
+                                else if (m["properties"]?["context_length"] != null)
+                                    result.contextLength = m["properties"]["context_length"].Value<int>();
+                            }
+                            catch { }
+                        }
                     }
                 }
 

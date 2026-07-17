@@ -56,8 +56,16 @@ namespace RimSynapse
                 listing.Gap(4f);
                 listing.Label("  Context is active. Edit XML files in the mod's Defs/ folder " +
                     "to customize prompts, weights, and event profiles.");
+
+                int detectedCtx = Internal.ModelManager.ContextLength ?? Settings.modelContextLimit;
                 listing.Label($"  Token budget adapts to LM Studio context window " +
-                    $"({Internal.ModelManager.ContextLength?.ToString() ?? "unknown"} tokens).");
+                    $"({detectedCtx} tokens).");
+
+                listing.Gap(2f);
+                Settings.modelContextLimit = (int)listing.SliderLabeled(
+                    $"  Active Model Context Limit: {Settings.modelContextLimit} tokens",
+                    Settings.modelContextLimit, 2048f, 131072f,
+                    tooltip: "Manually specify your local LLM's context length (e.g. 32768, 16384, or 8192) if it cannot be dynamically detected from the provider API. Controls prompt size limits and paginators.");
             }
             
             listing.CheckboxLabeled("Enable storyteller tool usage",
@@ -68,9 +76,10 @@ namespace RimSynapse
             if (Settings.enableStorytellerTools)
             {
                 listing.Gap(4f);
+                int maxSliderLimit = Math.Max(16384, Settings.modelContextLimit);
                 Settings.maxPacingContextTokens = (int)listing.SliderLabeled(
                     $"Storyteller Max Context Budget: {Settings.maxPacingContextTokens} tokens",
-                    Settings.maxPacingContextTokens, 2048f, 16384f,
+                    Settings.maxPacingContextTokens, 2048f, maxSliderLimit,
                     tooltip: "The target maximum prompt budget for storyteller checks. Lower values (like 2048) speed up generation and use less VRAM. Higher values allow including more detailed event histories.");
             }
 

@@ -97,6 +97,8 @@ namespace RimSynapse
             RegisterHackingTools();
             RegisterPawnStateTools();
             RegisterObjectStateTools();
+            RegisterSearchTools();
+            RegisterDefinitionTools();
             RegisterDynamicDebugActions();
         }
     }

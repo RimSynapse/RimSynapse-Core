@@ -18,6 +18,8 @@ namespace RimSynapse.UI
         private static string _selectedRoutingId = RimSynapse.RoutingId.LocalOnly;
         private static List<string> _executionLog = new List<string>();
         private Vector2 _logScrollPosition = Vector2.zero;
+        private static bool _showFeatureRequestButton = false;
+        private static string _rawJsonCallLog = "";
 
         public Dialog_GodMode()
         {
@@ -29,6 +31,7 @@ namespace RimSynapse.UI
             this.resizeable = true;
             this.draggable = true;
             this.preventCameraMotion = false;
+            this.closeOnAccept = false;
         }
 
         public override Vector2 InitialSize => new Vector2(650f, 600f);
@@ -107,8 +110,22 @@ namespace RimSynapse.UI
                 _executionLog.Clear();
             }
 
-            // Status label next to buttons
-            Rect statusRect = new Rect(295f, curY + 8f, inRect.width - 300f, 25f);
+            // Status label next to buttons or Submit Feature Request button
+            float statusX = 295f;
+            if (_showFeatureRequestButton)
+            {
+                Rect requestRect = new Rect(295f, curY, 180f, 35f);
+                var oldBg = GUI.backgroundColor;
+                GUI.backgroundColor = new Color(0.9f, 0.45f, 0.15f); // Accent orange
+                if (Widgets.ButtonText(requestRect, "Submit Feature Request"))
+                {
+                    SubmitFeatureRequest();
+                }
+                GUI.backgroundColor = oldBg;
+                statusX = 485f;
+            }
+
+            Rect statusRect = new Rect(statusX, curY + 8f, inRect.width - statusX, 25f);
             GUI.color = _statusColor;
             Widgets.Label(statusRect, _statusText);
             GUI.color = Color.white;
@@ -118,18 +135,65 @@ namespace RimSynapse.UI
             Widgets.Label(new Rect(0f, curY, inRect.width, 20f), "Execution Log:");
             curY += 22f;
 
+            float totalLogHeight = 10f;
+            float scrollWidth = inRect.width - 20f;
+            foreach (var line in _executionLog)
+            {
+                totalLogHeight += Text.CalcHeight(line, scrollWidth) + 2f;
+            }
+
             float remainingHeight = inRect.height - curY - 55f; // Leave space for close button
             Rect outRect = new Rect(0f, curY, inRect.width, remainingHeight);
-            Rect viewRect = new Rect(0f, 0f, inRect.width - 20f, Math.Max(remainingHeight, _executionLog.Count * 22f + 10f));
+            Rect viewRect = new Rect(0f, 0f, scrollWidth, Math.Max(remainingHeight, totalLogHeight));
 
             Widgets.BeginScrollView(outRect, ref _logScrollPosition, viewRect);
             float logY = 0f;
             foreach (var line in _executionLog)
             {
-                Widgets.Label(new Rect(0f, logY, viewRect.width, 20f), line);
-                logY += 22f;
+                float height = Text.CalcHeight(line, scrollWidth);
+                Widgets.Label(new Rect(0f, logY, scrollWidth, height), line);
+                logY += height + 2f;
             }
             Widgets.EndScrollView();
+        }
+
+        private void SubmitFeatureRequest()
+        {
+            string activeModel = Internal.ModelManager.ActiveModel ?? "Unknown (Local)";
+            int contextLimit = RimSynapseMod.Instance?.Settings?.modelContextLimit ?? 8192;
+            string dlcStatus = $"{(ModsConfig.IdeologyActive ? "Ideology " : "")}{(ModsConfig.RoyaltyActive ? "Royalty " : "")}{(ModsConfig.BiotechActive ? "Biotech " : "")}{(ModsConfig.AnomalyActive ? "Anomaly " : "")}";
+            if (string.IsNullOrEmpty(dlcStatus)) dlcStatus = "None";
+
+            string logMarkdown = $@"# RimSynapse God Mode Feature Request Log
+
+**Command Entered:** `{_commandInput}`
+**Active Model:** `{activeModel}`
+**Model Context Limit:** `{contextLimit} tokens`
+**Active DLCs:** `{dlcStatus.Trim()}`
+**RimWorld Version:** `1.6.4871`
+
+## Resolved Tool Calls JSON
+```json
+{_rawJsonCallLog}
+```
+
+## Verbose Execution Log
+```
+{string.Join("\n", _executionLog.Where(l => !l.StartsWith("> Request:")))}
+```
+
+Please copy this report and post it to the [RimSynapse Project](https://github.com/rimsynapse/Core/issues) to request support for this action sequence.";
+
+            Find.WindowStack.Add(new Dialog_MessageBox(
+                text: logMarkdown,
+                buttonAText: "Copy to Clipboard",
+                buttonAAction: () => {
+                    GUIUtility.systemCopyBuffer = logMarkdown;
+                    Messages.Message("Feature request log copied to clipboard!", RimWorld.MessageTypeDefOf.PositiveEvent, false);
+                },
+                buttonBText: "Cancel",
+                title: "Submit Feature Request to RimSynapse"
+            ));
         }
 
         private void ExecuteCommand()
@@ -137,153 +201,49 @@ namespace RimSynapse.UI
             if (string.IsNullOrEmpty(_commandInput)) return;
 
             _busy = true;
-            _statusText = "Analyzing command...";
+            _showFeatureRequestButton = false;
+            _executionLog.Clear();
+            _statusText = "Analyzing command (Turn 1)...";
             _statusColor = new Color(0.7f, 0.7f, 1f);
-            _executionLog.Add($"> Request: {_commandInput}");
 
-            string systemPrompt = $@"You are the RimWorld Synapse God Mode action resolver.
-The user will input an instruction in plain English. Your job is to translate this instruction into a sequence of tool/C# function calls to change the game state.
-
-You MUST choose the correct tools to satisfy the user's intent. If you need to search the map for weapons, apparel, food, or resources to interact with, you should FIRST call the 'find_items_on_map' query tool. Once you have the results, proceed to command the pawns or execute target actions.
-
-For your final output, return a JSON object with a list of actions to execute:
-{{
-  ""calls"": [
-    {{
-      ""tool"": ""possess_colonist"",
-      ""arguments"": {{
-        ""pawnName"": ""Fred"",
-        ""commandName"": ""Equipping sniper rifle"",
-        ""action"": ""equip"",
-        ""targetX"": 12,
-        ""targetZ"": 45,
-        ""targetItemName"": ""Sniper Rifle""
-      }}
-    }}
-  ]
-}}";
-
-            var options = new ChatOptions { priority = 9, requestName = "God Mode Resolver" };
-            if (!string.IsNullOrEmpty(_selectedRoutingId))
-            {
-                options.priority = 10;
-            }
-
-            var toolsList = new List<GameToolDefinition>();
-            foreach (var tool in SynapseToolRegistry.AllTools)
-            {
-                if (tool.name != "execute_game_tool")
+            RimSynapseAPI.ExecuteNaturalLanguageCommand(
+                _commandInput,
+                logMsg =>
                 {
-                    if (tool.name != "list_available_tools")
+                    _executionLog.Add(logMsg);
+                    if (logMsg.Contains("Invoking LLM"))
                     {
-                        toolsList.Add(new GameToolDefinition
-                        {
-                            name = tool.name,
-                            description = tool.description,
-                            parameters = tool.parameters
-                        });
+                        _statusText = "Invoking LLM...";
                     }
-                }
-            }
-
-            var request = new LlmTextRequest
-            {
-                SystemPrompt = systemPrompt,
-                Messages = new List<ChatMessage> { ChatMessage.User($"User Instruction: {_commandInput}") },
-                EnforceJson = true,
-                Tools = toolsList
-            };
-
-            SynapseClient.SendTextAsync(
-                RimSynapseMod.ModHandle,
-                request,
-                options,
-                result =>
+                    else if (logMsg.Contains("Executing step") || logMsg.Contains("[Executing]"))
+                    {
+                        _statusText = "Executing actions...";
+                    }
+                },
+                (success, finalSummary) =>
                 {
                     _busy = false;
-                    if (result.success)
+                    if (success)
                     {
-                        try
+                        _statusText = "Done";
+                        _statusColor = Color.green;
+
+                        bool hasFailure = _executionLog.Any(l => l.Contains("\"success\":false") || l.Contains("\"success\": false") || l.Contains("Warning") || l.Contains("Error"));
+                        if (hasFailure)
                         {
-                            string json = RimSynapse.Utils.JsonHelper.ExtractJson(result.content);
-                            if (string.IsNullOrEmpty(json))
-                            {
-                                _statusText = "Error: Invalid JSON response";
-                                _statusColor = Color.red;
-                                _executionLog.Add($"[Error] Raw Response: {result.content}");
-                                return;
-                            }
-
-                            var response = JsonConvert.DeserializeObject<GodModeResponse>(json);
-                            if (response == null)
-                            {
-                                _statusText = "No actions executed";
-                                _statusColor = Color.yellow;
-                                _executionLog.Add("[System] No actions were resolved by the LLM.");
-                                return;
-                            }
-                            if (response.calls == null)
-                            {
-                                _statusText = "No actions executed";
-                                _statusColor = Color.yellow;
-                                _executionLog.Add("[System] No actions were resolved by the LLM.");
-                                return;
-                            }
-                            if (response.calls.Count == 0)
-                            {
-                                _statusText = "No actions executed";
-                                _statusColor = Color.yellow;
-                                _executionLog.Add("[System] No actions were resolved by the LLM.");
-                                return;
-                            }
-
-                            _statusText = $"Successfully executed {response.calls.Count} actions";
-                            _statusColor = Color.green;
-
-                            SynapseGameComponent.Enqueue(() =>
-                            {
-                                foreach (var call in response.calls)
-                                {
-                                    _executionLog.Add($"[Executing] Call: {call.tool} with args: {JsonConvert.SerializeObject(call.arguments)}");
-                                    try
-                                    {
-                                        string argsJson = JsonConvert.SerializeObject(call.arguments);
-                                        string outcome = SynapseToolRegistry.ExecuteTool(call.tool, argsJson);
-                                        _executionLog.Add($"[Result] {outcome}");
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _executionLog.Add($"[Error] Execution failed: {ex.Message}");
-                                    }
-                                }
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            _statusText = "Error parsing response";
-                            _statusColor = Color.red;
-                            _executionLog.Add($"[Error] Exception: {ex.Message}");
+                            _statusText = "Action incomplete or failed";
+                            _statusColor = Color.yellow;
+                            _showFeatureRequestButton = true;
                         }
                     }
                     else
                     {
-                        _statusText = "Request failed";
+                        _statusText = "Failed";
                         _statusColor = Color.red;
-                        _executionLog.Add($"[Error] LLM Request failed: {result.error}");
+                        _showFeatureRequestButton = true;
                     }
                 }
             );
         }
-    }
-
-    public class GodModeResponse
-    {
-        public List<GodModeCall> calls;
-    }
-
-    public class GodModeCall
-    {
-        public string tool;
-        public Dictionary<string, object> arguments;
     }
 }

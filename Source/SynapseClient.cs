@@ -21,6 +21,12 @@ namespace RimSynapse
         /// </summary>
         public static string ActiveModelName => ModelManager.ActiveModel;
 
+        /// <summary>
+        /// The active model's context window size as reported by LM Studio's API,
+        /// or null if unknown / offline.
+        /// </summary>
+        public static int? ActiveModelContextLength => ModelManager.ContextLength;
+
         /// <summary>Total queue depth across all mods.</summary>
         public static int TotalQueueDepth => RequestQueue.QueueDepth;
 

@@ -17,7 +17,7 @@ namespace RimSynapse
         {
             RegisterTool(
                 "modify_pawn_state",
-                "Apply direct modifications to a colonist's health (hediffs), traits, skills, or conversion to an ideology.",
+                "Apply direct modifications to a target pawn or animal's health (hediffs, kill, damage), traits, skills, or conversion to an ideology.",
                 new Dictionary<string, object>
                 {
                     ["type"] = "object",
@@ -26,12 +26,22 @@ namespace RimSynapse
                         ["pawnName"] = new Dictionary<string, string>
                         {
                             ["type"] = "string",
-                            ["description"] = "The name of the target colonist."
+                            ["description"] = "The name of the target pawn/animal."
+                        },
+                        ["thingId"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The unique load ID (ThingID) of the target pawn/animal (preferred over pawnName)."
                         },
                         ["action"] = new Dictionary<string, string>
                         {
                             ["type"] = "string",
-                            ["description"] = "The modification type to perform: 'add_hediff', 'remove_body_part', 'convert', 'add_trait', 'remove_trait', 'set_skill'."
+                            ["description"] = "The modification type to perform: 'kill', 'damage', 'add_hediff', 'remove_body_part', 'convert', 'add_trait', 'remove_trait', 'set_skill'."
+                        },
+                        ["damageAmount"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "integer",
+                            ["description"] = "Optional damage points to deal for 'damage' action."
                         },
                         ["hediffName"] = new Dictionary<string, string>
                         {
@@ -74,7 +84,7 @@ namespace RimSynapse
                             ["description"] = "The level of the skill to set (0 to 20)."
                         }
                     },
-                    ["required"] = new List<string> { "pawnName", "action" }
+                    ["required"] = new List<string> { "action" }
                 },
                 args =>
                 {
@@ -82,21 +92,31 @@ namespace RimSynapse
                     try
                     {
                         var parsedArgs = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
-                        if (parsedArgs == null || !parsedArgs.TryGetValue("pawnName", out var pawnVal) || !parsedArgs.TryGetValue("action", out var actionVal))
+                        if (parsedArgs == null || !parsedArgs.TryGetValue("action", out var actionVal))
                         {
-                            return "{\"success\": false, \"reason\": \"Missing required arguments 'pawnName' or 'action'.\"}";
+                            return "{\"success\": false, \"reason\": \"Missing required argument 'action'.\"}";
                         }
 
-                        string pawnName = pawnVal?.ToString();
+                        string pawnName = parsedArgs.TryGetValue("pawnName", out var pawnVal) ? pawnVal?.ToString() : null;
+                        string thingId = parsedArgs.TryGetValue("thingId", out var idVal) ? idVal?.ToString() : null;
                         string action = actionVal?.ToString();
 
-                        Pawn pawn = Find.CurrentMap.mapPawns.FreeColonists.FirstOrDefault(p => p.LabelShort.Equals(pawnName, StringComparison.OrdinalIgnoreCase));
-                        if (pawn == null)
+                        Pawn pawn = null;
+                        if (!string.IsNullOrEmpty(thingId))
                         {
-                            return $"{{\"success\": false, \"reason\": \"Colonist '{pawnName}' not found.\"}}";
+                            pawn = Find.CurrentMap.mapPawns.AllPawns.FirstOrDefault(p => p.ThingID == thingId);
+                        }
+                        if (pawn == null && !string.IsNullOrEmpty(pawnName))
+                        {
+                            pawn = Find.CurrentMap.mapPawns.AllPawns.FirstOrDefault(p => p.LabelShort.Equals(pawnName, StringComparison.OrdinalIgnoreCase));
                         }
 
-                        return ExecutePawnStateAction(pawn, pawnName, action, parsedArgs);
+                        if (pawn == null)
+                        {
+                            return $"{{\"success\": false, \"reason\": \"Target pawn/animal '{thingId ?? pawnName}' not found on active map.\"}}";
+                        }
+
+                        return ExecutePawnStateAction(pawn, pawn.LabelShort, action, parsedArgs);
                     }
                     catch (Exception ex)
                     {
@@ -122,7 +142,19 @@ namespace RimSynapse
             int? level = null;
             if (parsedArgs.TryGetValue("level", out var lvlVal) && lvlVal != null && int.TryParse(lvlVal.ToString(), out int iLvl)) level = iLvl;
 
-            if (action.Equals("add_hediff", StringComparison.OrdinalIgnoreCase))
+            if (action.Equals("kill", StringComparison.OrdinalIgnoreCase))
+            {
+                pawn.Kill(null, null);
+                return $"{{\"success\": true, \"message\": \"Successfully killed pawn/animal '{pawnName}'.\"}}";
+            }
+            else if (action.Equals("damage", StringComparison.OrdinalIgnoreCase))
+            {
+                int dmg = 20;
+                if (parsedArgs.TryGetValue("damageAmount", out var dVal) && dVal != null && int.TryParse(dVal.ToString(), out int iDmg)) dmg = iDmg;
+                pawn.TakeDamage(new DamageInfo(DamageDefOf.Bomb, dmg));
+                return $"{{\"success\": true, \"message\": \"Successfully dealt {dmg} damage to '{pawnName}'.\"}}";
+            }
+            else if (action.Equals("add_hediff", StringComparison.OrdinalIgnoreCase))
             {
                 if (string.IsNullOrEmpty(hediffName)) return "{\"success\": false, \"reason\": \"Missing 'hediffName' parameter.\"}";
                 HediffDef hediffDef = DefDatabase<HediffDef>.GetNamedSilentFail(hediffName);

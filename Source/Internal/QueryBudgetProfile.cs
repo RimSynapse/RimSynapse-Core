@@ -91,8 +91,8 @@ namespace RimSynapse.Internal
             int systemPromptTokens = 0,
             int conversationTokens = 0)
         {
-            // Available context window from LM Studio
-            int contextWindow = ModelManager.ContextLength ?? 4096;
+            // Available context window from LM Studio or manual setting
+            int contextWindow = ModelManager.ContextLength ?? (RimSynapseMod.Instance?.Settings?.modelContextLimit ?? 4096);
 
             // Reserve space for completion output
             int reservedForCompletion = Math.Max(512, (int)(contextWindow * 0.25f));

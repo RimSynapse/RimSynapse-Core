@@ -183,6 +183,74 @@ namespace RimSynapse
                     }
                 }
             );
+
+            // Send Notification Letter Tool
+            RegisterTool(
+                "send_notification_letter",
+                "Post a letter notification alert on the player's screen. Perfect for storyteller announcements, death notices, or faction notifications.",
+                new Dictionary<string, object>
+                {
+                    ["type"] = "object",
+                    ["properties"] = new Dictionary<string, object>
+                    {
+                        ["title"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The title header of the letter (e.g. 'Death: Fred')."
+                        },
+                        ["text"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The detailed text body of the letter."
+                        },
+                        ["letterType"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "The style/type of letter: 'positive', 'negative', 'death', 'neutral' (default: 'neutral')."
+                        },
+                        ["pawnName"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Optional: Name of a pawn to target and center the camera on when the letter is double-clicked."
+                        }
+                    },
+                    ["required"] = new List<string> { "title", "text" }
+                },
+                args =>
+                {
+                    try
+                    {
+                        var parsedArgs = JsonConvert.DeserializeObject<Dictionary<string, object>>(args);
+                        if (parsedArgs == null || !parsedArgs.TryGetValue("title", out var tVal) || !parsedArgs.TryGetValue("text", out var txVal))
+                        {
+                            return "{\"success\": false, \"reason\": \"Missing title or text.\"}";
+                        }
+
+                        string title = tVal?.ToString();
+                        string text = txVal?.ToString();
+                        string letterType = parsedArgs.TryGetValue("letterType", out var ltVal) ? ltVal?.ToString()?.ToLower() : "neutral";
+                        string pawnName = parsedArgs.TryGetValue("pawnName", out var pVal) ? pVal?.ToString() : null;
+
+                        LetterDef letterDef = LetterDefOf.NeutralEvent;
+                        if (letterType == "death") letterDef = LetterDefOf.Death;
+                        else if (letterType == "negative") letterDef = LetterDefOf.NegativeEvent;
+                        else if (letterType == "positive") letterDef = LetterDefOf.PositiveEvent;
+
+                        Pawn lookTarget = null;
+                        if (Find.CurrentMap != null && !string.IsNullOrEmpty(pawnName))
+                        {
+                            lookTarget = Find.CurrentMap.mapPawns.AllPawns.FirstOrDefault(p => p.LabelShort.Equals(pawnName, StringComparison.OrdinalIgnoreCase));
+                        }
+
+                        Find.LetterStack.ReceiveLetter(title, text, letterDef, lookTarget);
+                        return "{\"success\": true, \"message\": \"Letter posted successfully.\"}";
+                    }
+                    catch (Exception ex)
+                    {
+                        return $"{{\"success\": false, \"reason\": \"Failed to post letter: {ex.Message}\"}}";
+                    }
+                }
+            );
         }
     }
 }

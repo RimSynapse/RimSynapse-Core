@@ -37,7 +37,12 @@ namespace RimSynapse
                         ["action"] = new Dictionary<string, string>
                         {
                             ["type"] = "string",
-                            ["description"] = "Action to perform: move, attack, draft, undraft, clear, equip, ingest."
+                            ["description"] = "Action to perform: move, teleport, attack, draft, undraft, clear, equip, ingest, prioritize."
+                        },
+                        ["targetThingId"] = new Dictionary<string, string>
+                        {
+                            ["type"] = "string",
+                            ["description"] = "Optional: Unique load ID (ThingID) of a target object (like a bed frame or steel vein) to prioritize/work on."
                         },
                         ["targetX"] = new Dictionary<string, string>
                         {
@@ -183,6 +188,16 @@ namespace RimSynapse
                     return pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
                 }
             }
+            else if (action == "teleport")
+            {
+                if (targetX.HasValue && targetZ.HasValue)
+                {
+                    var cell = new IntVec3(targetX.Value, 0, targetZ.Value);
+                    pawn.Position = cell;
+                    pawn.Notify_Teleported(true, false);
+                    return true;
+                }
+            }
             else if (action == "equip")
             {
                 return TryEquipOrIngestAtCell(pawn, parsedArgs, targetX, targetZ, JobDefOf.Equip);
@@ -202,6 +217,58 @@ namespace RimSynapse
                         Job job = JobMaker.MakeJob(JobDefOf.AttackMelee, target);
                         return pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
                     }
+                }
+            }
+            else if (action == "prioritize" || action == "work_on")
+            {
+                Thing target = null;
+                string targetId = parsedArgs.TryGetValue("targetThingId", out var idVal) ? idVal?.ToString() : null;
+                string targetName = parsedArgs.TryGetValue("targetItemName", out var nVal) ? nVal?.ToString() : null;
+
+                if (!string.IsNullOrEmpty(targetId))
+                {
+                    target = Find.CurrentMap.listerThings.AllThings.FirstOrDefault(t => t.ThingID == targetId);
+                }
+                if (target == null && !string.IsNullOrEmpty(targetName))
+                {
+                    target = Find.CurrentMap.listerThings.AllThings.FirstOrDefault(t => t.LabelShort.IndexOf(targetName, StringComparison.OrdinalIgnoreCase) >= 0);
+                }
+                if (target == null && targetX.HasValue && targetZ.HasValue)
+                {
+                    var cell = new IntVec3(targetX.Value, 0, targetZ.Value);
+                    target = cell.GetThingList(pawn.Map).FirstOrDefault(t => t.def.category != ThingCategory.Pawn);
+                }
+
+                if (target == null) return false;
+
+                Job job = null;
+                if (target is Frame)
+                {
+                    job = JobMaker.MakeJob(JobDefOf.FinishFrame, target);
+                }
+                else if (target is Blueprint)
+                {
+                    job = JobMaker.MakeJob(JobDefOf.PlaceNoCostFrame, target);
+                }
+                else if (target.def.mineable)
+                {
+                    job = JobMaker.MakeJob(JobDefOf.Mine, target);
+                }
+                else if (target is Plant plant && plant.HarvestableNow)
+                {
+                    job = JobMaker.MakeJob(JobDefOf.Harvest, target);
+                }
+                else if (target.def.category == ThingCategory.Building)
+                {
+                    if (target.HitPoints < target.MaxHitPoints)
+                    {
+                        job = JobMaker.MakeJob(JobDefOf.Repair, target);
+                    }
+                }
+
+                if (job != null)
+                {
+                    return pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc);
                 }
             }
             return false;

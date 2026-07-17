@@ -10,6 +10,7 @@ namespace RimSynapse.Internal.Providers
     public class OpenAiProvider : ILlmProvider
     {
         private readonly HttpClient _client;
+        private static bool _globalOmitResponseFormat = false;
 
         public OpenAiProvider(HttpClient client)
         {
@@ -68,7 +69,7 @@ namespace RimSynapse.Internal.Providers
                     messagesArray.Add(msgObj);
                 }
 
-                bool omitResponseFormat = false;
+                bool omitResponseFormat = _globalOmitResponseFormat;
                 int maxRetries = 2;
                 int currentAttempt = 0;
                 
@@ -132,8 +133,9 @@ namespace RimSynapse.Internal.Providers
                     {
                         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest && responseBody.Contains("response_format") && !omitResponseFormat)
                         {
+                            _globalOmitResponseFormat = true;
                             omitResponseFormat = true;
-                            SynapseLogger.Warning("Endpoint rejected 'json_object' response_format. Retrying without it...");
+                            SynapseLogger.Warning("Endpoint rejected 'json_object' response_format. Retrying without it and disabling it for future requests...");
                             continue;
                         }
 

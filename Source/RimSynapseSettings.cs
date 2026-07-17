@@ -106,6 +106,7 @@ namespace RimSynapse
         public bool enableContextEmbedding = false;
         public bool enableStorytellerTools = false;
         public int maxPacingContextTokens = 4096;
+        public int modelContextLimit = 8192;
         public float shortTermMemoryHours = 48f;
 
         // --- Performance ---
@@ -242,6 +243,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref enableContextEmbedding, "enableContextEmbedding", false);
             Scribe_Values.Look(ref enableStorytellerTools, "enableStorytellerTools", false);
             Scribe_Values.Look(ref maxPacingContextTokens, "maxPacingContextTokens", 4096);
+            Scribe_Values.Look(ref modelContextLimit, "modelContextLimit", 8192);
             Scribe_Values.Look(ref shortTermMemoryHours, "shortTermMemoryHours", 48f);
             Scribe_Values.Look(ref traceDebugMode, "traceDebugMode", false);
             Scribe_Values.Look(ref enableTrainingMode, "enableTrainingMode", false);

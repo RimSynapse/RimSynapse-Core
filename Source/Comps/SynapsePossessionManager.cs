@@ -45,13 +45,21 @@ namespace RimSynapse
             if (pawn == null) return;
             
             // Release existing if any
-            Release(pawn, "Replaced by new possession");
+            Release(pawn, "Replaced by new direction");
 
             var state = new PossessionState(pawn, conditions, maxTicks, targetX, targetZ, commandName);
             ActivePossessions.Add(state);
 
+            // Clean the command name for display if it starts with "Psychic compulsion"
+            string cleanCommand = commandName;
+            if (cleanCommand.StartsWith("Psychic compulsion", StringComparison.OrdinalIgnoreCase))
+            {
+                cleanCommand = cleanCommand.Replace("Psychic compulsion", "Compulsion");
+            }
+
             // Send standard alert message
-            Messages.Message($"[RimSynapse] {pawn.LabelShort} is under psychic possession: {commandName}.", pawn, MessageTypeDefOf.CautionInput, false);
+            string storytellerName = Find.Storyteller?.def?.LabelCap ?? "The Storyteller";
+            Messages.Message($"[RimSynapse] Storyteller {storytellerName} is directing {pawn.LabelShort}: {cleanCommand}.", pawn, MessageTypeDefOf.CautionInput, false);
         }
 
         public static void Release(Pawn pawn, string reason = "Condition met")
@@ -66,7 +74,8 @@ namespace RimSynapse
                 pawn.jobs?.ClearQueuedJobs();
                 pawn.jobs?.EndCurrentJob(JobCondition.InterruptForced);
 
-                Messages.Message($"[RimSynapse] Possession of {pawn.LabelShort} released ({reason}).", pawn, MessageTypeDefOf.PositiveEvent, false);
+                string storytellerName = Find.Storyteller?.def?.LabelCap ?? "The Storyteller";
+                Messages.Message($"[RimSynapse] Storyteller {storytellerName}'s direction of {pawn.LabelShort} released ({reason}).", pawn, MessageTypeDefOf.PositiveEvent, false);
             }
         }
 
@@ -101,6 +110,13 @@ namespace RimSynapse
                 if (pawn.Downed)
                 {
                     Release(pawn, "Downed");
+                    continue;
+                }
+
+                // Player drafting check
+                if (pawn.Drafted && !pawn.InMentalState)
+                {
+                    Release(pawn, "Pawn drafted by player");
                     continue;
                 }
 
@@ -219,6 +235,13 @@ namespace RimSynapse
                     {
                         Release(pawn, "Maximum possession limit reached");
                     }
+                }
+
+                // Job failsafe check: if pawn is possessed but has no jobs left (idle)
+                if (state.elapsedTicks > 60 && pawn.CurJob == null && (pawn.jobs == null || pawn.jobs.jobQueue.Count == 0))
+                {
+                    Release(pawn, "No active jobs remaining");
+                    continue;
                 }
             }
         }

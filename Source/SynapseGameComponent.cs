@@ -139,6 +139,7 @@ namespace RimSynapse
             }
             SynapsePossessionManager.Tick();
             SynapseObjectControlManager.TickingUpdateHacks();
+            SynapseScriptRunner.Tick();
         }
 
         /// <summary>
