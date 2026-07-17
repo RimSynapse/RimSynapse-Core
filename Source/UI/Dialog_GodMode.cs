@@ -14,7 +14,7 @@ namespace RimSynapse.UI
         private static string _commandInput = "Make Fred have 20 Shooting, remove the Bipolar trait from Sarah, and start a fire on the solar generator.";
         private static string _statusText = "Ready";
         private static Color _statusColor = Color.white;
-        private static bool _busy = false;
+        private static int _activeQueriesCount = 0;
         private static string _selectedRoutingId = RimSynapse.RoutingId.LocalOnly;
         private static List<string> _executionLog = new List<string>();
         private Vector2 _logScrollPosition = Vector2.zero;
@@ -73,13 +73,12 @@ namespace RimSynapse.UI
             {
                 if (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter)
                 {
-                    if (!_busy)
+                    if (!string.IsNullOrEmpty(_commandInput.Trim()))
                     {
-                        if (!string.IsNullOrEmpty(_commandInput.Trim()))
-                        {
-                            ExecuteCommand();
-                            Event.current.Use(); // Consume the event to prevent adding a newline
-                        }
+                        string cmd = _commandInput;
+                        _commandInput = ""; // Clear input box immediately
+                        ExecuteCommand(cmd);
+                        Event.current.Use(); // Consume the event to prevent adding a newline
                     }
                 }
             }
@@ -89,18 +88,14 @@ namespace RimSynapse.UI
 
             // Execute Button
             Rect execRect = new Rect(0f, curY, 150f, 35f);
-            if (!_busy)
+            if (Widgets.ButtonText(execRect, _activeQueriesCount > 0 ? "Execute (Busy)" : "Execute Command"))
             {
-                if (Widgets.ButtonText(execRect, "Execute Command"))
+                if (!string.IsNullOrEmpty(_commandInput.Trim()))
                 {
-                    ExecuteCommand();
+                    string cmd = _commandInput;
+                    _commandInput = ""; // Clear input box
+                    ExecuteCommand(cmd);
                 }
-            }
-            else
-            {
-                GUI.color = Color.gray;
-                Widgets.ButtonText(execRect, "Processing...", false, false, false);
-                GUI.color = Color.white;
             }
 
             // Clear Log Button
@@ -196,18 +191,17 @@ Please copy this report and post it to the [RimSynapse Project](https://github.c
             ));
         }
 
-        private void ExecuteCommand()
+        private void ExecuteCommand(string cmd)
         {
-            if (string.IsNullOrEmpty(_commandInput)) return;
+            if (string.IsNullOrEmpty(cmd)) return;
 
-            _busy = true;
+            _activeQueriesCount++;
             _showFeatureRequestButton = false;
-            _executionLog.Clear();
-            _statusText = "Analyzing command (Turn 1)...";
+            _statusText = "Processing...";
             _statusColor = new Color(0.7f, 0.7f, 1f);
 
             RimSynapseAPI.ExecuteNaturalLanguageCommand(
-                _commandInput,
+                cmd,
                 logMsg =>
                 {
                     _executionLog.Add(logMsg);
@@ -222,24 +216,26 @@ Please copy this report and post it to the [RimSynapse Project](https://github.c
                 },
                 (success, finalSummary) =>
                 {
-                    _busy = false;
-                    if (success)
-                    {
-                        _statusText = "Done";
-                        _statusColor = Color.green;
+                    _activeQueriesCount--;
+                    if (_activeQueriesCount < 0) _activeQueriesCount = 0;
 
-                        bool hasFailure = _executionLog.Any(l => l.Contains("\"success\":false") || l.Contains("\"success\": false") || l.Contains("Warning") || l.Contains("Error"));
-                        if (hasFailure)
+                    if (_activeQueriesCount == 0)
+                    {
+                        if (success)
                         {
-                            _statusText = "Action incomplete or failed";
-                            _statusColor = Color.yellow;
-                            _showFeatureRequestButton = true;
+                            _statusText = "Done";
+                            _statusColor = Color.green;
+                        }
+                        else
+                        {
+                            _statusText = "Failed";
+                            _statusColor = Color.red;
                         }
                     }
-                    else
+
+                    bool hasFailure = _executionLog.Any(l => l.Contains("\"success\":false") || l.Contains("\"success\": false") || l.Contains("Warning") || l.Contains("Error"));
+                    if (hasFailure)
                     {
-                        _statusText = "Failed";
-                        _statusColor = Color.red;
                         _showFeatureRequestButton = true;
                     }
                 }

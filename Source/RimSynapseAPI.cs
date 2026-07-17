@@ -24,6 +24,9 @@ namespace RimSynapse
                 return;
             }
 
+            // Sanitize newlines and line breaks to prevent JSON serialization/provider exceptions
+            command = command.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ").Trim();
+
             logCallback?.Invoke($"> Request: {command}");
 
             var planner = new SynapseLlmPlanner(command, logCallback, onComplete);
