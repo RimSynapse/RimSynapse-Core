@@ -5,6 +5,7 @@ RimSynapse Core is a powerful, asynchronous background engine that natively conn
 
 [h2]Key Features[/h2]
 [list]
+[*] [b]LLM Direct Action Console (Command in Plain English!):[/b] Control the game world using natural language! Open the Direct Action Console, type what you want in plain English (e.g. [i]"Make Fred have 20 Shooting, remove the Bipolar trait from Sarah, and start a fire on the solar generator"[/i]), and watch the Storyteller LLM act as an active agent, translating your request into native in-game tool calls and executing them in real-time!
 [*] [b]Universal Backend Support:[/b] Connects natively to LM Studio, Ollama, or any OpenAI-compatible local API (e.g. OpenRouter, LocalAI) without complex setups.
 [*] [b]Background Threading:[/b] Never drops a frame. All LLM requests are queued, processed, and sanitized asynchronously on separate threads.
 [*] [b]Dynamic Priority Queue:[/b] Intelligently manages hundreds of requests with an advanced Linux-style top-monitor queue system, prioritizing critical events and starving obsolete prompts.

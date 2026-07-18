@@ -37,6 +37,7 @@ The foundational LLM Connector for RimWorld.
 RimSynapse Core is a powerful, asynchronous background engine that natively brings narrative intelligence to RimWorld. It acts as the central brain of the RimSynapse ecosystem, intercepting vanilla events and directly altering the narrative tone of your game through its built-in storytelling mechanics, while also serving as the essential bridge required by all companion modules.
 
 --- Features ---
+- LLM Direct Action Console (Command in Plain English!): Control the game world using natural language! Open the Direct Action Console, type what you want in plain English (e.g. "Make Fred have 20 Shooting, remove the Bipolar trait from Sarah, and start a fire on the solar generator"), and watch the Storyteller LLM act as an active agent, translating your request into native in-game tool calls and executing them in real-time!
 - Universal Backend Support: Connects seamlessly to LM Studio, Ollama, or any OpenAI-compatible local API. While RimSynapse's focus is on local models, with version 0.4.0, it is THE universal LLM connector!
 - Background Threading: Never drops a frame. All LLM requests are queued, processed, and sanitized asynchronously on separate threads.
 - Dynamic Priority Queue: Intelligently manages hundreds of requests with an advanced Linux-style top-monitor queue system, prioritizing critical events and starving obsolete prompts.
