@@ -36,11 +36,6 @@ The foundational LLM Connector for RimWorld.
 
 RimSynapse Core is a powerful, asynchronous background engine that natively brings narrative intelligence to RimWorld. It acts as the central brain of the RimSynapse ecosystem, intercepting vanilla events and directly altering the narrative tone of your game through its built-in storytelling mechanics, while also serving as the essential bridge required by all companion modules.
 
---- Meet Aura (The AI Storyteller!) ---
-Originally the star of the deprecated StoryTeller module, Aura is now baked directly into Core as your spunky, AI-driven game director! She constantly evaluates the overarching narrative "aura" or tone of your colony (Tragic, Tense, Triumphant, etc.) based on recent events. With her own vibrant, LLM-generated personality, she subconsciously guides every interaction and directly influences how standard game events (raids, quests, drop pods) are generated and contextualized. Your colony's successes and failures directly shape her mood, and she isn't afraid to dynamically shift the story based on how she feels about your progress!
-
-Note: You must select Aura as your storyteller in-game for the LLM to natively intercept and adjust standard game events!
-
 --- Features ---
 - Universal Backend Support: Connects seamlessly to LM Studio, Ollama, or any OpenAI-compatible local API. While RimSynapse's focus is on local models, with version 0.4.0, it is THE universal LLM connector!
 - Background Threading: Never drops a frame. All LLM requests are queued, processed, and sanitized asynchronously on separate threads.
