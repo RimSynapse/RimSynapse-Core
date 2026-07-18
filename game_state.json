@@ -1,0 +1,252 @@
+{
+  "storyteller": "Cassandra",
+  "colonists": [
+    {
+      "name": "Runya",
+      "fullName": "Runyawen 'Runya' Morwen",
+      "x": 158,
+      "z": 133,
+      "isDowned": false,
+      "isDrafted": false,
+      "equippedWeapon": "None",
+      "skills": {
+        "Shooting": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Melee": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Construction": {
+          "level": 4,
+          "passion": "Minor"
+        },
+        "Mining": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Cooking": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Plants": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Animals": {
+          "level": 11,
+          "passion": "Major"
+        },
+        "Crafting": {
+          "level": 4,
+          "passion": "Minor"
+        },
+        "Artistic": {
+          "level": 6,
+          "passion": "Minor"
+        },
+        "Medicine": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Social": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Intellectual": {
+          "level": 2,
+          "passion": "None"
+        }
+      },
+      "traits": [
+        "Pyromaniac"
+      ],
+      "hediffs": []
+    },
+    {
+      "name": "Timofei",
+      "fullName": "Timofei Jensen",
+      "x": 137,
+      "z": 112,
+      "isDowned": false,
+      "isDrafted": false,
+      "equippedWeapon": "None",
+      "skills": {
+        "Shooting": {
+          "level": 6,
+          "passion": "Major"
+        },
+        "Melee": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Construction": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Mining": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Cooking": {
+          "level": 4,
+          "passion": "None"
+        },
+        "Plants": {
+          "level": 3,
+          "passion": "None"
+        },
+        "Animals": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Crafting": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Artistic": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Medicine": {
+          "level": 10,
+          "passion": "Major"
+        },
+        "Social": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Intellectual": {
+          "level": 5,
+          "passion": "Minor"
+        }
+      },
+      "traits": [
+        "Jealous",
+        "Bloodlust"
+      ],
+      "hediffs": [
+        {
+          "defName": "SimpleProstheticLeg",
+          "label": "prosthetic leg",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        },
+        {
+          "defName": "MissingBodyPart",
+          "label": "Removed",
+          "severity": 0.5
+        }
+      ]
+    },
+    {
+      "name": "Simone",
+      "fullName": "Brandon Simone",
+      "x": 138,
+      "z": 115,
+      "isDowned": false,
+      "isDrafted": false,
+      "equippedWeapon": "None",
+      "skills": {
+        "Shooting": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Melee": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Construction": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Mining": {
+          "level": 1,
+          "passion": "None"
+        },
+        "Cooking": {
+          "level": 2,
+          "passion": "None"
+        },
+        "Plants": {
+          "level": 3,
+          "passion": "Minor"
+        },
+        "Animals": {
+          "level": 12,
+          "passion": "Major"
+        },
+        "Crafting": {
+          "level": 3,
+          "passion": "Minor"
+        },
+        "Artistic": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Medicine": {
+          "level": 10,
+          "passion": "Major"
+        },
+        "Social": {
+          "level": 0,
+          "passion": "None"
+        },
+        "Intellectual": {
+          "level": 8,
+          "passion": "Minor"
+        }
+      },
+      "traits": [
+        "Transhumanist",
+        "Pyromaniac"
+      ],
+      "hediffs": [
+        {
+          "defName": "HeartArteryBlockage",
+          "label": "artery blockage (minor)",
+          "severity": 0.129100084
+        }
+      ]
+    }
+  ],
+  "scriptRunner": {
+    "activeScriptsCount": 0,
+    "activeScripts": []
+  }
+}

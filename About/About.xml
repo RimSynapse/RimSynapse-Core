@@ -3,8 +3,8 @@
     <name>RimSynapse - Core</name>
     <author>RimSynapse Team</author>
     <packageId>RimSynapse.Core</packageId>
-    <url>https://github.com/RimSynapse/RimSynapse-Core</url>
-    <modVersion>0.4.0</modVersion>
+    <url>https://github.com/RimSynapse/Core</url>
+    <modVersion>0.5.0</modVersion>
     <supportedVersions>
         <li>1.5</li>
         <li>1.6</li>
@@ -30,7 +30,7 @@
     </incompatibleWith>
     <description>
 RimSynapse - Core
-Official Wiki and Documentation: https://github.com/RimSynapse/RimSynapse-Core/wiki
+Official Wiki and Documentation: https://github.com/RimSynapse/Core/wiki
 
 The foundational LLM Connector for RimWorld.
 
@@ -75,12 +75,12 @@ The initial roadmap for RimSynapse is now complete! Future updates will focus on
 
 --- For Developers and Open Source ---
 RimSynapse is an open-source framework designed to be easily hooked into by other modders. I highly encourage you to read the framework documentation and build your own LLM-driven mods!
-- RimSynapse - Core Source and Docs: https://github.com/RimSynapse/RimSynapse-Core
-- RimSynapse - Psychology Source: https://github.com/RimSynapse/RimSynapse-Psychology
-- RimSynapse - Chat Source: https://github.com/RimSynapse/RimSynapse-Chat
-- RimSynapse - Factions Source: https://github.com/RimSynapse/RimSynapse-Factions
-- RimSynapse - WorldNews Source: https://github.com/RimSynapse/RimSynapse-WorldNews
-- RimSynapse - NVIDIA Tool Source: https://github.com/RimSynapse/RimSynapse-NVIDIA-Tool
+- RimSynapse - Core Source and Docs: https://github.com/RimSynapse/Core
+- RimSynapse - Psychology Source: https://github.com/RimSynapse/Psychology
+- RimSynapse - Conversations Source: https://github.com/RimSynapse/Conversations
+- RimSynapse - Factions Source: https://github.com/RimSynapse/Factions
+- RimSynapse - WorldNews Source: https://github.com/RimSynapse/WorldNews
+- RimSynapse - NVIDIA Tool Source: https://github.com/RimSynapse/NVIDIA-Tool
 
 --- Compatibility Matrix ---
 - Royalty DLC: Compatible and Optional. Integrates noble titles and psycast memories if active. Generates arrogant noble decrees and custom empire quests.

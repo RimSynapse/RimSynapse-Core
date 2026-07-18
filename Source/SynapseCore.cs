@@ -19,8 +19,8 @@ namespace RimSynapse
         /// Call once during your mod's initialization (e.g., in StaticConstructorOnStartup).
         /// Returns a handle used for all subsequent API calls.
         /// </summary>
-        /// <param name="modId">Unique mod identifier (e.g., "rimsynapse.chat")</param>
-        /// <param name="displayName">Human-readable name for settings UI (e.g., "RimSynapse Chat")</param>
+        /// <param name="modId">Unique mod identifier (e.g., "rimsynapse.conversations")</param>
+        /// <param name="displayName">Human-readable name for settings UI (e.g., "RimSynapse Conversations")</param>
         /// <param name="systemPrompt">Optional default system prompt for this mod.
         /// If null, Core will resolve a prompt from SynapsePromptDef XML based on event type.
         /// Can also be set/changed at runtime via SynapseModHandle.SystemPrompt.</param>

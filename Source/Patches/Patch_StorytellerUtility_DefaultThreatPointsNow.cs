@@ -1,6 +1,8 @@
+using System.Linq;
 using HarmonyLib;
 using RimWorld;
 using Verse;
+using RimSynapse.Comps;
 
 namespace RimSynapse.Patches
 {
@@ -13,7 +15,7 @@ namespace RimSynapse.Patches
     {
         public static void Postfix(IIncidentTarget target, ref float __result)
         {
-            if (Find.Storyteller != null && Find.Storyteller.def != null && Find.Storyteller.def.defName == "Synapse")
+            if (Find.Storyteller?.storytellerComps?.OfType<StorytellerComp_Storyteller>().Any() == true)
             {
                 var coreComp = Find.World.GetComponent<SynapseCoreWorldComponent>();
                 if (coreComp != null)
@@ -24,3 +26,4 @@ namespace RimSynapse.Patches
         }
     }
 }
+

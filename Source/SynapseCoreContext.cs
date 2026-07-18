@@ -9,10 +9,38 @@ namespace RimSynapse
     /// Public static API for context embedding.
     /// Companion mods can use this to manually trigger context assembly,
     /// though in normal usage context is assembled automatically when
-    /// requests are dispatched through the queue.
     /// </summary>
     public static class SynapseCoreContext
     {
+        public delegate void ContextInjectionHandler(Pawn pawn, string contextType, List<string> extraContext);
+        
+        /// <summary>
+        /// Global hook for other modules (like Factions) to seamlessly inject context into 
+        /// generic requests (like backstory generation in Psychology) without hard dependencies.
+        /// </summary>
+        public static event ContextInjectionHandler OnInjectGenericContext;
+
+        /// <summary>
+        /// Fires when global news is published. Used by RimSynapse-Factions to simulate rumor spread.
+        /// (float wealthDelta, float strengthDelta)
+        /// </summary>
+        public static event System.Action<float, float> OnGlobalKnowledgeBroadcast;
+
+        public static void BroadcastGlobalKnowledge(float wealthDelta, float strengthDelta)
+        {
+            OnGlobalKnowledgeBroadcast?.Invoke(wealthDelta, strengthDelta);
+        }
+
+        /// <summary>
+        /// Fires the OnInjectGenericContext event and returns a concatenated string of all injected context.
+        /// </summary>
+        public static string GatherGenericContext(Pawn pawn, string contextType)
+        {
+            var extraContext = new List<string>();
+            OnInjectGenericContext?.Invoke(pawn, contextType, extraContext);
+            if (extraContext.Count == 0) return "";
+            return "\n" + string.Join("\n", extraContext);
+        }
         /// <summary>
         /// Build a context packet for a pawn and event type.
         /// Returns null if context embedding is disabled in settings.

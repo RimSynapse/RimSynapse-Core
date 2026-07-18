@@ -96,6 +96,7 @@ namespace RimSynapse.UI
                 int p = 0, c = 0;
                 switch(providerEnum.Value) {
                     case ApiProvider.Local_LMStudio: p = settings.tokensPromptLocal; c = settings.tokensCompletionLocal; break;
+                    case ApiProvider.Local_Jan: p = settings.tokensPromptJan; c = settings.tokensCompletionJan; break;
                     case ApiProvider.OpenAI: p = settings.tokensPromptOpenAi; c = settings.tokensCompletionOpenAi; break;
                     case ApiProvider.Google_Gemini: p = settings.tokensPromptGemini; c = settings.tokensCompletionGemini; break;
                     case ApiProvider.Anthropic_Claude: p = settings.tokensPromptClaude; c = settings.tokensCompletionClaude; break;
@@ -165,13 +166,15 @@ namespace RimSynapse.UI
                         string pName = providerName;
                         list.Add(new FloatMenuOption(label, () => {
                             var settings = RimSynapseMod.Instance.Settings;
-                            if (pName == "OpenAI") settings.modelOpenAi = val;
-                            else if (pName == "Google Gemini") settings.modelGemini = val;
-                            else if (pName == "Anthropic Claude") settings.modelClaude = val;
-                            else if (pName == "Local LM Studio") settings.modelLocal = val;
-                            else if (pName == "Pollinations.ai") settings.modelPollinations = val;
-                            else if (pName == "ElevenLabs") settings.modelElevenLabs = val;
-                            else if (pName == "Custom / Proxy" || pName == "Custom Provider") settings.modelCustom = val;
+                             if (pName == "OpenAI") settings.modelOpenAi = val;
+                             else if (pName == "Google Gemini") settings.modelGemini = val;
+                             else if (pName == "Anthropic Claude") settings.modelClaude = val;
+                             else if (pName == "Local LM Studio") settings.modelLocal = val;
+                             else if (pName == "Jan") settings.modelJan = val;
+                             else if (pName == "Pollinations.ai") settings.modelPollinations = val;
+                             else if (pName == "ElevenLabs") settings.modelElevenLabs = val;
+                             else if (pName == "Voicebox") settings.modelVoicebox = val;
+                             else if (pName == "Custom / Proxy" || pName == "Custom Provider") settings.modelCustom = val;
                         }));
                     }
                     Find.WindowStack.Add(new FloatMenu(list));
@@ -228,12 +231,14 @@ namespace RimSynapse.UI
                 
                 if (Widgets.ButtonText(revertBtnRect, "Revert"))
                 {
-                    if (providerName == "OpenAI") model = "gpt-4o-mini";
-                    else if (providerName == "Google Gemini") model = "gemini-1.5-flash";
-                    else if (providerName == "Anthropic Claude") model = "claude-3-5-haiku-latest";
-                    else if (providerName == "Local LM Studio") model = RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model";
-                    else if (providerName == "ElevenLabs") model = "";
-                    else if (isCustom) model = "";
+                     if (providerName == "OpenAI") model = "gpt-4o-mini";
+                     else if (providerName == "Google Gemini") model = "gemini-1.5-flash";
+                     else if (providerName == "Anthropic Claude") model = "claude-3-5-haiku-latest";
+                     else if (providerName == "Local LM Studio") model = RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model";
+                     else if (providerName == "Jan") model = "jan-model";
+                     else if (providerName == "ElevenLabs") model = "";
+                     else if (providerName == "Voicebox") model = "kokoro";
+                     else if (isCustom) model = "";
                 }
                 
                 listing.Gap(4f);

@@ -26,8 +26,8 @@ namespace RimSynapse.Patches
             ChoiceLetter choiceLet = let as ChoiceLetter;
             if (choiceLet == null) return true; // Only intercept choice letters
 
-            // Only intercept if Aura (Synapse) is the storyteller
-            if (Find.Storyteller?.def?.defName != "Synapse") return true;
+            // Only intercept if Synapse storyteller is the active storyteller
+            if (Find.Storyteller?.storytellerComps?.OfType<RimSynapse.Comps.StorytellerComp_Storyteller>().Any() != true) return true;
 
             // Determine if it's a major threat or a quest
             bool isThreat = let.def == LetterDefOf.ThreatBig;
@@ -46,16 +46,40 @@ namespace RimSynapse.Patches
                     .FirstOrDefault(p => p != null && p.Faction != Faction.OfPlayer && !p.Dead);
             }
 
-            // Extract the fully resolved text
+             // Extract the fully resolved text
             string originalTitle = let.Label.Resolve();
             string originalText = choiceLet.Text.Resolve(); 
+
+            if (isThreat)
+            {
+                var coreComp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+                if (coreComp != null)
+                {
+                    string raidId = "Raid_" + Find.TickManager.TicksGame;
+                    coreComp.activeRaidEventId = raidId;
+
+                    float curWealth = Find.CurrentMap?.wealthWatcher?.WealthTotal ?? 0f;
+                    int curColonists = Find.CurrentMap?.mapPawns?.FreeColonistsCount ?? 0;
+                    coreComp.activeRaidTracker = new RimSynapse.Models.RaidTracker(raidId, curWealth, curColonists);
+
+                    coreComp.EnqueuePastEvent(new RimSynapse.Models.PastEvent
+                    {
+                        eventId = raidId,
+                        category = "Threat",
+                        eventDescription = $"Threat: {originalTitle}"
+                    });
+                }
+            }
 
             // Add to processed so we don't infinitely loop when we manually inject it later
             _processedLetters.Add(let);
 
+            var props = RimSynapse.Comps.StorytellerComp_Storyteller.GetActiveStorytellerProps();
+            string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
+            string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
             // Ask the LLM to rewrite it
-            string systemPrompt = @"You are Aura, the AI Storyteller in RimWorld.
-A new event or threat has occurred. Rewrite the notification letter to fit your sassy, dramatic, or menacing persona.
+            string systemPrompt = @"You are " + characterName + @", the AI Storyteller in RimWorld.
+A new event or threat has occurred. Rewrite the notification letter to fit your " + speakingStyle + @" persona.
 Use the provided vanilla text as the baseline. Maintain all critical gameplay information (who, what, where, rewards, threats).
 Do NOT use bracket tags like [Asker_nameFull]. Just use the resolved names provided in the vanilla text.
 
@@ -87,6 +111,12 @@ You MUST respond strictly in valid JSON:
 }}";
             }
 
+            string additionalContext = SynapseLetterContextHook.GetAdditionalContext(let, asker);
+            if (!string.IsNullOrEmpty(additionalContext))
+            {
+                systemPrompt += "\n---\nAdditional Tone and Faction Context Guidelines:\n" + additionalContext;
+            }
+
             string userMessage = $"Vanilla Title: {originalTitle}\nVanilla Text: {originalText}\nRewrite this event.";
 
             SynapseClient.PromptAsync(
@@ -113,6 +143,18 @@ You MUST respond strictly in valid JSON:
                                     {
                                         choiceLet.quest.name = parsed["Title"];
                                         choiceLet.quest.description = parsed["Description"];
+
+                                        // Log the Quest Offer in the past events queue
+                                        var coreComp = Find.World?.GetComponent<SynapseCoreWorldComponent>();
+                                        if (coreComp != null)
+                                        {
+                                            coreComp.EnqueuePastEvent(new RimSynapse.Models.PastEvent
+                                            {
+                                                eventId = choiceLet.quest.GetUniqueLoadID(),
+                                                category = "Quest",
+                                                eventDescription = $"Quest offered: {parsed["Title"]}"
+                                            });
+                                        }
                                     }
                                 }
                             }
@@ -127,6 +169,7 @@ You MUST respond strictly in valid JSON:
                     RimSynapse.SynapseGameComponent.Enqueue(() =>
                     {
                         __instance.ReceiveLetter(let, debugInfo, delayTicks, playSound);
+                        TriggerStorytellerAudioComment(let, isThreat);
                     });
                 },
                 new RimSynapse.ChatOptions { priority = 3, requestName = "Rewrite Letter", targetName = originalTitle } // High priority for UI events
@@ -134,6 +177,89 @@ You MUST respond strictly in valid JSON:
 
             // Block the vanilla ReceiveLetter call right now, because we will inject it later
             return false;
+        }
+
+        private static void TriggerStorytellerAudioComment(Letter let, bool isThreat)
+        {
+            try
+            {
+                ChoiceLetter choiceLet = let as ChoiceLetter;
+                if (choiceLet == null) return;
+
+                // 1. Get voice settings based on storyteller extension
+                var extension = Find.Storyteller?.def?.GetModExtension<StorytellerVoiceExtension>();
+                if (extension == null) return;
+
+                string routeId = RimSynapseMod.Instance.Settings.defaultRoutingAudio;
+                string resolvedVoice = "";
+                if (routeId == RoutingId.OpenAI)
+                    resolvedVoice = string.IsNullOrEmpty(extension.openAIVoiceId) ? "nova" : extension.openAIVoiceId;
+                else if (routeId == RoutingId.ElevenLabs)
+                    resolvedVoice = string.IsNullOrEmpty(extension.elevenLabsVoiceId) ? "pNInz6obpgDQGcFmaJgB" : extension.elevenLabsVoiceId;
+                else
+                    resolvedVoice = string.IsNullOrEmpty(extension.localVoicePath) ? "Sounds/Voicebox/AuraVoice.wav" : extension.localVoicePath;
+
+                // 2. Draft prompt to get snarky commentary
+                var props = RimSynapse.Comps.StorytellerComp_Storyteller.GetActiveStorytellerProps();
+                string characterName = props?.characterName ?? Find.Storyteller?.def?.label ?? "AI Storyteller";
+                string speakingStyle = props?.speakingStyle ?? "sassy, dramatic, or menacing";
+                string systemPrompt = @"You are " + characterName + @", the AI Storyteller in RimWorld.
+Generate a brief, 1-sentence reaction or comment to the event that just occurred.
+Be " + speakingStyle + @". Keep it under 15 words. Do not use markdown or quotes.
+Examples:
+- 'Oof, sorry about this one...'
+- 'More beggars? Really?'
+- 'Well, you asked for it.'
+- 'This might get messy.'";
+
+                string userMsg = $"The event title is: {let.Label.Resolve()}\nThe event description is: {choiceLet.Text.Resolve()}";
+
+                SynapseClient.PromptAsync(
+                    RimSynapseMod.ModHandle,
+                    systemPrompt,
+                    userMsg,
+                    result =>
+                    {
+                        if (result.success && !string.IsNullOrWhiteSpace(result.content))
+                        {
+                            string commentText = RimSynapse.Internal.Sanitizer.Clean(result.content).Trim();
+                            
+                            // Send to audio engine
+                            var audioReq = new LlmAudioRequest
+                            {
+                                InputText = commentText,
+                                Voice = resolvedVoice,
+                                ResponseFormat = "pcm"
+                            };
+
+                            // Add appropriate instructions for Voicebox/Kokoro if we route to Voicebox
+                            if (routeId == RoutingId.Voicebox)
+                            {
+                                // Aura is sassy/snarky
+                                audioReq.Instruct = isThreat ? "sarcastic, warning tone, dry" : "sarcastic, playful, snappy";
+                            }
+
+                            SynapseClient.SendAudioAsync(
+                                RimSynapseMod.ModHandle,
+                                audioReq,
+                                new RimSynapse.ChatOptions { priority = 3, requestName = "Storyteller Reaction Voice" },
+                                audioResult =>
+                                {
+                                    if (audioResult.success && !string.IsNullOrEmpty(audioResult.base64Audio))
+                                    {
+                                        RimSynapse.Utils.AudioPlaybackManager.PlayBase64Pcm(audioResult.base64Audio);
+                                    }
+                                }
+                            );
+                        }
+                    },
+                    new RimSynapse.ChatOptions { priority = 3, requestName = "Storyteller Reaction Commentary", targetName = let.Label.Resolve() }
+                );
+            }
+            catch (Exception ex)
+            {
+                SynapseLogger.Warning($"Failed to trigger storyteller audio comment: {ex.Message}");
+            }
         }
     }
 }

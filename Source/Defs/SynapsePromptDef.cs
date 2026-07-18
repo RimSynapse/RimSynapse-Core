@@ -22,7 +22,7 @@ namespace RimSynapse
         /// <summary>
         /// Which mod this prompt targets. If null, this is the default
         /// prompt for the event type (used when no mod-specific prompt exists).
-        /// Example: "rimsynapse.chat", "rimsynapse.storyteller"
+        /// Example: "rimsynapse.conversations", "rimsynapse.storyteller"
         /// </summary>
         public string targetModId;
 

@@ -41,33 +41,54 @@ namespace RimSynapse.Patches
             if (primaryPawn != null && (primaryPawn.IsColonist || primaryPawn.IsPrisonerOfColony))
             {
                 string taleLabel = def.label ?? def.defName;
-                EventPatchHelper.EnqueueIfPlaying("NativeTale",
-                    $"Tale Recorded: {taleLabel} involving {primaryPawn.Name.ToStringShort}.");
+                string pawnName = primaryPawn.Name?.ToStringShort ?? primaryPawn.KindLabel;
+                EventPatchHelper.EnqueueIfPlaying("Tale", $"{pawnName}: {taleLabel}");
             }
         }
     }
 
     /// <summary>
-    /// Intercepts pawn deaths where a colonist is involved (as victim or killer).
-    /// This catches deaths that TaleRecorder misses (starvation, disease, environmental).
+    /// Logs completed quests as past events.
     /// </summary>
-    [HarmonyPatch(typeof(Pawn), nameof(Pawn.Kill))]
-    internal static class Patch_Pawn_Kill
+    [HarmonyPatch(typeof(Quest), "End")]
+    internal static class Patch_Quest_End
     {
-        static void Prefix(Pawn __instance, DamageInfo? dinfo, Hediff exactCulprit = null)
+        static void Postfix(Quest __instance, QuestEndOutcome outcome)
         {
-            Pawn victim = __instance;
-            Pawn killer = dinfo?.Instigator as Pawn;
+            if (Current.ProgramState != ProgramState.Playing || Find.World == null) return;
 
-            bool colonistInvolved = (victim.IsColonist || victim.IsPrisonerOfColony) ||
-                                    (killer != null && (killer.IsColonist || killer.IsPrisonerOfColony));
+            var coreComp = Find.World.GetComponent<SynapseCoreWorldComponent>();
+            if (coreComp == null) return;
 
-            if (colonistInvolved)
+            string label = __instance.name ?? "Unknown quest";
+            string outcomeStr = outcome.ToString();
+
+            coreComp.EnqueuePastEvent(new PastEvent
             {
-                string killerStr = killer != null ? killer.Name.ToStringShort : "Unknown Causes";
-                EventPatchHelper.EnqueueIfPlaying("NativeDeath",
-                    $"Death: {victim.Name.ToStringShort} was killed by {killerStr}.");
-            }
+                gameTick = GenTicks.TicksGame,
+                category = "QuestEnded",
+                eventDescription = $"Quest '{label}' ended: {outcomeStr}."
+            });
+        }
+    }
+
+    /// <summary>
+    /// Intercepts fired incidents and records them for storyteller tracking.
+    /// </summary>
+    [HarmonyPatch(typeof(IncidentWorker), "TryExecute")]
+    internal static class Patch_IncidentWorker_TryExecute
+    {
+        [HarmonyPostfix]
+        public static void Postfix(IncidentWorker __instance, IncidentParms parms, bool __result)
+        {
+            if (!__result) return;
+            if (Current.ProgramState != ProgramState.Playing || Find.World == null) return;
+
+            var coreComp = Find.World.GetComponent<SynapseCoreWorldComponent>();
+            if (coreComp == null) return;
+
+            string defName = __instance.def?.defName ?? "unknown";
+            coreComp.RegisterFiredIncident(defName);
         }
     }
 }

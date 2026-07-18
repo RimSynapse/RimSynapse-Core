@@ -7,10 +7,10 @@ namespace RimSynapse
     /// </summary>
     public class SynapseModHandle
     {
-        /// <summary>Unique mod identifier (e.g., "rimsynapse.chat").</summary>
+        /// <summary>Unique mod identifier (e.g., "rimsynapse.conversations").</summary>
         public string ModId { get; }
 
-        /// <summary>Human-readable name for the settings UI (e.g., "RimSynapse Chat").</summary>
+        /// <summary>Human-readable name for the settings UI (e.g., "RimSynapse Conversations").</summary>
         public string DisplayName { get; }
 
         /// <summary>

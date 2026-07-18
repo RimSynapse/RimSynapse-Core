@@ -13,7 +13,7 @@ namespace RimSynapse.Internal
     /// Low-level HTTP client wrapper for LM Studio communication.
     /// All calls run on background threads — never blocks Unity's main thread.
     /// </summary>
-    internal static class HttpEngine
+    internal static partial class HttpEngine
     {
         private static HttpClient _client;
         private static readonly object _initLock = new object();
@@ -102,6 +102,13 @@ namespace RimSynapse.Internal
                     providerHit = ApiProvider.OpenAI;
                     defaultProviderModel = settings.modelOpenAi;
                 }
+                else if (routingId == RoutingId.Jan)
+                {
+                    baseUrl = settings.janUrl;
+                    apiKey = settings.janApiKey;
+                    providerHit = ApiProvider.Local_Jan;
+                    defaultProviderModel = settings.modelJan;
+                }
                 else if (routingId == RoutingId.Gemini)
                 {
                     baseUrl = settings.geminiUrl;
@@ -129,6 +136,13 @@ namespace RimSynapse.Internal
                     apiKey = settings.elevenLabsApiKey;
                     providerHit = ApiProvider.ElevenLabs;
                     defaultProviderModel = settings.modelElevenLabs;
+                }
+                else if (routingId == RoutingId.Voicebox)
+                {
+                    baseUrl = settings.voiceboxUrl;
+                    apiKey = settings.voiceboxApiKey;
+                    providerHit = ApiProvider.Voicebox;
+                    defaultProviderModel = settings.modelVoicebox;
                 }
                 else if (routingId != null && routingId.StartsWith(RoutingId.CustomPrefix))
                 {
@@ -164,6 +178,7 @@ namespace RimSynapse.Internal
                     if (string.IsNullOrEmpty(targetModel))
                     {
                         if (providerHit == ApiProvider.Local_LMStudio) targetModel = ModelManager.ResolveModel(options?.model);
+                        else if (providerHit == ApiProvider.Local_Jan) targetModel = string.IsNullOrEmpty(options?.model) ? settings.modelJan : options.model;
                         else targetModel = defaultProviderModel;
                     }
                 }
@@ -174,6 +189,7 @@ namespace RimSynapse.Internal
                 else if (providerHit == ApiProvider.Google_Gemini) provider = new Providers.GeminiProvider(_client);
                 else if (providerHit == ApiProvider.Pollinations) provider = new Providers.PollinationsProvider(_client);
                 else if (providerHit == ApiProvider.ElevenLabs) provider = new Providers.ElevenLabsProvider(_client);
+                else if (providerHit == ApiProvider.Voicebox) provider = new Providers.VoiceboxProvider(_client);
                 else provider = new Providers.OpenAiProvider(_client);
 
                 // Route to the appropriate interface method based on Payload Type
@@ -196,6 +212,7 @@ namespace RimSynapse.Internal
                     if (chatResult.success)
                     {
                         if (providerHit == ApiProvider.Local_LMStudio) { settings.tokensPromptLocal += chatResult.promptTokens; settings.tokensCompletionLocal += chatResult.completionTokens; }
+                        else if (providerHit == ApiProvider.Local_Jan) { settings.tokensPromptJan += chatResult.promptTokens; settings.tokensCompletionJan += chatResult.completionTokens; }
                         else if (providerHit == ApiProvider.OpenAI) { settings.tokensPromptOpenAi += chatResult.promptTokens; settings.tokensCompletionOpenAi += chatResult.completionTokens; }
                         else if (providerHit == ApiProvider.Google_Gemini) { settings.tokensPromptGemini += chatResult.promptTokens; settings.tokensCompletionGemini += chatResult.completionTokens; }
                         else if (providerHit == ApiProvider.Anthropic_Claude) { settings.tokensPromptClaude += chatResult.promptTokens; settings.tokensCompletionClaude += chatResult.completionTokens; }
@@ -293,6 +310,27 @@ namespace RimSynapse.Internal
                         string id = m["id"]?.ToString();
                         if (!string.IsNullOrEmpty(id))
                             result.modelIds.Add(id);
+
+                        // Try to extract active model's context window size from any typical LM Studio / OpenAI extensions
+                        if (result.contextLength == null)
+                        {
+                            try
+                            {
+                                if (m["context_length"] != null)
+                                    result.contextLength = m["context_length"].Value<int>();
+                                else if (m["max_context_length"] != null)
+                                    result.contextLength = m["max_context_length"].Value<int>();
+                                else if (m["context_window"] != null)
+                                    result.contextLength = m["context_window"].Value<int>();
+                                else if (m["meta"]?["context_length"] != null)
+                                    result.contextLength = m["meta"]["context_length"].Value<int>();
+                                else if (m["meta"]?["context_window"] != null)
+                                    result.contextLength = m["meta"]["context_window"].Value<int>();
+                                else if (m["properties"]?["context_length"] != null)
+                                    result.contextLength = m["properties"]["context_length"].Value<int>();
+                            }
+                            catch { }
+                        }
                     }
                 }
 
@@ -362,347 +400,6 @@ namespace RimSynapse.Internal
                 }
             });
         }
-
-        /// <summary>
-        /// Test the API connection for a specific provider.
-        /// Sends a minimal ping and returns the result asynchronously via callback on the main thread.
-        /// </summary>
-        public static void FetchProviderModelsAsync(ApiProvider provider, string baseUrl, string apiKey, Action<bool, System.Collections.Generic.List<string>, string> callback)
-        {
-            EnsureInitialized();
-            Task.Run(() =>
-            {
-                try
-                {
-                    if (provider == ApiProvider.Pollinations)
-                    {
-                        var models = new System.Collections.Generic.List<string> { "flux", "flux-realism", "flux-anime", "flux-3d", "any-dark", "turbo" };
-                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, models, "Success"));
-                        return;
-                    }
-
-                    if (provider == ApiProvider.ElevenLabs)
-                    {
-                        var models = new System.Collections.Generic.List<string> {
-                            "Multilingual v2|eleven_multilingual_v2",
-                            "Turbo v2.5|eleven_turbo_v2_5",
-                            "Flash v2.5|eleven_flash_v2_5",
-                            "Multilingual v1|eleven_multilingual_v1",
-                            "English v1|eleven_monolingual_v1"
-                        };
-                        
-                        try
-                        {
-                            var mReq = new HttpRequestMessage(HttpMethod.Get, "https://api.elevenlabs.io/v1/models");
-                            if (!string.IsNullOrEmpty(apiKey)) mReq.Headers.Add("xi-api-key", apiKey);
-                            var mCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                            var mRes = _client.SendAsync(mReq, mCts.Token).Result;
-                            if (mRes.IsSuccessStatusCode)
-                            {
-                                string mBody = mRes.Content.ReadAsStringAsync().Result;
-                                var mj = Newtonsoft.Json.Linq.JArray.Parse(mBody);
-                                if (mj != null)
-                                {
-                                    models.Clear();
-                                    foreach (var cv in mj)
-                                    {
-                                        string mid = cv["model_id"]?.ToString();
-                                        string mName = cv["name"]?.ToString();
-                                        if (!string.IsNullOrEmpty(mid)) models.Add($"{mName}|{mid}");
-                                    }
-                                }
-                            }
-                        }
-                        catch { } // Silently fallback to default list if unauthorized/fails
-
-                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, models, "Success"));
-                        return;
-                    }
-
-                    baseUrl = baseUrl.TrimEnd('/');
-                    string url;
-                    if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages"))
-                    {
-                        url = $"{baseUrl}/models";
-                    }
-                    else
-                    {
-                        url = $"{baseUrl}/v1/models";
-                    }
-
-                    var request = new HttpRequestMessage(HttpMethod.Get, url);
-
-                    if (!string.IsNullOrEmpty(apiKey))
-                    {
-                        if (provider == ApiProvider.Anthropic_Claude)
-                        {
-                            request.Headers.Add("x-api-key", apiKey);
-                            request.Headers.Add("anthropic-version", "2023-06-01");
-                        }
-                        else
-                        {
-                            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-                        }
-                    }
-
-                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                    var response = _client.SendAsync(request, cts.Token).Result;
-                    string resBody = response.Content.ReadAsStringAsync().Result;
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var json = JObject.Parse(resBody);
-                        var data = json["data"] as JArray;
-                        var models = new System.Collections.Generic.List<string>();
-                        if (data != null)
-                        {
-                            foreach (var m in data)
-                            {
-                                string id = m["id"]?.ToString();
-                                if (!string.IsNullOrEmpty(id))
-                                {
-                                    if (id.StartsWith("models/")) id = id.Substring(7);
-                                    models.Add(id);
-                                }
-                            }
-                            models.Sort();
-                        }
-                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, models, "Success"));
-                    }
-                    else
-                    {
-                        string shortError = $"{(int)response.StatusCode} {response.ReasonPhrase}";
-                        try
-                        {
-                            var errJson = JObject.Parse(resBody);
-                            if (errJson["error"] != null)
-                            {
-                                shortError += $": {errJson["error"]["message"]?.ToString()}";
-                            }
-                        }
-                        catch { }
-                        
-                        string lowerError = shortError.ToLowerInvariant();
-                        if (lowerError.Contains("credit balance is too low") || lowerError.Contains("insufficient_quota") || lowerError.Contains("exceeded your current quota"))
-                        {
-                            shortError = "Credits Needed!";
-                        }
-                        
-                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, null, shortError));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    string error = ex.InnerException?.Message ?? ex.Message;
-                    RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, null, error));
-                }
-            });
-        }
-
-        public static void FetchProviderVoicesAsync(ApiProvider provider, string apiKey, Action<bool, System.Collections.Generic.List<string>, string> callback)
-        {
-            EnsureInitialized();
-            Task.Run(() =>
-            {
-                if (provider == ApiProvider.ElevenLabs)
-                {
-                    var voices = new System.Collections.Generic.List<string> {
-                        "Adam|pNInz6obpgDQGcFmaJgB",
-                        "Rachel|21m00Tcm4TlvDq8ikWAM",
-                        "Domi|AZnzlk1XvdvUeBnXmlld",
-                        "Bella|EXAVITQu4vr4xnSDxMaL",
-                        "Antoni|ErXwobaYiN019PkySvjV",
-                        "Elli|MF3mGyEYCl7XYWbV9V6O",
-                        "Josh|TxGEqnHWrfWFTfGW9XjX",
-                    };
-                    
-                    try
-                    {
-                        var vReq = new HttpRequestMessage(HttpMethod.Get, "https://api.elevenlabs.io/v1/voices");
-                        if (!string.IsNullOrEmpty(apiKey)) vReq.Headers.Add("xi-api-key", apiKey);
-                        var vCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                        var vRes = _client.SendAsync(vReq, vCts.Token).Result;
-                        if (vRes.IsSuccessStatusCode)
-                        {
-                            string vBody = vRes.Content.ReadAsStringAsync().Result;
-                            var vj = Newtonsoft.Json.Linq.JObject.Parse(vBody);
-                            var customVoices = vj["voices"] as Newtonsoft.Json.Linq.JArray;
-                            if (customVoices != null)
-                            {
-                                voices.Clear();
-                                foreach (var cv in customVoices)
-                                {
-                                    string vid = cv["voice_id"]?.ToString();
-                                    string vName = cv["name"]?.ToString();
-                                    if (!string.IsNullOrEmpty(vid)) voices.Add($"{vName}|{vid}");
-                                }
-                            }
-                        }
-                    }
-                    catch { } // Silently fallback to default list if unauthorized/fails
-
-                    RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, voices, "Success"));
-                    return;
-                }
-                
-                RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, null, "Provider does not support fetching voices"));
-            });
-        }
-
-        public static void TestConnectionAsync(ApiProvider provider, string url, string apiKey, string overrideModel, Action<bool, string> callback)
-        {
-            System.Threading.Tasks.Task.Run(() =>
-            {
-                try
-                {
-                    EnsureInitialized();
-                    // Strip any zero-width spaces or hidden unicode characters that users might accidentally paste
-                    url = System.Text.RegularExpressions.Regex.Replace(url ?? "", @"[^\u0020-\u007E]+", string.Empty);
-                    apiKey = System.Text.RegularExpressions.Regex.Replace(apiKey ?? "", @"[^\u0020-\u007E]+", string.Empty);
-
-                    string baseUrl = url.Trim().TrimEnd('/');
-                    
-                    if (provider == ApiProvider.Pollinations)
-                    {
-                        var polliReq = new HttpRequestMessage(HttpMethod.Get, "https://image.pollinations.ai/prompt/test");
-                        var polliCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                        var polliRes = _client.SendAsync(polliReq, polliCts.Token).Result;
-                        if (polliRes.IsSuccessStatusCode)
-                        {
-                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, "Success!"));
-                        }
-                        else
-                        {
-                            string err = $"{(int)polliRes.StatusCode} {polliRes.ReasonPhrase}";
-                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, err));
-                        }
-                        return;
-                    }
-                    
-                    if (provider == ApiProvider.ElevenLabs)
-                    {
-                        string targetModel = string.IsNullOrEmpty(overrideModel) ? "eleven_multilingual_v2" : overrideModel;
-                        var elReq = new HttpRequestMessage(HttpMethod.Post, "https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB");
-                        if (!string.IsNullOrEmpty(apiKey)) elReq.Headers.Add("xi-api-key", apiKey);
-                        var elBody = new Newtonsoft.Json.Linq.JObject { ["text"] = "ping", ["model_id"] = targetModel };
-                        elReq.Content = new StringContent(elBody.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8, "application/json");
-                        
-                        var elCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                        var elRes = _client.SendAsync(elReq, elCts.Token).Result;
-                        if (elRes.IsSuccessStatusCode)
-                        {
-                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, "Success!"));
-                        }
-                        else
-                        {
-                            string err = $"{(int)elRes.StatusCode} {elRes.ReasonPhrase}";
-                            try {
-                                string rBody = elRes.Content.ReadAsStringAsync().Result;
-                                var ej = Newtonsoft.Json.Linq.JObject.Parse(rBody);
-                                if (ej["detail"] != null && ej["detail"]["message"] != null) err += $": {ej["detail"]["message"].ToString()}";
-                            } catch {}
-                            RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, err));
-                        }
-                        return;
-                    }
-                    
-                    // We'll use the models endpoint for the test if possible, as it's a cheap GET request
-                    // that doesn't require a valid model name, except for Anthropic which doesn't have a standard /models endpoint in OpenAI compat mode.
-                    // For safety and universal compatibility across our proxy setups, we will send a 1-token dummy chat completion.
-                    
-                    string endpoint;
-                    if (provider == ApiProvider.Anthropic_Claude)
-                    {
-                        if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1/messages")) endpoint = $"{baseUrl.Replace("/v1/messages", "/v1")}/messages";
-                        else endpoint = $"{baseUrl}/v1/messages";
-                    }
-                    else
-                    {
-                        if (baseUrl.EndsWith("/v1") || baseUrl.EndsWith("/v1beta/openai") || baseUrl.EndsWith("/v1/messages")) endpoint = $"{baseUrl.Replace("/v1/messages", "/v1")}/chat/completions";
-                        else endpoint = $"{baseUrl}/v1/chat/completions";
-                    }
-
-                    string testModel = "test";
-                    if (!string.IsNullOrEmpty(overrideModel))
-                    {
-                        testModel = overrideModel;
-                    }
-                    else
-                    {
-                        var settings = RimSynapseMod.Instance.Settings;
-                        if (provider == ApiProvider.OpenAI) testModel = !string.IsNullOrEmpty(settings.modelOpenAi) ? settings.modelOpenAi : "gpt-5-chat-latest";
-                        else if (provider == ApiProvider.Google_Gemini) testModel = !string.IsNullOrEmpty(settings.modelGemini) ? settings.modelGemini : "gemini-flash-lite-latest";
-                        else if (provider == ApiProvider.Anthropic_Claude) testModel = !string.IsNullOrEmpty(settings.modelClaude) ? settings.modelClaude : "claude-opus-4-6";
-                        else if (provider == ApiProvider.Local_LMStudio) testModel = !string.IsNullOrEmpty(settings.modelLocal) ? settings.modelLocal : (RimSynapse.Internal.ModelManager.ActiveModel ?? "local-model");
-                        else if (provider == ApiProvider.Custom) testModel = !string.IsNullOrEmpty(settings.modelCustom) ? settings.modelCustom : "test";
-                    }
-
-
-                    var body = new JObject();
-                    body["model"] = testModel;
-                    body["max_tokens"] = 1;
-
-                    if (provider == ApiProvider.Anthropic_Claude)
-                    {
-                        body["messages"] = new JArray { new JObject { ["role"] = "user", ["content"] = "ping" } };
-                    }
-                    else
-                    {
-                        body["messages"] = new JArray { new JObject { ["role"] = "user", ["content"] = "ping" } };
-                    }
-
-                    var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-                    {
-                        Content = new StringContent(body.ToString(Formatting.None), Encoding.UTF8, "application/json"),
-                    };
-
-                    if (!string.IsNullOrEmpty(apiKey))
-                    {
-                        if (provider == ApiProvider.Anthropic_Claude)
-                        {
-                            request.Headers.Add("x-api-key", apiKey);
-                            request.Headers.Add("anthropic-version", "2023-06-01");
-                        }
-                        else
-                        {
-                            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-                        }
-                    }
-
-                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                    var response = _client.SendAsync(request, cts.Token).Result;
-                    string resBody = response.Content.ReadAsStringAsync().Result;
-
-                    RimSynapse.SynapseGameComponent.Enqueue(() => Verse.Log.Message($"[API TEST] Endpoint: {endpoint}\nRequest Body: {body.ToString(Newtonsoft.Json.Formatting.Indented)}\nResponse: {(int)response.StatusCode} {response.ReasonPhrase}\n{resBody}"));
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(true, "Success!"));
-                    }
-                    else
-                    {
-                        string shortError = $"{(int)response.StatusCode} {response.ReasonPhrase}";
-                        try
-                        {
-                            var errJson = JObject.Parse(resBody);
-                            if (errJson["error"] != null)
-                            {
-                                shortError += $": {errJson["error"]["message"]?.ToString()}";
-                            }
-                        }
-                        catch { }
-                        
-
-
-                        RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, shortError));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    string error = ex.InnerException?.Message ?? ex.Message;
-                    RimSynapse.SynapseGameComponent.Enqueue(() => callback(false, error));
-                }
-            });
-        }
     }
 }
+

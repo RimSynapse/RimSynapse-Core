@@ -4,173 +4,243 @@ using System.Linq;
 using Verse;
 using RimWorld;
 using RimSynapse.Utils;
+using RimSynapse.Models;
 using Newtonsoft.Json;
 
 namespace RimSynapse.Comps
 {
-    public static class SynapseStorytellerOpportunistic
+    public class PacingAdjustmentResult
     {
-        public static bool TriggerPacingAdjustment()
+        public float PacingMultiplier = 1.0f;
+        public Dictionary<string, float> CategoryMultipliers = new Dictionary<string, float>();
+        public List<string> RequestTools = null;
+    }
+
+    public class EventSelectionResult
+    {
+        public string IncidentDefName;
+        public List<string> RequestTools = null;
+    }
+
+    /// <summary>
+    /// AI Storyteller opportunistic query system.
+    /// Handles LLM-driven pacing adjustments and event selection.
+    /// Split into partial class files for maintainability.
+    /// </summary>
+    public static partial class SynapseStorytellerOpportunistic
+    {
+        private static TimeSpeed _preQuerySpeed = TimeSpeed.Normal;
+        private static int _activeQueriesCount = 0;
+        private static readonly object _speedLock = new object();
+
+        private static void PauseForTelemetry()
         {
-            if (Current.ProgramState != ProgramState.Playing || Find.CurrentMap == null) return false;
-            if (Find.Storyteller?.def?.defName != "Synapse") return false;
+            if (RimSynapseMod.Instance?.Settings?.enableTrainingMode != true || RimSynapseMod.Instance?.Settings?.fastTelemetryMode != true)
+                return;
 
-            var map = Find.CurrentMap;
-            
-            string wealth = map.wealthWatcher.WealthTotal.ToString("F0");
-            string pop = map.mapPawns.FreeColonistsCount.ToString();
-            string mood = map.mapPawns.FreeColonists.Average(p => p.needs?.mood?.CurLevelPercentage ?? 0.5f).ToString("P0");
-            
-            string systemPrompt = @"You are the Aura Algorithm Pacing Adjuster.
-You run every 6 hours. Based on the colony's raw status, you must decide if the game should speed up event generation (harass the player more) or slow it down.
-Return a 'PacingMultiplier' (float).
-- 1.0 is standard vanilla pacing.
-- > 1.0 means MORE frequent events (e.g., 1.5 = 50% more frequent).
-- < 1.0 means LESS frequent events (e.g., 0.5 = half as frequent).
-
-You MUST respond strictly in valid JSON format:
-{
-  ""PacingMultiplier"": 1.0
-}";
-
-            string userMessage = $@"Colony Status:
-- Wealth: {wealth}
-- Population: {pop}
-- Average Mood: {mood}
-
-Analyze the situation and provide the PacingMultiplier.";
-
-            var request = new LlmTextRequest
+            lock (_speedLock)
             {
-                SystemPrompt = systemPrompt,
-                Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
-                EnforceJson = true
-            };
-
-            SynapseClient.SendTextAsync(
-                RimSynapseMod.ModHandle,
-                request,
-                new ChatOptions { queryId = "aura_pacing", priority = 1, requestName = "Aura Pacing", targetName = "Colony" },
-                result =>
+                if (_activeQueriesCount == 0)
                 {
-                    if (result.success)
-                    {
-                        try
-                        {
-                            string json = JsonHelper.ExtractJson(result.content);
-                            if (json == null) return;
-
-                            var parsed = JsonConvert.DeserializeObject<Dictionary<string, float>>(json);
-                            if (parsed != null && parsed.TryGetValue("PacingMultiplier", out float mult))
-                            {
-                                var coreComp = Find.World.GetComponent<SynapseCoreWorldComponent>();
-                                if (coreComp != null)
-                                {
-                                    coreComp.GlobalPacingMultiplier = UnityEngine.Mathf.Clamp(mult, 0.1f, 5.0f);
-                                    RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Aura pacing adjusted to {coreComp.GlobalPacingMultiplier}");
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse pacing response: {ex.Message}");
-                        }
-                    }
+                    _preQuerySpeed = Find.TickManager.CurTimeSpeed;
+                    Find.TickManager.CurTimeSpeed = TimeSpeed.Paused;
                 }
-            );
-
-            return true;
+                _activeQueriesCount++;
+            }
         }
 
-        public static void TriggerEventSelection(IncidentCategoryDef category, IIncidentTarget target)
+        private static void ResumeAfterTelemetry()
         {
-            if (Current.ProgramState != ProgramState.Playing || Find.CurrentMap == null) return;
+            if (RimSynapseMod.Instance?.Settings?.enableTrainingMode != true || RimSynapseMod.Instance?.Settings?.fastTelemetryMode != true)
+                return;
 
-            var map = Find.CurrentMap;
-            string wealth = map.wealthWatcher.WealthTotal.ToString("F0");
-            string pop = map.mapPawns.FreeColonistsCount.ToString();
-            string mood = map.mapPawns.FreeColonists.Average(p => p.needs?.mood?.CurLevelPercentage ?? 0.5f).ToString("P0");
-            
-            var coreWorldComp = Find.World.GetComponent<SynapseCoreWorldComponent>();
-            string recentEvents = "None recently.";
-            if (coreWorldComp != null)
+            lock (_speedLock)
             {
-                var events = coreWorldComp.GetRecentEvents(5);
-                if (events.Any())
+                _activeQueriesCount = Math.Max(0, _activeQueriesCount - 1);
+                if (_activeQueriesCount == 0)
                 {
-                    recentEvents = string.Join("\n", events.Select(e => $"- {e.eventDescription}"));
+                    Find.TickManager.CurTimeSpeed = _preQuerySpeed;
                 }
             }
+        }
 
-            string systemPrompt = $@"You are the Aura Algorithm Event Selector.
-An event trigger has occurred for category: {category.defName}.
-You must pick the EXACT IncidentDefName from vanilla RimWorld that fits the current narrative best.
-For example, if the category is ThreatBig, choose 'RaidEnemy', 'Infestation', 'ManhunterPack', etc.
-If the category is FactionArrival, choose 'TraderCaravanArrival', 'VisitorGroup', etc.
+        private static string GetToolsTextList()
+        {
+            int maxBudget = RimSynapseMod.Instance?.Settings?.maxPacingContextTokens ?? 4096;
+            bool limitTools = maxBudget <= 8192;
 
-You MUST respond strictly in valid JSON format:
-{{
-  ""IncidentDefName"": ""(The exact def name of the incident)""
-}}";
-
-            string userMessage = $@"Colony Status:
-- Wealth: {wealth}
-- Population: {pop}
-- Average Mood: {mood}
-
-Recent Events:
-{recentEvents}
-
-Provide the incident def name.";
-
-            var request = new LlmTextRequest
+            var allowedTools = new HashSet<string>
             {
-                SystemPrompt = systemPrompt,
-                Messages = new List<ChatMessage> { ChatMessage.User(userMessage) },
-                EnforceJson = true
+                "get_colonists_profile",
+                "get_stockpile_details",
+                "get_active_threats",
+                "get_colony_moods",
+                "get_faction_relations_history"
             };
 
-            SynapseClient.SendTextAsync(
-                RimSynapseMod.ModHandle,
-                request,
-                new ChatOptions { queryId = "aura_event_selection", priority = 10, requestName = "Aura Event Selection", targetName = category.defName },
-                result =>
+            var list = new List<string>();
+            foreach (var tool in SynapseToolRegistry.NonDebugTools)
+            {
+                if (!limitTools || allowedTools.Contains(tool.name))
                 {
-                    // Restore pacing immediately upon return so the game isn't permanently paused for events
-                    if (coreWorldComp != null)
-                    {
-                        coreWorldComp.GlobalPacingMultiplier = coreWorldComp.BasePacingMultiplier;
-                    }
+                    list.Add($"- '{tool.name}': {tool.description}");
+                }
+            }
+            return string.Join("\n", list);
+        }
 
-                    if (result.success)
+        private static void ApplyPacingAdjustment(PacingAdjustmentResult parsed)
+        {
+            if (parsed == null) return;
+            var comp = Find.World.GetComponent<SynapseCoreWorldComponent>();
+            if (comp != null)
+            {
+                comp.GlobalPacingMultiplier = UnityEngine.Mathf.Clamp(parsed.PacingMultiplier, 0.1f, 5.0f);
+                if (parsed.CategoryMultipliers != null)
+                {
+                    foreach (var kvp in parsed.CategoryMultipliers)
+                    {
+                        comp.categoryMultipliers[kvp.Key] = UnityEngine.Mathf.Clamp(kvp.Value, 0.01f, 10.0f);
+                    }
+                }
+                RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller pacing adjusted to {comp.GlobalPacingMultiplier} with category multipliers updated.");
+            }
+        }
+
+        private static void ApplyEventSelection(EventSelectionResult parsed, IIncidentTarget target)
+        {
+            if (parsed != null && !string.IsNullOrEmpty(parsed.IncidentDefName))
+            {
+                IncidentDef def = DefDatabase<IncidentDef>.GetNamedSilentFail(parsed.IncidentDefName);
+                if (def != null)
+                {
+                    IncidentParms parms = StorytellerUtility.DefaultParmsNow(def.category, target);
+                    if (def.Worker.CanFireNow(parms))
+                    {
+                        Find.Storyteller.incidentQueue.Add(def, Find.TickManager.TicksGame, parms);
+                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Storyteller Event Selection chose: {parsed.IncidentDefName}");
+                    }
+                }
+            }
+        }
+
+        private static float GetAspectValue(string aspect, string aspectKey, Map map, SynapseCoreWorldComponent worldComp)
+        {
+            switch (aspect)
+            {
+                case "ColonyWealth":
+                    return map?.wealthWatcher?.WealthTotal ?? 0f;
+                case "CombatReadiness":
+                    if (map?.mapPawns?.FreeColonists == null || !map.mapPawns.FreeColonists.Any()) return 1.0f;
+                    int capable = map.mapPawns.FreeColonists.Count(p => !p.Dead && !p.Downed && !p.WorkTagIsDisabled(WorkTags.Violent));
+                    return (float)capable / map.mapPawns.FreeColonists.Count;
+                case "ColonistCount":
+                    return map?.mapPawns?.FreeColonistsCount ?? 0;
+                case "AverageMood":
+                    if (map?.mapPawns?.FreeColonists == null || !map.mapPawns.FreeColonists.Any()) return 0.5f;
+                    return (float)map.mapPawns.FreeColonists.Average(p => p.needs?.mood?.CurLevelPercentage ?? 0.5f);
+                case "PopulationDensity":
+                    if (map != null && map.Tile >= 0 && SynapseCoreWorldComponent.GetPopulationDensityDelegate != null)
+                    {
+                        return SynapseCoreWorldComponent.GetPopulationDensityDelegate(map.Tile);
+                    }
+                    return 0f;
+                case "FoodReserves":
+                    float totalNutrition = 0f;
+                    if (map?.listerThings != null)
                     {
                         try
                         {
-                            string json = JsonHelper.ExtractJson(result.content);
-                            if (json == null) return;
-
-                            var parsed = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
-                            if (parsed != null && parsed.TryGetValue("IncidentDefName", out string defName))
+                            foreach (var thing in map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSource))
                             {
-                                IncidentDef def = DefDatabase<IncidentDef>.GetNamedSilentFail(defName);
-                                if (def != null)
+                                if (thing.def.IsNutritionGivingIngestible && thing.def.ingestible != null)
                                 {
-                                    IncidentParms parms = StorytellerUtility.DefaultParmsNow(def.category, target);
-                                    if (def.Worker.CanFireNow(parms))
-                                    {
-                                        Find.Storyteller.incidentQueue.Add(def, Find.TickManager.TicksGame, parms);
-                                        RimSynapse.SynapseLogger.Message($"[RimSynapse-Core] Aura Event Selection chose: {defName}");
-                                    }
+                                    totalNutrition += thing.stackCount * thing.def.ingestible.CachedNutrition;
                                 }
                             }
                         }
-                        catch (Exception ex)
+                        catch { }
+                    }
+                    return totalNutrition;
+                case "SilverReserves":
+                    int silverCount = 0;
+                    if (map?.listerThings != null)
+                    {
+                        foreach (var thing in map.listerThings.ThingsOfDef(ThingDefOf.Silver))
                         {
-                            RimSynapse.SynapseLogger.Warn("core", $"[RimSynapse-Core] Failed to parse event selection: {ex.Message}");
+                            silverCount += thing.stackCount;
                         }
                     }
-                }
-            );
+                    return silverCount;
+                case "RecentIncidentCount":
+                    if (worldComp == null || string.IsNullOrEmpty(aspectKey)) return 0f;
+                    return worldComp.GetRecentIncidentCount(aspectKey, 900000); // 15 days lookback
+                case "TimePassed":
+                    return Find.TickManager.TicksGame / 60000f; // Days passed
+                case "LastRaidColonistCasualties":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        return worldComp.lastRaidOutcome.colonistsKilled + worldComp.lastRaidOutcome.colonistsKidnapped;
+                    }
+                    return 0f;
+                case "LastRaidEnemyCasualties":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        return worldComp.lastRaidOutcome.enemiesKilled + worldComp.lastRaidOutcome.enemiesDowned;
+                    }
+                    return 0f;
+                case "LastRaidWasSuccess":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        bool playerLoss = (worldComp.lastRaidOutcome.colonistsKilled + worldComp.lastRaidOutcome.colonistsKidnapped) > 0;
+                        bool enemyLoss = (worldComp.lastRaidOutcome.enemiesKilled + worldComp.lastRaidOutcome.enemiesDowned) > 0;
+                        return (enemyLoss && !playerLoss) ? 1f : 0f;
+                    }
+                    return 0f;
+                case "LastRaidWasFailure":
+                    if (worldComp?.lastRaidOutcome != null)
+                    {
+                        bool playerLoss = (worldComp.lastRaidOutcome.colonistsKilled + worldComp.lastRaidOutcome.colonistsKidnapped) > 0;
+                        return playerLoss ? 1f : 0f;
+                    }
+                    return 0f;
+                case "RollingWealthGrowthRate":
+                    if (worldComp?.wealthHistory != null && worldComp.wealthHistory.Count >= 2)
+                    {
+                        var oldest = worldComp.wealthHistory[0];
+                        int tickDiff = Find.TickManager.TicksGame - oldest.gameTick;
+                        float days = (float)tickDiff / 60000f;
+                        if (days >= 0.5f)
+                        {
+                            var props = StorytellerComp_Storyteller.GetActiveStorytellerProps();
+                            float currentTrueWealth = worldComp.CalculateTrueWealth(map, props);
+                            float wealthDiff = currentTrueWealth - oldest.wealth;
+                            float avgColonists = 0.5f * (map.mapPawns.FreeColonistsCount + oldest.pawnCount);
+                            if (avgColonists < 1) avgColonists = 1;
+                            return wealthDiff / (avgColonists * days);
+                        }
+                    }
+                    return 0f;
+                default:
+                    return 0f;
+            }
+        }
+
+        private static bool EvaluateRule(IncidentModifierRule rule, Map map, SynapseCoreWorldComponent worldComp)
+        {
+            if (rule == null) return false;
+            float val = GetAspectValue(rule.aspect, rule.aspectKey, map, worldComp);
+            switch (rule.comparison)
+            {
+                case "LessThan":
+                    return val < rule.threshold;
+                case "GreaterThan":
+                    return val > rule.threshold;
+                case "Equals":
+                    return Math.Abs(val - rule.threshold) < 0.001f;
+                default:
+                    return false;
+            }
         }
     }
 }

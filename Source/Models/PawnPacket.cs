@@ -42,6 +42,11 @@ namespace RimSynapse
         public string personalitySummary;
         public float? opinionIntegral;
 
+        // ── Extrapolated Metrics ──
+        public float hungerRatePerDay;
+        public float productivityScore;
+        public float netEconomicValue;
+
         public void ExposeData()
         {
             Scribe_Values.Look(ref pawnId, "pawnId");

@@ -11,6 +11,10 @@ namespace RimSynapse
         /// <summary>Message text content.</summary>
         public string content;
 
+        public string tool_call_id;
+        public string name;
+        public System.Collections.Generic.List<ChatToolCall> tool_calls;
+
         public ChatMessage() { }
 
         public ChatMessage(string role, string content)
@@ -27,5 +31,8 @@ namespace RimSynapse
 
         /// <summary>Create an assistant message.</summary>
         public static ChatMessage Assistant(string content) => new ChatMessage("assistant", content);
+
+        /// <summary>Create a tool response message.</summary>
+        public static ChatMessage Tool(string content, string toolCallId) => new ChatMessage("tool", content) { tool_call_id = toolCallId };
     }
 }

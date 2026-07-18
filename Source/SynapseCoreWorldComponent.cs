@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
 using Verse;
@@ -6,7 +7,7 @@ using RimSynapse.Models;
 
 namespace RimSynapse
 {
-    public class SynapseCoreWorldComponent : WorldComponent
+    public partial class SynapseCoreWorldComponent : WorldComponent
     {
         public List<NarrativeThread> narrativeThreads = new List<NarrativeThread>();
         public List<FactionRelationshipTracker> factionTrackers = new List<FactionRelationshipTracker>();
@@ -14,7 +15,31 @@ namespace RimSynapse
         
         public List<PastEvent> backlogQueueList = new List<PastEvent>();
         private Queue<PastEvent> _backlogQueue = new Queue<PastEvent>();
+        public List<FiredIncidentRecord> firedIncidentHistory = new List<FiredIncidentRecord>();
+        public List<WealthRecord> wealthHistory = new List<WealthRecord>();
+        public RaidOutcomeRecord lastRaidOutcome;
         private int lastPurgeTick = -1;
+        public string activeRaidEventId;
+        public RaidTracker activeRaidTracker;
+        public Dictionary<int, int> mapGreenhouseCells = new Dictionary<int, int>();
+        public List<MapGreenhouseHistoryTracker> greenhouseHistory = new List<MapGreenhouseHistoryTracker>();
+        public Dictionary<string, string> legendaryImagePaths = new Dictionary<string, string>();
+        public Dictionary<string, string> pawnToRaidId = new Dictionary<string, string>();
+        public Dictionary<string, List<string>> raidRecruitedPawns = new Dictionary<string, List<string>>();
+        public Dictionary<string, int> visitorEntryTicks = new Dictionary<string, int>();
+        public static System.Func<int, int> GetPopulationDensityDelegate = null;
+
+        public List<int> GetHistoryForMap(int mapId)
+        {
+            if (greenhouseHistory == null) greenhouseHistory = new List<MapGreenhouseHistoryTracker>();
+            var tracker = greenhouseHistory.FirstOrDefault(t => t.mapId == mapId);
+            if (tracker == null)
+            {
+                tracker = new MapGreenhouseHistoryTracker(mapId);
+                greenhouseHistory.Add(tracker);
+            }
+            return tracker.history;
+        }
 
         // Storyteller properties
         public Dictionary<string, float> categoryMultipliers = new Dictionary<string, float>();
@@ -36,6 +61,7 @@ namespace RimSynapse
             Scribe_Collections.Look(ref factionTrackers, "factionTrackers", LookMode.Deep);
             Scribe_Collections.Look(ref shortTermEvents, "shortTermEvents", LookMode.Deep);
             Scribe_Collections.Look(ref backlogQueueList, "backlogQueueList", LookMode.Deep);
+            Scribe_Collections.Look(ref firedIncidentHistory, "firedIncidentHistory", LookMode.Deep);
 
             // Storyteller properties
             Scribe_Collections.Look(ref categoryMultipliers, "categoryMultipliers", LookMode.Value, LookMode.Value);
@@ -44,6 +70,16 @@ namespace RimSynapse
             Scribe_Values.Look(ref BasePacingMultiplier, "basePacingMultiplier", 1.0f);
             Scribe_Values.Look(ref TensionModifier, "tensionModifier", 1.0f);
             Scribe_Values.Look(ref lastInvestigationHour, "lastInvestigationHour", -1);
+            Scribe_Values.Look(ref activeRaidEventId, "activeRaidEventId");
+            Scribe_Deep.Look(ref activeRaidTracker, "activeRaidTracker");
+            Scribe_Collections.Look(ref mapGreenhouseCells, "mapGreenhouseCells", LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref greenhouseHistory, "greenhouseHistory", LookMode.Deep);
+            Scribe_Collections.Look(ref legendaryImagePaths, "legendaryImagePaths", LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref pawnToRaidId, "pawnToRaidId", LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref raidRecruitedPawns, "raidRecruitedPawns", LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref visitorEntryTicks, "visitorEntryTicks", LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref wealthHistory, "wealthHistory", LookMode.Deep);
+            Scribe_Deep.Look(ref lastRaidOutcome, "lastRaidOutcome");
 
             if (Scribe.mode == LoadSaveMode.Saving)
             {
@@ -57,9 +93,17 @@ namespace RimSynapse
                 if (factionTrackers == null) factionTrackers = new List<FactionRelationshipTracker>();
                 if (shortTermEvents == null) shortTermEvents = new List<ShortTermEvent>();
                 if (backlogQueueList == null) backlogQueueList = new List<PastEvent>();
+                if (firedIncidentHistory == null) firedIncidentHistory = new List<FiredIncidentRecord>();
+                if (wealthHistory == null) wealthHistory = new List<WealthRecord>();
                 
                 if (categoryMultipliers == null) categoryMultipliers = new Dictionary<string, float>();
                 if (incidentMultipliers == null) incidentMultipliers = new Dictionary<string, float>();
+                if (mapGreenhouseCells == null) mapGreenhouseCells = new Dictionary<int, int>();
+                if (greenhouseHistory == null) greenhouseHistory = new List<MapGreenhouseHistoryTracker>();
+                if (legendaryImagePaths == null) legendaryImagePaths = new Dictionary<string, string>();
+                if (pawnToRaidId == null) pawnToRaidId = new Dictionary<string, string>();
+                if (raidRecruitedPawns == null) raidRecruitedPawns = new Dictionary<string, List<string>>();
+                if (visitorEntryTicks == null) visitorEntryTicks = new Dictionary<string, int>();
                 
                 _backlogQueue.Clear();
                 foreach (var pastEvent in backlogQueueList)
@@ -82,6 +126,94 @@ namespace RimSynapse
                 int maxAgeTicks = (int)(hours * 2500f);
                 
                 shortTermEvents.RemoveAll(e => currentTick - e.gameTick > maxAgeTicks);
+                firedIncidentHistory.RemoveAll(e => currentTick - e.gameTick > 1800000); // Prune older than 30 days
+            }
+
+            // Update greenhouse cells daily at 12:00
+            if (currentTick % 60000 == 30000)
+            {
+                UpdateGreenhouseCells();
+            }
+
+            // Daily wealth growth pacing check
+            if (currentTick % 60000 == 45000)
+            {
+                CheckWealthGrowthPacing();
+            }
+        }
+
+        private void UpdateGreenhouseCells()
+        {
+            if (Find.Maps == null) return;
+
+            foreach (var map in Find.Maps)
+            {
+                int count = 0;
+                try
+                {
+                    if (map.roofGrid != null && map.glowGrid != null)
+                    {
+                        var candidateCells = new HashSet<IntVec3>();
+
+                        // 1. Growing zones cells
+                        if (map.zoneManager != null)
+                        {
+                            foreach (var zone in map.zoneManager.AllZones)
+                            {
+                                if (zone is Zone_Growing growZone && growZone.cells != null)
+                                {
+                                    foreach (var cell in growZone.cells)
+                                    {
+                                        candidateCells.Add(cell);
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. Planter cells (hydroponics/pots)
+                        if (map.listerBuildings != null && map.listerBuildings.allBuildingsColonist != null)
+                        {
+                            foreach (var b in map.listerBuildings.allBuildingsColonist)
+                            {
+                                if (b is Building_PlantGrower grower)
+                                {
+                                    foreach (var cell in grower.OccupiedRect())
+                                    {
+                                        candidateCells.Add(cell);
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Scan candidate cells
+                        foreach (var cell in candidateCells)
+                        {
+                            if (!map.roofGrid.Roofed(cell)) continue;
+                            if (map.glowGrid.GroundGlowAt(cell) < 0.51f) continue;
+
+                            Room room = cell.GetRoom(map);
+                            if (room != null && !room.UsesOutdoorTemperature && !room.PsychologicallyOutdoors)
+                            {
+                                float temp = room.Temperature;
+                                if (temp >= 10f && temp <= 42f)
+                                {
+                                    count++;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                mapGreenhouseCells[map.uniqueID] = count;
+
+                // Update history
+                var history = GetHistoryForMap(map.uniqueID);
+                history.Add(count);
+                if (history.Count > 10)
+                {
+                    history.RemoveAt(0);
+                }
             }
         }
 
@@ -126,7 +258,7 @@ namespace RimSynapse
             shortTermEvents.Add(stEvent);
         }
 
-        public void LogGlobalEvent(string category, string description, string factionName = null, string settlementName = null)
+        public string LogGlobalEvent(string category, string description, string factionName = null, string settlementName = null)
         {
             var pastEvent = new PastEvent
             {
@@ -138,10 +270,74 @@ namespace RimSynapse
                 settlementName = settlementName
             };
             EnqueuePastEvent(pastEvent);
+            return pastEvent.eventId;
+        }
+
+        public string LogWorldEvent(string category, string description, string sourceFactionId, string targetFactionId = null, string parentEventId = null)
+        {
+            string factionName = null;
+            if (!string.IsNullOrEmpty(sourceFactionId))
+            {
+                Faction f = Find.FactionManager.AllFactions.FirstOrDefault(x => x.GetUniqueLoadID() == sourceFactionId);
+                if (f != null) factionName = f.Name;
+            }
+
+            var pastEvent = new PastEvent
+            {
+                gameTick = Find.TickManager.TicksGame,
+                date = SynapseDate.Now(),
+                category = category,
+                eventDescription = description,
+                factionName = factionName,
+                sourceFactionId = sourceFactionId,
+                targetFactionId = targetFactionId,
+                parentEventId = parentEventId
+            };
+            EnqueuePastEvent(pastEvent);
+            return pastEvent.eventId;
+        }
+
+        public void ResolveEvent(string eventId, string outcomeDescription, EventOutcome outcome, string parentEventId = null)
+        {
+            if (string.IsNullOrEmpty(eventId)) return;
+
+            foreach (var ev in _backlogQueue)
+            {
+                if (ev.eventId == eventId)
+                {
+                    ev.outcomeDescription = outcomeDescription;
+                    ev.outcome = outcome;
+                    ev.isResolved = true;
+                    ev.resolvedTick = Find.TickManager.TicksGame;
+
+                    if (Find.AnyPlayerHomeMap != null)
+                    {
+                        Map map = Find.AnyPlayerHomeMap;
+                        ev.endWealth = map.wealthWatcher.WealthTotal;
+                        ev.endFoodNutrition = map.resourceCounter.TotalHumanEdibleNutrition;
+
+                        float wealthDiff = ev.endWealth - ev.startWealth;
+                        float foodDiff = ev.endFoodNutrition - ev.startFoodNutrition;
+                        int durationTicks = ev.resolvedTick - ev.gameTick;
+                        float durationDays = (float)durationTicks / 60000f;
+
+                        string resourceSummary = $" [Duration: {durationDays:F2} days, Wealth Change: {wealthDiff:+0;-0;0} silver, Food Change: {foodDiff:+0.0;-0.0;0.0} nutrition]";
+                        ev.outcomeDescription += resourceSummary;
+                    }
+
+                    if (!string.IsNullOrEmpty(parentEventId))
+                    {
+                        ev.parentEventId = parentEventId;
+                    }
+                    return;
+                }
+            }
         }
 
         public void EnqueuePastEvent(PastEvent pastEvent)
         {
+            if (pastEvent == null) return;
+            pastEvent.EnsureMcpTag();
             if (Find.AnyPlayerHomeMap != null)
             {
                 Map map = Find.AnyPlayerHomeMap;
@@ -149,6 +345,9 @@ namespace RimSynapse
                 // Take a quick snapshot of the colony status
                 float nutrition = map.resourceCounter.TotalHumanEdibleNutrition;
                 pastEvent.colonySnapshot = $"Wealth: {map.wealthWatcher.WealthTotal:F0}, Nutrition Available: {nutrition:F0}";
+
+                pastEvent.startWealth = map.wealthWatcher.WealthTotal;
+                pastEvent.startFoodNutrition = nutrition;
 
                 // Take snapshots of all free colonists
                 foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
@@ -164,6 +363,10 @@ namespace RimSynapse
             }
             
             _backlogQueue.Enqueue(pastEvent);
+            while (_backlogQueue.Count > 50)
+            {
+                _backlogQueue.Dequeue();
+            }
         }
 
         public bool TryDequeuePastEvent(out PastEvent pastEvent)
@@ -185,72 +388,143 @@ namespace RimSynapse
             return System.Linq.Enumerable.Skip(_backlogQueue, System.Math.Max(0, _backlogQueue.Count - count));
         }
 
-        public float GetCategoryMultiplier(string categoryDefName)
+        public IEnumerable<PastEvent> AllEvents => _backlogQueue;
+
+        public List<PastEvent> GetMostSignificantEvents(int count)
         {
-            if (categoryMultipliers.TryGetValue(categoryDefName, out float mult))
-            {
-                return mult;
-            }
-            return 1.0f;
+            var list = new List<PastEvent>();
+            list.AddRange(_backlogQueue);
+            
+            // Exclude legendary art creation events to prevent recursion/meta art loops
+            list.RemoveAll(e => e.category == "LegendaryArtCreated" || 
+                                (e.eventDescription != null && e.eventDescription.ToLower().Contains("legendary")));
+
+            return list
+                .OrderByDescending(e => CalculateSignificance(e))
+                .Take(count)
+                .ToList();
         }
 
-        public float GetIncidentMultiplier(string incidentDefName)
+        public float CalculateSignificance(PastEvent ev)
         {
-            if (incidentMultipliers.TryGetValue(incidentDefName, out float mult))
+            if (ev == null) return 0f;
+            float score = 10f;
+
+            if (!string.IsNullOrEmpty(ev.category))
             {
-                return mult;
+                string catLower = ev.category.ToLower();
+                if (catLower.Contains("raid") || catLower.Contains("combat") || catLower.Contains("battle"))
+                {
+                    score += 50f;
+                }
+                else if (catLower.Contains("marriage") || catLower.Contains("wedding") || catLower.Contains("birth"))
+                {
+                    score += 100f;
+                }
+                else if (catLower.Contains("death") || catLower.Contains("tragedy") || catLower.Contains("murder"))
+                {
+                    score += 80f;
+                }
+                else if (catLower.Contains("legendary") || catLower.Contains("art"))
+                {
+                    score += 60f;
+                }
+                else if (catLower.Contains("restoration"))
+                {
+                    score += 75f;
+                }
+                else if (catLower.Contains("bionic") || catLower.Contains("surgery"))
+                {
+                    score += 60f;
+                }
+                else if (catLower.Contains("quest") || catLower.Contains("tribute"))
+                {
+                    score += 40f;
+                }
             }
-            return 1.0f;
+
+            if (!string.IsNullOrEmpty(ev.eventDescription))
+            {
+                string descLower = ev.eventDescription.ToLower();
+                if (descLower.Contains("joined") || descLower.Contains("recruited") || descLower.Contains("recruit"))
+                {
+                    score += 50f;
+                }
+                if (descLower.Contains("died") || descLower.Contains("killed") || descLower.Contains("slain"))
+                {
+                    score += 40f;
+                }
+                if (descLower.Contains("triumph") || descLower.Contains("victory") || descLower.Contains("won"))
+                {
+                    score += 30f;
+                }
+            }
+
+            if (ev.isResolved)
+            {
+                if (ev.outcome == EventOutcome.Triumph)
+                {
+                    score += 30f;
+                }
+                else if (ev.outcome == EventOutcome.Tragedy)
+                {
+                    score += 40f;
+                }
+                else if (ev.outcome == EventOutcome.Success)
+                {
+                    score += 15f;
+                }
+            }
+
+            float wealthDiff = System.Math.Abs(ev.endWealth - ev.startWealth);
+            if (wealthDiff > 100f)
+            {
+                score += System.Math.Min(50f, wealthDiff / 200f);
+            }
+
+            float foodDiff = System.Math.Abs(ev.endFoodNutrition - ev.startFoodNutrition);
+            if (foodDiff > 5f)
+            {
+                score += System.Math.Min(25f, foodDiff * 2f);
+            }
+
+            if (Find.TickManager != null)
+            {
+                int ageTicks = Find.TickManager.TicksGame - ev.gameTick;
+                if (ageTicks > 0)
+                {
+                    float dayAge = ageTicks / 60000f;
+                    score -= System.Math.Min(20f, dayAge * 0.5f);
+                }
+            }
+
+            return score;
         }
 
-        public float CalculateDynamicThreatPoints(IIncidentTarget target, float vanillaPoints)
+    }
+
+    public class MapGreenhouseHistoryTracker : IExposable
+    {
+        public int mapId;
+        public List<int> history = new List<int>();
+
+        public MapGreenhouseHistoryTracker()
         {
-            Map map = target as Map;
-            if (map == null) return vanillaPoints * TensionModifier;
+        }
 
-            float combatCompetence = 0f;
-            int freeColonists = 0;
+        public MapGreenhouseHistoryTracker(int mapId)
+        {
+            this.mapId = mapId;
+        }
 
-            foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned)
+        public void ExposeData()
+        {
+            Scribe_Values.Look(ref mapId, "mapId", 0);
+            Scribe_Collections.Look(ref history, "history", LookMode.Value);
+            if (Scribe.mode == LoadSaveMode.LoadingVars && history == null)
             {
-                if (pawn.Downed || pawn.Dead) continue;
-                
-                freeColonists++;
-                
-                // Add points for combat skills
-                combatCompetence += (pawn.skills?.GetSkill(RimWorld.SkillDefOf.Shooting)?.Level ?? 0) * 5f;
-                combatCompetence += (pawn.skills?.GetSkill(RimWorld.SkillDefOf.Melee)?.Level ?? 0) * 5f;
-
-                // Add points for equipped weapons
-                if (pawn.equipment?.Primary != null)
-                {
-                    combatCompetence += pawn.equipment.Primary.MarketValue / 10f;
-                }
-                
-                // Add points for apparel (armor)
-                if (pawn.apparel != null)
-                {
-                    foreach (var app in pawn.apparel.WornApparel)
-                    {
-                        combatCompetence += app.MarketValue / 20f;
-                    }
-                }
+                history = new List<int>();
             }
-
-            // Also factor in installed security structures (turrets)
-            float securityPower = 0f;
-            foreach (Thing t in map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingArtificial))
-            {
-                if (t.def.building != null && t.def.building.IsTurret)
-                {
-                    securityPower += t.MarketValue / 5f;
-                }
-            }
-
-            float baseColonistPoints = freeColonists * 35f;
-            float actualThreat = (baseColonistPoints + combatCompetence + securityPower) * TensionModifier;
-
-            return UnityEngine.Mathf.Clamp(actualThreat, 35f, 10000f);
         }
     }
 }

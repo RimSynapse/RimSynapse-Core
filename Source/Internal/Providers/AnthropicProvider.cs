@@ -27,25 +27,58 @@ namespace RimSynapse.Internal.Providers
                 else
                     url = $"{baseUrl}/v1/messages";
 
-                var body = new JObject
-                {
-                    ["model"] = string.IsNullOrEmpty(model) ? "claude-opus-4-6" : model,
-                    ["max_tokens"] = request.MaxTokens ?? 8192
-                };
-
-                if (request.Temperature.HasValue) body["temperature"] = request.Temperature.Value;
-
-                if (!string.IsNullOrEmpty(request.SystemPrompt))
-                {
-                    body["system"] = request.SystemPrompt;
-                }
-
                 var messagesArray = new JArray();
                 foreach (var msg in request.Messages)
                 {
                     // Anthropic doesn't support "system" in the messages array
                     if (msg.role == "system") continue; 
-                    messagesArray.Add(new JObject { ["role"] = msg.role, ["content"] = msg.content });
+
+                    if (msg.role == "tool")
+                    {
+                        var toolResultArray = new JArray();
+                        toolResultArray.Add(new JObject
+                        {
+                            ["type"] = "tool_result",
+                            ["tool_use_id"] = msg.tool_call_id,
+                            ["content"] = msg.content
+                        });
+                        messagesArray.Add(new JObject
+                        {
+                            ["role"] = "user",
+                            ["content"] = toolResultArray
+                        });
+                    }
+                    else if (msg.role == "assistant" && msg.tool_calls != null && msg.tool_calls.Count > 0)
+                    {
+                        var assistantContentArray = new JArray();
+                        if (!string.IsNullOrEmpty(msg.content))
+                        {
+                            assistantContentArray.Add(new JObject
+                            {
+                                ["type"] = "text",
+                                ["text"] = msg.content
+                            });
+                        }
+                        foreach (var tc in msg.tool_calls)
+                        {
+                            assistantContentArray.Add(new JObject
+                            {
+                                ["type"] = "tool_use",
+                                ["id"] = tc.id,
+                                ["name"] = tc.function.name,
+                                ["input"] = JToken.Parse(tc.function.arguments)
+                            });
+                        }
+                        messagesArray.Add(new JObject
+                        {
+                            ["role"] = "assistant",
+                            ["content"] = assistantContentArray
+                        });
+                    }
+                    else
+                    {
+                        messagesArray.Add(new JObject { ["role"] = msg.role, ["content"] = msg.content });
+                    }
                 }
 
                 // If EnforceJson is true, Anthropic requires prefacing the assistant response with "{"
@@ -55,7 +88,34 @@ namespace RimSynapse.Internal.Providers
                     messagesArray.Add(new JObject { ["role"] = "assistant", ["content"] = "{" });
                 }
 
-                body["messages"] = messagesArray;
+                var body = new JObject
+                {
+                    ["model"] = string.IsNullOrEmpty(model) ? "claude-opus-4-6" : model,
+                    ["max_tokens"] = request.MaxTokens ?? 8192,
+                    ["messages"] = messagesArray
+                };
+
+                if (request.Temperature.HasValue) body["temperature"] = request.Temperature.Value;
+
+                if (!string.IsNullOrEmpty(request.SystemPrompt))
+                {
+                    body["system"] = request.SystemPrompt;
+                }
+
+                if (request.Tools != null && request.Tools.Count > 0)
+                {
+                    var toolsArray = new JArray();
+                    foreach (var tool in request.Tools)
+                    {
+                        toolsArray.Add(new JObject
+                        {
+                            ["name"] = tool.name,
+                            ["description"] = tool.description,
+                            ["input_schema"] = JToken.FromObject(tool.parameters)
+                        });
+                    }
+                    body["tools"] = toolsArray;
+                }
 
                 string jsonBody = body.ToString(Formatting.None);
                 SynapseLogger.TraceContext(jsonBody, url);
@@ -89,15 +149,45 @@ namespace RimSynapse.Internal.Providers
                 string content = null;
                 int promptTokens = 0;
                 int completionTokens = 0;
+                var toolCallsList = new System.Collections.Generic.List<ChatToolCall>();
 
                 var contentArr = result["content"] as JArray;
                 if (contentArr != null && contentArr.Count > 0)
                 {
-                    content = contentArr[0]?["text"]?.ToString();
-                    if (request.EnforceJson && content != null)
+                    var textBlocks = new System.Collections.Generic.List<string>();
+                    foreach (var block in contentArr)
                     {
-                        // We forced it to start with {, so we need to add it back to the result
-                        content = "{" + content;
+                        string blockType = block["type"]?.ToString();
+                        if (blockType == "text")
+                        {
+                            textBlocks.Add(block["text"]?.ToString());
+                        }
+                        else if (blockType == "tool_use")
+                        {
+                            string tcId = block["id"]?.ToString();
+                            string tcName = block["name"]?.ToString();
+                            string tcInput = block["input"]?.ToString(Formatting.None) ?? "{}";
+
+                            toolCallsList.Add(new ChatToolCall
+                            {
+                                id = tcId,
+                                type = "function",
+                                function = new ChatFunctionCall
+                                {
+                                    name = tcName,
+                                    arguments = tcInput
+                                }
+                            });
+                        }
+                    }
+
+                    if (textBlocks.Count > 0)
+                    {
+                        content = string.Concat(textBlocks);
+                        if (request.EnforceJson && content != null && !content.StartsWith("{"))
+                        {
+                            content = "{" + content;
+                        }
                     }
                 }
 
@@ -109,7 +199,12 @@ namespace RimSynapse.Internal.Providers
                 }
 
                 long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-                return ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
+                var chatRes = ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
+                if (toolCallsList.Count > 0)
+                {
+                    chatRes.toolCalls = toolCallsList;
+                }
+                return chatRes;
             }
             catch (Exception ex)
             {

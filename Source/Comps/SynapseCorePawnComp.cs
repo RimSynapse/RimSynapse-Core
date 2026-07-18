@@ -10,6 +10,10 @@ namespace RimSynapse.Comps
     public class SynapseCorePawnComp : ThingComp
     {
         public List<WeightedMemory> memories = new List<WeightedMemory>();
+        
+        // Runtime Hashtable Indexes for instant lookup
+        private Dictionary<string, List<WeightedMemory>> memoriesByTag = new Dictionary<string, List<WeightedMemory>>();
+        private Dictionary<string, List<WeightedMemory>> memoriesByPawnId = new Dictionary<string, List<WeightedMemory>>();
         public List<OpinionSample> opinionHistory = new List<OpinionSample>();
         public string personalitySummary;
         public string dynamicBackstory;
@@ -54,6 +58,7 @@ namespace RimSynapse.Comps
                 {
                     memory.MigrateTickIfNeeded();
                 }
+                RebuildMemoryIndexes();
             }
         }
 
@@ -82,11 +87,13 @@ namespace RimSynapse.Comps
             for (int i = memories.Count - 1; i >= 0; i--)
             {
                 var mem = memories[i];
+                if (mem.isLongTerm) continue; // Long term memories never decay
+
                 mem.weight -= mem.decayRate;
                 
                 if (mem.weight <= 0f)
                 {
-                    memories.RemoveAt(i);
+                    RemoveMemoryAt(i);
                 }
             }
         }
@@ -137,40 +144,148 @@ namespace RimSynapse.Comps
         /// Aggregates all memory weights by their tags and returns the top N burdens.
         /// This creates a summarized 'Sensitivity' profile for the LLM without sending every raw memory.
         /// </summary>
-        public string GetTopMemoryBurdens(int topN = 5, float minWeightThreshold = 0f)
+        public string GetTopMemoryBurdens(int topN = 5, float minWeightThreshold = 0f, string optionalTagFilter = null, string optionalPawnIdFilter = null)
         {
             if (memories == null || memories.Count == 0) return "None";
+
+            var sourceList = memories;
+            if (!string.IsNullOrEmpty(optionalTagFilter))
+            {
+                sourceList = GetMemoriesByTag(optionalTagFilter);
+            }
+            else if (!string.IsNullOrEmpty(optionalPawnIdFilter))
+            {
+                sourceList = GetMemoriesByPawnId(optionalPawnIdFilter);
+            }
+
+            if (sourceList.Count == 0) return "None";
 
             var tagWeights = new Dictionary<string, float>();
             var tagCounts = new Dictionary<string, int>();
 
-            foreach (var memory in memories)
+            foreach (var memory in sourceList)
             {
                 if (memory.tags == null) continue;
                 foreach (string tag in memory.tags)
                 {
-                    string normalizedTag = tag.Trim().ToLower();
-                    if (!tagWeights.ContainsKey(normalizedTag))
+                    if (!tagWeights.ContainsKey(tag))
                     {
-                        tagWeights[normalizedTag] = 0f;
-                        tagCounts[normalizedTag] = 0;
+                        tagWeights[tag] = 0f;
+                        tagCounts[tag] = 0;
                     }
-                    tagWeights[normalizedTag] += memory.weight;
-                    tagCounts[normalizedTag]++;
+                    tagWeights[tag] += memory.weight;
+                    tagCounts[tag]++;
                 }
             }
 
-            var topTags = tagWeights.Where(kv => kv.Value >= minWeightThreshold).OrderByDescending(kv => kv.Value).Take(topN).ToList();
-            
-            if (topTags.Count == 0) return "None";
+            var sorted = tagWeights
+                .Where(kvp => kvp.Value >= minWeightThreshold)
+                .OrderByDescending(kvp => kvp.Value)
+                .Take(topN)
+                .ToList();
 
-            List<string> burdenStrings = new List<string>();
-            foreach (var kvp in topTags)
+            if (sorted.Count == 0) return "None";
+
+            return string.Join(", ", sorted.Select(kvp => $"{kvp.Key} ({kvp.Value:F1})"));
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  Hashtable Memory Logic
+        // ────────────────────────────────────────────────────────
+
+        public void AddMemory(WeightedMemory memory)
+        {
+            memories.Add(memory);
+            IndexMemory(memory);
+        }
+
+        private void RemoveMemoryAt(int index)
+        {
+            var memory = memories[index];
+            memories.RemoveAt(index);
+            UnindexMemory(memory);
+        }
+
+        private void RebuildMemoryIndexes()
+        {
+            memoriesByTag.Clear();
+            memoriesByPawnId.Clear();
+            foreach (var mem in memories)
             {
-                burdenStrings.Add($"[{kvp.Key}]: Weight {kvp.Value:F1} ({tagCounts[kvp.Key]} related instances)");
+                IndexMemory(mem);
+            }
+        }
+
+        private void IndexMemory(WeightedMemory memory)
+        {
+            if (memory.tags != null)
+            {
+                foreach (var tag in memory.tags)
+                {
+                    if (!memoriesByTag.TryGetValue(tag, out var list))
+                    {
+                        list = new List<WeightedMemory>();
+                        memoriesByTag[tag] = list;
+                    }
+                    list.Add(memory);
+                }
             }
 
-            return string.Join(" | ", burdenStrings);
+            if (memory.subjectPawnIds != null)
+            {
+                foreach (var pawnId in memory.subjectPawnIds)
+                {
+                    if (!memoriesByPawnId.TryGetValue(pawnId, out var list))
+                    {
+                        list = new List<WeightedMemory>();
+                        memoriesByPawnId[pawnId] = list;
+                    }
+                    list.Add(memory);
+                }
+            }
+        }
+
+        private void UnindexMemory(WeightedMemory memory)
+        {
+            if (memory.tags != null)
+            {
+                foreach (var tag in memory.tags)
+                {
+                    if (memoriesByTag.TryGetValue(tag, out var list))
+                    {
+                        list.Remove(memory);
+                    }
+                }
+            }
+
+            if (memory.subjectPawnIds != null)
+            {
+                foreach (var pawnId in memory.subjectPawnIds)
+                {
+                    if (memoriesByPawnId.TryGetValue(pawnId, out var list))
+                    {
+                        list.Remove(memory);
+                    }
+                }
+            }
+        }
+
+        public List<WeightedMemory> GetMemoriesByTag(string tag)
+        {
+            if (memoriesByTag.TryGetValue(tag, out var list))
+            {
+                return list;
+            }
+            return new List<WeightedMemory>();
+        }
+
+        public List<WeightedMemory> GetMemoriesByPawnId(string pawnId)
+        {
+            if (memoriesByPawnId.TryGetValue(pawnId, out var list))
+            {
+                return list;
+            }
+            return new List<WeightedMemory>();
         }
     }
 }

@@ -47,8 +47,8 @@ namespace RimSynapse.UI
         {
             var settings = RimSynapseMod.Instance.Settings;
             float h = 0f;
-            // 5 default standard providers (Local, OpenAI, Gemini, Claude, ElevenLabs)
-            h += 202f * 5;
+            // 7 default standard providers (Local, Jan, OpenAI, Gemini, Claude, ElevenLabs, Voicebox)
+            h += 202f * 7;
             // Pollinations (no model field, no test button)
             h += 146f;
             // Custom providers
@@ -71,8 +71,14 @@ namespace RimSynapse.UI
             Widgets.Label(new Rect(0, 0, inRect.width, 35f), "Customize LLM Providers");
             Text.Font = GameFont.Small;
             
-            Rect helpRect = new Rect(0, 35f, inRect.width, 24f);
+            Rect helpRect = new Rect(0, 35f, inRect.width - 150f, 24f);
             Widgets.Label(helpRect, "Configure endpoints, API keys, and models for text generation.");
+
+            Rect wikiBtnRect = new Rect(inRect.width - 140f, 35f, 140f, 24f);
+            if (Widgets.ButtonText(wikiBtnRect, "Open Setup Wiki"))
+            {
+                Find.WindowStack.Add(new Dialog_Wiki());
+            }
             
             var outRect = new Rect(0, 70f, inRect.width, inRect.height - 120f);
             viewHeight = CalculateViewHeight(outRect);
@@ -95,6 +101,12 @@ namespace RimSynapse.UI
             listing.GapLine();
             listing.Gap(12f);
             
+            string nJan = "Jan";
+            ProviderUIHelper.DrawProviderSection(listing, ref nJan, ApiProvider.Local_Jan, ref settings.janUrl, ref settings.janApiKey, ref settings.modelJan, ref settings.capsJan, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
+            
             ProviderUIHelper.DrawProviderSection(listing, ref nOpenAi, ApiProvider.OpenAI, ref settings.openAiUrl, ref settings.openAiApiKey, ref settings.modelOpenAi, ref settings.capsOpenAi, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
             listing.Gap(12f);
             listing.GapLine();
@@ -111,6 +123,12 @@ namespace RimSynapse.UI
             listing.Gap(12f);
             
             ProviderUIHelper.DrawProviderSection(listing, ref nEleven, ApiProvider.ElevenLabs, ref settings.elevenLabsUrl, ref settings.elevenLabsApiKey, ref settings.modelElevenLabs, ref settings.capsElevenLabs, true, null, isFetchingModels, fetchedModels, autoOpenMenu);
+            listing.Gap(12f);
+            listing.GapLine();
+            listing.Gap(12f);
+
+            string nVoicebox = "Voicebox";
+            ProviderUIHelper.DrawProviderSection(listing, ref nVoicebox, ApiProvider.Voicebox, ref settings.voiceboxUrl, ref settings.voiceboxApiKey, ref settings.modelVoicebox, ref settings.capsVoicebox, false, null, isFetchingModels, fetchedModels, autoOpenMenu);
             listing.Gap(12f);
             listing.GapLine();
             listing.Gap(12f);

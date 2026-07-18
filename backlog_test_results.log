@@ -1,0 +1,37 @@
+=================================================
+Starting RimSynapse Modularity backlogs tests...
+=================================================
+
+Running MOD-01: Base Mod Independence (No DLCs)...
+-> Mod list configured successfully.
+-> Killed active game process.
+-> Relaunched game. Waiting 20 seconds for startup logs...
+-> [PASSED] Mod loaded cleanly with zero startup errors.
+
+Running MOD-02: Royalty DLC Modularity...
+-> Mod list configured successfully.
+-> Killed active game process.
+-> Relaunched game. Waiting 20 seconds for startup logs...
+-> [PASSED] Mod loaded cleanly with zero startup errors.
+
+Running MOD-03: Ideology DLC Modularity...
+-> Mod list configured successfully.
+-> Killed active game process.
+-> Relaunched game. Waiting 20 seconds for startup logs...
+-> [PASSED] Mod loaded cleanly with zero startup errors.
+
+Running MOD-04: Biotech DLC Modularity...
+-> Mod list configured successfully.
+-> Killed active game process.
+-> Relaunched game. Waiting 20 seconds for startup logs...
+-> [PASSED] Mod loaded cleanly with zero startup errors.
+
+Running MOD-05: Anomaly DLC Modularity...
+-> Mod list configured successfully.
+-> Killed active game process.
+-> Relaunched game. Waiting 20 seconds for startup logs...
+-> [PASSED] Mod loaded cleanly with zero startup errors.
+
+================================================
+Backlog testing completed.
+================================================

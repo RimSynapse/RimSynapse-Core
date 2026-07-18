@@ -10,6 +10,7 @@ namespace RimSynapse.Internal.Providers
     public class OpenAiProvider : ILlmProvider
     {
         private readonly HttpClient _client;
+        private static bool _globalOmitResponseFormat = false;
 
         public OpenAiProvider(HttpClient client)
         {
@@ -34,71 +35,121 @@ namespace RimSynapse.Internal.Providers
                 }
                 foreach (var msg in request.Messages)
                 {
-                    messagesArray.Add(new JObject { ["role"] = msg.role, ["content"] = msg.content });
+                    var msgObj = new JObject { ["role"] = msg.role };
+                    if (msg.content != null)
+                    {
+                        msgObj["content"] = msg.content;
+                    }
+                    if (msg.role == "tool" && !string.IsNullOrEmpty(msg.tool_call_id))
+                    {
+                        msgObj["tool_call_id"] = msg.tool_call_id;
+                    }
+                    if (msg.role == "tool" && !string.IsNullOrEmpty(msg.name))
+                    {
+                        msgObj["name"] = msg.name;
+                    }
+                    if (msg.tool_calls != null && msg.tool_calls.Count > 0)
+                    {
+                        var tcArray = new JArray();
+                        foreach (var tc in msg.tool_calls)
+                        {
+                            tcArray.Add(new JObject
+                            {
+                                ["id"] = tc.id,
+                                ["type"] = tc.type,
+                                ["function"] = new JObject
+                                {
+                                    ["name"] = tc.function.name,
+                                    ["arguments"] = tc.function.arguments
+                                }
+                            });
+                        }
+                        msgObj["tool_calls"] = tcArray;
+                    }
+                    messagesArray.Add(msgObj);
                 }
 
-                var body = new JObject
-                {
-                    ["model"] = model,
-                    ["messages"] = messagesArray
-                };
-
-                if (request.MaxTokens.HasValue) body["max_tokens"] = request.MaxTokens.Value;
-                if (request.Temperature.HasValue) body["temperature"] = request.Temperature.Value;
+                bool omitResponseFormat = _globalOmitResponseFormat;
+                int maxRetries = 2;
+                int currentAttempt = 0;
                 
-                if (request.EnforceJson)
+                while (currentAttempt < maxRetries)
                 {
-                    body["response_format"] = new JObject { ["type"] = "json_object" };
+                    currentAttempt++;
+
+                    var body = new JObject
+                    {
+                        ["model"] = model,
+                        ["messages"] = messagesArray
+                    };
+
+                    if (request.MaxTokens.HasValue) body["max_tokens"] = request.MaxTokens.Value;
+                    if (request.Temperature.HasValue) body["temperature"] = request.Temperature.Value;
+                    
+                    if (request.EnforceJson && !omitResponseFormat)
+                    {
+                        body["response_format"] = new JObject { ["type"] = "json_object" };
+                    }
+
+                    if (request.Tools != null && request.Tools.Count > 0)
+                    {
+                        var toolsArray = new JArray();
+                        foreach (var tool in request.Tools)
+                        {
+                            toolsArray.Add(new JObject
+                            {
+                                ["type"] = "function",
+                                ["function"] = new JObject
+                                {
+                                    ["name"] = tool.name,
+                                    ["description"] = tool.description,
+                                    ["parameters"] = JToken.FromObject(tool.parameters)
+                                }
+                            });
+                        }
+                        body["tools"] = toolsArray;
+                    }
+
+                    string jsonBody = body.ToString(Formatting.None);
+                    SynapseLogger.TraceContext(jsonBody, url);
+
+                    var req = new HttpRequestMessage(HttpMethod.Post, url)
+                    {
+                        Content = new StringContent(jsonBody, Encoding.UTF8, "application/json"),
+                    };
+
+                    if (!string.IsNullOrEmpty(apiKey))
+                    {
+                        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                    }
+
+                    long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+                    
+                    var response = _client.SendAsync(req, cts.Token).Result;
+                    string responseBody = response.Content.ReadAsStringAsync().Result;
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest && responseBody.Contains("response_format") && !omitResponseFormat)
+                        {
+                            _globalOmitResponseFormat = true;
+                            omitResponseFormat = true;
+                            SynapseLogger.Warning("Endpoint rejected 'json_object' response_format. Retrying without it and disabling it for future requests...");
+                            continue;
+                        }
+
+                        long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
+                        var error = $"OpenAI-compatible endpoint returned {(int)response.StatusCode}: {responseBody}";
+                        SynapseLogger.Error(error);
+                        return ChatResult.Failure(error, dur);
+                    }
+                    
+                    // Break out of the retry loop on success
+                    return ProcessSuccessfulResponse(responseBody, model, startMs);
                 }
-
-                string jsonBody = body.ToString(Formatting.None);
-                SynapseLogger.TraceContext(jsonBody, url);
-
-                var req = new HttpRequestMessage(HttpMethod.Post, url)
-                {
-                    Content = new StringContent(jsonBody, Encoding.UTF8, "application/json"),
-                };
-
-                if (!string.IsNullOrEmpty(apiKey))
-                {
-                    req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-                }
-
-                long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
                 
-                var response = _client.SendAsync(req, cts.Token).Result;
-                string responseBody = response.Content.ReadAsStringAsync().Result;
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    long dur = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-                    var error = $"OpenAI-compatible endpoint returned {(int)response.StatusCode}: {responseBody}";
-                    SynapseLogger.Error(error);
-                    return ChatResult.Failure(error, dur);
-                }
-
-                var result = JObject.Parse(responseBody);
-                string content = null;
-                int promptTokens = 0;
-                int completionTokens = 0;
-
-                var choices = result["choices"] as JArray;
-                if (choices != null && choices.Count > 0)
-                {
-                    var message = choices[0]?["message"];
-                    content = message?["content"]?.ToString();
-                }
-
-                var usage = result["usage"];
-                if (usage != null)
-                {
-                    promptTokens = usage["prompt_tokens"]?.Value<int>() ?? 0;
-                    completionTokens = usage["completion_tokens"]?.Value<int>() ?? 0;
-                }
-
-                long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
-                return ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
+                return ChatResult.Failure("Exceeded max retries.");
             }
             catch (Exception ex)
             {
@@ -106,6 +157,38 @@ namespace RimSynapse.Internal.Providers
                 SynapseLogger.Error($"OpenAI Request failed: {error}");
                 return ChatResult.Failure(error);
             }
+        }
+        
+        private ChatResult ProcessSuccessfulResponse(string responseBody, string model, long startMs)
+        {
+            var result = JObject.Parse(responseBody);
+            string content = null;
+            int promptTokens = 0;
+            int completionTokens = 0;
+            JToken toolCallsToken = null;
+
+            var choices = result["choices"] as JArray;
+            if (choices != null && choices.Count > 0)
+            {
+                var message = choices[0]?["message"];
+                content = message?["content"]?.ToString();
+                toolCallsToken = message?["tool_calls"];
+            }
+
+            var usage = result["usage"];
+            if (usage != null)
+            {
+                promptTokens = usage["prompt_tokens"]?.Value<int>() ?? 0;
+                completionTokens = usage["completion_tokens"]?.Value<int>() ?? 0;
+            }
+
+            long durationMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - startMs;
+            var chatRes = ChatResult.Success(content, model, promptTokens, completionTokens, durationMs);
+            if (toolCallsToken != null)
+            {
+                chatRes.toolCalls = toolCallsToken.ToObject<System.Collections.Generic.List<ChatToolCall>>();
+            }
+            return chatRes;
         }
 
         public ChatResult SendVisionRequestSync(LlmVisionRequest request, string baseUrl, string apiKey, string model)

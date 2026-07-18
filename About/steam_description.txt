@@ -1,5 +1,5 @@
 [h1]RimSynapse - Core[/h1]
-[b]📚 [url=https://github.com/RimSynapse/RimSynapse-Core/wiki]Official Wiki and Documentation[/url][/b]
+[b]📚 [url=https://github.com/RimSynapse/Core/wiki]Official Wiki and Documentation[/url][/b]
 
 [b]The foundational LLM Connector for RimWorld.[/b]
 
@@ -51,12 +51,12 @@ The initial roadmap for RimSynapse is now complete! Future updates will focus on
 [h2]For Developers and Open Source[/h2]
 RimSynapse is an open-source framework designed to be easily hooked into by other modders. I highly encourage you to read the framework documentation and build your own LLM-driven mods!
 [list]
-[*] [url=https://github.com/RimSynapse/RimSynapse-Core]RimSynapse - Core Source and Docs[/url]
-[*] [url=https://github.com/RimSynapse/RimSynapse-Psychology]RimSynapse - Psychology Source[/url]
+[*] [url=https://github.com/RimSynapse/Core]RimSynapse - Core Source and Docs[/url]
+[*] [url=https://github.com/RimSynapse/Psychology]RimSynapse - Psychology Source[/url]
 [*] [url=https://github.com/RimSynapse/RimSynapse-Chat]RimSynapse - Chat Source[/url]
-[*] [url=https://github.com/RimSynapse/RimSynapse-Factions]RimSynapse - Factions Source[/url]
-[*] [url=https://github.com/RimSynapse/RimSynapse-WorldNews]RimSynapse - WorldNews Source[/url]
-[*] [url=https://github.com/RimSynapse/RimSynapse-NVIDIA-Tool]RimSynapse - NVIDIA Tool Source[/url]
+[*] [url=https://github.com/RimSynapse/Factions]RimSynapse - Factions Source[/url]
+[*] [url=https://github.com/RimSynapse/WorldNews]RimSynapse - WorldNews Source[/url]
+[*] [url=https://github.com/RimSynapse/NVIDIA-Tool]RimSynapse - NVIDIA Tool Source[/url]
 [/list]
 
 [h2]Compatibility Matrix[/h2]
