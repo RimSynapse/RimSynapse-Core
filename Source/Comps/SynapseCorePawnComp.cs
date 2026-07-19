@@ -31,6 +31,8 @@ namespace RimSynapse.Comps
         public string lastJobDefName;
         public int lastJobStartedTick = -1;
         private int locationSampleCooldown = 5;
+        public bool isResident = false;
+        public int lastRecruitmentAttemptTick = -999999;
 
         private const int TickIntervalDay = 60000;
         private const int TickInterval6Hours = 15000;
@@ -57,6 +59,8 @@ namespace RimSynapse.Comps
             Scribe_Values.Look(ref lastJobDefName, "lastJobDefName");
             Scribe_Values.Look(ref lastJobStartedTick, "lastJobStartedTick", -1);
             Scribe_Values.Look(ref locationSampleCooldown, "locationSampleCooldown", 5);
+            Scribe_Values.Look(ref isResident, "isResident", false);
+            Scribe_Values.Look(ref lastRecruitmentAttemptTick, "lastRecruitmentAttemptTick", -999999);
 
             Scribe_Values.Look(ref lastDecayTick, "lastDecayTick", -1);
             Scribe_Values.Look(ref lastOpinionTick, "lastOpinionTick", -1);
@@ -122,6 +126,51 @@ namespace RimSynapse.Comps
                 {
                     lastOpinionTick = currentTick;
                     SampleOpinions(pawn);
+                }
+
+                // Simulated cooking for resident NPC pawns
+                if (isResident && pawn.inventory != null)
+                {
+                    bool hasMeals = false;
+                    foreach (var item in pawn.inventory.innerContainer)
+                    {
+                        if (item.def.IsNutritionGivingIngestible && item.def.ingestible.preferability >= FoodPreferability.MealSimple)
+                        {
+                            hasMeals = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasMeals)
+                    {
+                        // Look for a campfire or stove nearby (radial 12 cells)
+                        bool hasCookingFacility = false;
+                        foreach (var c in GenRadial.RadialCellsAround(pawn.Position, 12f, true))
+                        {
+                            if (c.InBounds(pawn.Map))
+                            {
+                                var things = c.GetThingList(pawn.Map);
+                                foreach (var t in things)
+                                {
+                                    if (t.def == ThingDefOf.Campfire || t.def.defName.Contains("Stove") || t.def.defName.Contains("Cooker"))
+                                    {
+                                        hasCookingFacility = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (hasCookingFacility) break;
+                        }
+
+                        if (hasCookingFacility)
+                        {
+                            // Spawn simple meal in inventory
+                            Thing meal = ThingMaker.MakeThing(ThingDefOf.MealSimple);
+                            meal.stackCount = 1;
+                            pawn.inventory.innerContainer.TryAdd(meal);
+                            RimSynapse.SynapseLogger.Info("core", $"[Resident Cooking] {pawn.Name?.ToStringShort ?? pawn.Label} simulated cooking a Simple Meal near a cooking facility.");
+                        }
+                    }
                 }
             }
         }
