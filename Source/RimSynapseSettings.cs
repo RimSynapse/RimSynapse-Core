@@ -111,7 +111,7 @@ namespace RimSynapse
         public float shortTermMemoryHours = 48f;
 
         // --- Performance ---
-        public int timeoutSeconds = 120;
+        public int timeoutSeconds = 240;
         public int maxRequestsPerMinute = 30;
         public int maxConcurrentRequests = 2;
 
@@ -237,7 +237,7 @@ namespace RimSynapse
             Scribe_Values.Look(ref disableThinking, "disableThinking", true);
             Scribe_Values.Look(ref disableSafetyContextStripping, "disableSafetyContextStripping", false);
             Scribe_Values.Look(ref audioBoost, "audioBoost", 2.5f);
-            Scribe_Values.Look(ref timeoutSeconds, "timeoutSeconds", 120);
+            Scribe_Values.Look(ref timeoutSeconds, "timeoutSeconds", 240);
             Scribe_Values.Look(ref maxRequestsPerMinute, "maxRequestsPerMinute", 30);
             Scribe_Values.Look(ref maxConcurrentRequests, "maxConcurrentRequests", 2);
             Scribe_Values.Look(ref opportunisticThrottleMode, "opportunisticThrottleMode", -1);

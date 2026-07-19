@@ -184,6 +184,8 @@ namespace RimSynapse.UI
             if (routingId == RoutingId.LocalOnly)
             {
                 if (!string.IsNullOrEmpty(req.Options?.model)) return req.Options.model;
+                if (settings != null && settings.autoMapModel && !string.IsNullOrEmpty(ModelManager.ActiveModel))
+                    return ModelManager.ActiveModel;
                 return settings?.modelLocal ?? "Unknown";
             }
             

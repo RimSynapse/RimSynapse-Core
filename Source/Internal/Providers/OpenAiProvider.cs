@@ -124,7 +124,8 @@ namespace RimSynapse.Internal.Providers
                     }
 
                     long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+                    int timeoutSec = RimSynapseMod.Instance?.Settings != null ? RimSynapseMod.Instance.Settings.timeoutSeconds : 120;
+                    var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
                     
                     var response = _client.SendAsync(req, cts.Token).Result;
                     string responseBody = response.Content.ReadAsStringAsync().Result;
@@ -235,7 +236,8 @@ namespace RimSynapse.Internal.Providers
                 }
 
                 long startMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+                int timeoutSec = RimSynapseMod.Instance?.Settings != null ? RimSynapseMod.Instance.Settings.timeoutSeconds : 120;
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSec));
                 
                 var response = _client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token).Result;
                 
