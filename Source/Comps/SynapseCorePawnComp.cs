@@ -27,6 +27,9 @@ namespace RimSynapse.Comps
 
         private const int TickIntervalDay = 60000;
         private const int TickInterval6Hours = 15000;
+        
+        private int lastDecayTick = -1;
+        private int lastOpinionTick = -1;
 
         public override void PostExposeData()
         {
@@ -41,6 +44,9 @@ namespace RimSynapse.Comps
             
             Scribe_Collections.Look(ref thoughtSensitivities, "thoughtSensitivities", LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref relationSensitivities, "relationSensitivities", LookMode.Value, LookMode.Value);
+            
+            Scribe_Values.Look(ref lastDecayTick, "lastDecayTick", -1);
+            Scribe_Values.Look(ref lastOpinionTick, "lastOpinionTick", -1);
             
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
@@ -68,15 +74,27 @@ namespace RimSynapse.Comps
             
             if (parent is Pawn pawn && pawn.Spawned && !pawn.Dead)
             {
+                int currentTick = Find.TickManager.TicksGame;
+
                 // Memory decay once per day
-                if (pawn.IsHashIntervalTick(TickIntervalDay))
+                if (lastDecayTick == -1)
                 {
+                    lastDecayTick = currentTick;
+                }
+                else if (currentTick - lastDecayTick >= TickIntervalDay)
+                {
+                    lastDecayTick = currentTick;
                     DoMemoryDecay();
                 }
 
                 // Sample opinions periodically (e.g. every 6 in-game hours)
-                if (pawn.IsHashIntervalTick(TickInterval6Hours))
+                if (lastOpinionTick == -1)
                 {
+                    lastOpinionTick = currentTick;
+                }
+                else if (currentTick - lastOpinionTick >= TickInterval6Hours)
+                {
+                    lastOpinionTick = currentTick;
                     SampleOpinions(pawn);
                 }
             }
