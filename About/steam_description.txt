@@ -19,10 +19,14 @@ RimSynapse Core is a powerful, asynchronous background engine that natively conn
 
 ---
 
-[h2]Changelog (v0.5.0)[/h2]
+[h2]Changelog (v0.5.1)[/h2]
 [list]
-[*] [b]Multi-Provider LLM Balancing:[/b] Enhanced multi-provider load balancing and capabilities filtering.
-[*] [b]Full RimWorld 1.6 & DLC Compatibility:[/b] Deep optimizations to support active storytellers across all official expansions.
+[*] [b]NEW: API-Level Thinking Controls:[/b] Support for OpenAI/LM Studio reasoning and thinking tokens configuration in mod options.
+[*] [b]NEW: Historical Records & Letter Archival:[/b] Automatically generates "Colony Established" and "Colony Named" ceremony event records and sends letter alerts.
+[*] [b]NEW: Stele Links stored in Core:[/b] Moved Stele Link monument bindings and colony ceremony logs to `SynapseCoreWorldComponent` for unified tracking.
+[*] [b]NEW: Resident Life Support:[/b] Resident pawns will cook simple meals in their inventories near heat sources if low on food.
+[*] [b]Pawn-level Job Tracking:[/b] Relocated job and location tracking to per-pawn `SynapseCorePawnComp` (`CompTickRare`) to optimize CPU usage.
+[*] [b]Idle Backstory memory queueing:[/b] Resident pawns are flagged as high-priority, queueing backstory generation in background cycles.
 [/list]
 
 ---
