@@ -4,7 +4,7 @@
     <author>RimSynapse Team</author>
     <packageId>RimSynapse.Core</packageId>
     <url>https://github.com/RimSynapse/Core</url>
-    <modVersion>0.5.0</modVersion>
+    <modVersion>0.5.1</modVersion>
     <supportedVersions>
         <li>1.5</li>
         <li>1.6</li>
@@ -84,9 +84,13 @@ RimSynapse is an open-source framework designed to be easily hooked into by othe
 - Biotech DLC: Compatible and Optional. Integrates xenotypes, mechinators, and genetic history if active. Describes mechanitor threats as cold satellite broadcasts.
 - Anomaly DLC: Compatible and Optional. Integrates entity encounters and void studies if active. Translates events into chilling whispers and void phenomena.
 
---- Requirements ---
+--- Requirements and Setup ---
 - Harmony is required.
-- You must be running a local LLM server (like LM Studio or Ollama). We recommend 8B+ parameter models for optimal reasoning.
+- You must be running a local LLM server (like LM Studio or Ollama). We recommend 8B+ parameter models.
+- IMPORTANT: If you are using a reasoning model (such as DeepSeek-R1, or reasoning variants of Gemma and Qwen), they will generate a long chain of thought before responding. This can cause latency of 30-40 seconds per request.
+  - To disable thinking in LM Studio: Go to the "My Models" tab, select your active model, and in the right-hand "Inference Settings" panel, toggle "Enable Thinking" to OFF.
+  - To disable thinking in Ollama and vLLM: Check the "Disable thinking/reasoning" option under RimSynapse Core mod settings in-game.
+  - For the fastest, instant responses (2-3 seconds), we recommend using standard non-reasoning "Instruct" models (such as gemma-2-9b-it or llama-3-8b-instruct).
 
 --- Support the Project ---
 If you enjoy this framework and want to support the development of genuine AI-driven gameplay, consider buying me a coffee!

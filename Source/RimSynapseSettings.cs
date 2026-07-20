@@ -154,6 +154,8 @@ namespace RimSynapse
         public bool qmShowTarget = true;
         public bool qmShowTask = true;
         public bool qmShowAge = true;
+        public bool qmShowQueued = true;
+        public bool qmShowLatency = true;
         
         public bool qmShowStatus = false;
         public bool qmShowScore = false;
@@ -302,6 +304,18 @@ namespace RimSynapse
 
             Scribe_Values.Look(ref qmShowTask, "qmShowTask", true);
             Scribe_Values.Look(ref qmShowAge, "qmShowAge", true);
+            
+            // Backward compatibility for timing columns
+            if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                bool oldAge = true;
+                Scribe_Values.Look(ref oldAge, "qmShowAge", true);
+                qmShowQueued = oldAge;
+                qmShowLatency = oldAge;
+            }
+            
+            Scribe_Values.Look(ref qmShowQueued, "qmShowQueued", true);
+            Scribe_Values.Look(ref qmShowLatency, "qmShowLatency", true);
             
             Scribe_Values.Look(ref qmShowStatus, "qmShowStatus", false);
             Scribe_Values.Look(ref qmShowScore, "qmShowScore", false);

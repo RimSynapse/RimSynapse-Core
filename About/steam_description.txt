@@ -38,10 +38,16 @@ RimSynapse Core is a powerful, asynchronous background engine that natively conn
 
 ---
 
-[h2]Requirements[/h2]
+[h2]Requirements and Setup[/h2]
 [list]
 [*] Harmony
-[*] A local LLM server (like LM Studio or Ollama). We recommend 8B+ parameter models for optimal reasoning.
+[*] A local LLM server (like LM Studio or Ollama). We recommend 8B+ parameter models.
+[*] [b]IMPORTANT: Reasoning Models (DeepSeek-R1, Gemma-QAT, etc.):[/b] These models generate internal "chain-of-thought" (reasoning) tokens before outputting the final response. This can add significant latency (30-40 seconds per request) on local setups.
+[list]
+[*] [b]To disable thinking in LM Studio:[/b] Go to the "My Models" tab, select your active model, and in the right-hand "Inference Settings" panel, toggle "Enable Thinking" to OFF.
+[*] [b]To disable thinking in Ollama and vLLM:[/b] Check the "Disable thinking/reasoning" option under RimSynapse Core settings in-game.
+[*] For the fastest, instant responses (2-3 seconds), we recommend using standard non-reasoning "Instruct" models (such as gemma-2-9b-it or llama-3-8b-instruct).
+[/list]
 [/list]
 
 ---
